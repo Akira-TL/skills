@@ -54,6 +54,7 @@ def check_skills() -> int:
 
     for skill_file in skill_files():
         relative = skill_file.relative_to(REPO_ROOT)
+        category = relative.parts[0]
         directory_name = skill_file.parent.name
         metadata = parse_frontmatter(skill_file)
         name = metadata.get("name", "")
@@ -71,6 +72,12 @@ def check_skills() -> int:
         if name:
             names[name] += 1
 
+        if category in STABLE_CATEGORIES:
+            doc = REPO_ROOT / "docs" / category / f"{directory_name}.md"
+            if not doc.is_file():
+                fail(f"{relative}: 稳定 Skill 缺少 {doc.relative_to(REPO_ROOT)}")
+                failed = True
+
     for name, count in sorted(names.items()):
         if count > 1:
             fail(f"Skill name 重复：{name} × {count}")
@@ -80,8 +87,18 @@ def check_skills() -> int:
         fail("仓库中没有发现 SKILL.md")
         failed = True
 
+    for doc in sorted((REPO_ROOT / "docs").glob("*/*.md")):
+        relative = doc.relative_to(REPO_ROOT)
+        category = relative.parts[1]
+        if category not in STABLE_CATEGORIES:
+            continue
+        skill = REPO_ROOT / category / doc.stem / "SKILL.md"
+        if not skill.is_file():
+            fail(f"{relative}: 没有对应的 {skill.relative_to(REPO_ROOT)}")
+            failed = True
+
     if not failed:
-        ok(f"Skill 结构正常，共 {len(skill_files())} 个 Skill")
+        ok(f"Skill 结构与文档映射正常，共 {len(skill_files())} 个 Skill")
     return 1 if failed else 0
 
 

@@ -19,6 +19,14 @@ skills/
 
 每个正式 Skill 的 runtime source 位于 `<category>/<skill-name>/SKILL.md`。可选的 reference 与 `SKILL.md` 同目录保存，并由正文显式引用。
 
+## 当前 Skills
+
+- `engineering/devspace-orchestration`：DevSpace 多 Agent、tmux 与 Git worktree 编排。
+- `productivity/general-word-document-generation`：Word 原生语义的正式 DOCX 生成与修订。
+- `productivity/visible-browser-form-automation`：WSL 控制用户可见 Windows Chrome 的表单自动化。
+
+对应用户文档位于 `docs/<category>/<skill-name>.md`。
+
 ## 安装
 
 直接从 GitHub 安装指定 Skill：
@@ -47,7 +55,7 @@ npx skills add . --list
 uv run scripts/guard.py check
 ```
 
-Guard 负责检查 Skill 目录名、frontmatter、重复名称以及基础仓库结构。稳定 Skill 的用户文档统一放在 `docs/<category>/<skill-name>.md`。
+Guard 负责检查 Skill 目录名、frontmatter、重复名称、基础仓库结构，以及稳定 Skill 与 `docs/<category>/<skill-name>.md` 的一一映射。
 
 ## 与 Akira Lattice 的关系
 
