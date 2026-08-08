@@ -19,6 +19,6 @@
 
 ## 检查与提交
 
-- 本仓库机械检查入口是 `uv run scripts/guard.py check`。
+- 本仓库不维护独立 Guard；机械检查与正式 Git 提交统一使用 Akira Lattice 投射到 `~/.agents/scripts/` 的全局入口，例如 `uv run ~/.agents/scripts/guard.py check`。
 - 修改稳定 Skill 时同步修改对应 `docs/` 文档；发布行为变化时记录到仓库变更说明（若当前维护）。
 - Git 原子提交、diff ownership 与提交信息继续遵守加载到 Agent 的全局 Git 规则；不得因为本仓库独立而降低提交标准。

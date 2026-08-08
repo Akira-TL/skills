@@ -13,7 +13,6 @@ skills/
 ├── in-progress/      # 尚未稳定的 Skill
 ├── deprecated/       # 已弃用但保留迁移说明的 Skill
 ├── docs/             # 面向使用者的 Skill 文档
-├── scripts/          # 本仓库机械 Guard
 └── AGENTS.md         # 本仓库维护规则
 ```
 
@@ -49,13 +48,13 @@ npx skills add . --list
 
 ## 检查
 
-使用仓库自己的 Guard：
+本仓库不维护第二份 Guard。维护环境统一使用 Akira Lattice 安装到 `~/.agents/scripts/` 的全局入口：
 
 ```bash
-uv run scripts/guard.py check
+uv run ~/.agents/scripts/guard.py check
 ```
 
-Guard 负责检查 Skill 目录名、frontmatter、重复名称、基础仓库结构，以及稳定 Skill 与 `docs/<category>/<skill-name>.md` 的一一映射。
+全局 Guard 根据当前仓库识别并检查 Skill 目录名、frontmatter、重复名称，以及稳定 Skill 与 `docs/<category>/<skill-name>.md` 的一一映射。
 
 ## 与 Akira Lattice 的关系
 
