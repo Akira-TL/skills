@@ -2,9 +2,22 @@
 
 本文件存放 `visible-browser-form-automation` 的实现细节。主 Skill 只在需要建立 WSL → Windows Chrome 的 CDP 通路、检查动态表单或处理上传控件时加载本参考。
 
-## 1. Windows Chrome 启动模式
+## 1. Windows Chrome 持久实例模式
 
-先探测 Chrome 的实际路径。常见位置包括：
+默认控制面固定为：
+
+```text
+CDP: http://localhost:9222
+Profile: %USERPROFILE%\.agent-browser\chrome-profile
+```
+
+每次任务先检查现有实例：
+
+```bash
+curl -fsS http://localhost:9222/json/version
+```
+
+命令成功时直接复用，不再启动 Chrome。只有 CDP 不可达时，才探测 Chrome 的实际路径。常见位置包括：
 
 ```text
 C:\Program Files\Google\Chrome\Application\chrome.exe
@@ -13,24 +26,31 @@ C:\Program Files (x86)\Google\Chrome\Application\chrome.exe
 
 从 WSL 调用时，对应路径通常位于 `/mnt/c/Program Files/...`。
 
-建议使用独立 profile：
+使用固定的持久专用 Profile：
 
 ```powershell
+$agentProfile = Join-Path $env:USERPROFILE ".agent-browser\chrome-profile"
+
 Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" -ArgumentList @(
+  "--remote-debugging-address=127.0.0.1",
   "--remote-debugging-port=9222",
-  "--user-data-dir=C:\Temp\agent-browser",
+  "--user-data-dir=$agentProfile",
   "https://example.com"
 )
 ```
 
-不要对用户默认 Chrome profile 直接开放 CDP。现代 Chrome 也会限制对默认数据目录使用远程调试参数，因此专用 `--user-data-dir` 同时是安全和兼容性要求。
+这个目录不是临时目录。首次登录飞书、问卷平台或其他站点后，Cookie 和站点登录态留在该 Profile 中，后续 CDP 会话继续复用。浏览器被关闭后也应使用同一路径重新启动，不能换新目录。
 
-## 2. 从 WSL 验证 CDP
+不要对用户默认 Chrome Profile 直接开放 CDP。现代 Chrome 也会限制对默认数据目录使用远程调试参数，因此专用 `--user-data-dir` 同时是安全和兼容性要求。
+
+## 2. 从 WSL 发现并复用 CDP
 
 ```bash
-curl -s http://localhost:9222/json/version
-curl -s http://localhost:9222/json/list
+curl -fsS http://localhost:9222/json/version
+curl -fsS http://localhost:9222/json/list
 ```
+
+第一条命令也是生命周期探针：成功则复用现有 Agent Chrome；失败才启动同一专用 Profile。不要把“建立新 WebSocket 连接”和“启动新浏览器”混为一件事，前者可以按页面目标重新建立，后者只在浏览器实例不存在时发生。
 
 `/json/version` 应包含：
 
@@ -48,7 +68,7 @@ url: 目标网址
 webSocketDebuggerUrl: ws://127.0.0.1:9222/devtools/page/...
 ```
 
-如果存在浏览器扩展 background page、service worker、omnibox popup，不要误把它们当成目标标签页。
+如果存在浏览器扩展 background page、service worker、omnibox popup，不要误把它们当成目标标签页。优先匹配已有目标 URL 或标题；没有目标页时，在当前 Agent Chrome 实例中导航或打开新标签页，不再创建另一套 Profile/Chrome 实例。
 
 ## 3. 没有 Playwright 时直接调用 CDP
 
@@ -224,7 +244,13 @@ Get-ChildItem "$env:USERPROFILE\Downloads" |
 
 如果用户要求“先不要提交”，最可靠的验收证据是：关键字段值已经填好、页面 URL 仍是填写页、提交按钮未触发、用户能在可视化 Chrome 中直接检查。
 
-## 12. 本次问卷星实践得到的经验
+## 12. 登录态与任务结束
+
+首次进入需要认证的网站时，由用户在专用 Agent Chrome 内完成登录。登录后保留该浏览器和 Profile，单次任务完成只断开自动化操作，不清除 Cookie、不删除 Profile，也不因为“任务结束”主动关闭专用浏览器。
+
+如果网站自己让会话过期、撤销设备登录或要求二次认证，才再次让用户处理登录；这属于站点认证生命周期，不应通过创建新 Profile 解决。
+
+## 13. 本次问卷星实践得到的经验
 
 在问卷星类动态问卷中，页面初始只显示顶层问题；选择“有”后，后续日期、交通工具、金额和发票号才会显示。实际操作应先点击上游单选，再读取新出现的 DOM。
 

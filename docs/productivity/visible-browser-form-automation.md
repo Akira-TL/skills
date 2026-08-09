@@ -4,7 +4,7 @@
 
 该 Skill 用于“Agent 自动操作网页，但用户仍要实时看到浏览器，并在最终提交前人工复核”的任务。
 
-当前验证过的典型拓扑是：WSL 中运行 Agent 和自动化逻辑，Windows Chrome 以独立临时 Profile 启动并开放本机 Chrome DevTools Protocol（CDP）端口，WSL 通过 `localhost` 连接该浏览器。用户看到的是实际被 Agent 操作的 Windows Chrome，而不是截图回放或不可交互的 headless 页面。
+当前默认拓扑是：WSL 中运行 Agent 和自动化逻辑，Windows Chrome 使用固定的持久专用 Profile `%USERPROFILE%\.agent-browser\chrome-profile`，并开放本机 Chrome DevTools Protocol（CDP）端口 `9222`。每次任务先检查 `localhost:9222`，已有实例就直接复用；只有实例不存在时才用同一个 Profile 重启。用户看到的是实际被 Agent 操作的 Windows Chrome，而登录 Cookie 和站点状态会跨任务保留。
 
 这种方式特别适合问卷、报销、报名、申请等表单。Agent 可以完成字段勘察、条件题展开、金额和编号填写、页面滚动和状态检查；用户可以保留验证码、敏感附件、截图上传和最终提交等步骤。
 
@@ -14,7 +14,7 @@
 
 第一，用户要求“无头自动化但必须可视化”时，不应机械坚持真正的 `--headless`。真正 headless 浏览器本身没有可直接观察的窗口。更合适的实现是让 Windows Chrome 保持有头运行，把自动化控制面放在 WSL。
 
-第二，Windows Chrome 应使用独立 `--user-data-dir` 启动远程调试实例。这样不会污染用户日常 Profile，也符合现代 Chrome 对远程调试的安全限制。WSL 中可以通过 `http://localhost:9222/json/version` 和 `/json/list` 验证连接，并从多个 background page、service worker、omnibox popup 中筛选真正的目标 `type=page` 标签页。
+第二，Windows Chrome 应使用**固定持久**的独立 `--user-data-dir` 启动远程调试实例，而不是每次创建临时 Profile。这样既不会污染用户日常 Profile，也能保存飞书等网站的登录态。WSL 中先通过 `http://localhost:9222/json/version` 判断专用浏览器是否已经运行：成功就复用，不再启动第二个 Chrome；随后用 `/json/list` 从多个 background page、service worker、omnibox popup 中筛选真正的目标 `type=page` 标签页。
 
 第三，动态问卷不能按输入框索引盲填。实际页面中，选择“有城际交通需要报销”后，日期、交通工具、金额、发票号等后续题目才出现。正确流程是先读取正文和控件元数据，再点击上游单选，之后重新读取可见 DOM。
 
@@ -26,17 +26,19 @@
 
 第七，“先不要提交”必须视为硬边界。自动化可以填表、检查和滚动，但不能点击提交按钮、调用 `form.submit()`、调用站点提交函数或通过 Enter 意外触发提交。任务交还用户前应再次读取关键值，并确认页面仍处于填写页。
 
+第八，专用 Agent Chrome 默认跨任务常驻。单次任务结束不关闭浏览器、不删除 Profile、不清 Cookie。后续任务重新读取 `/json/list` 获取当前页面 WebSocket 即可；页面级 WebSocket 可以重新建立，但浏览器实例和 Profile 不需要重新创建。若用户手动关闭浏览器或系统重启，则仍以同一个专用 Profile 启动，因此正常情况下不需要再次登录。
+
 ## 推荐工作流
 
-1. 探测 Windows Chrome 路径和 WSL 网络状态。
-2. 用独立临时 Profile 启动 Windows Chrome，并开放仅本机可访问的 CDP 端口。
-3. 从 WSL 验证 `/json/version` 和 `/json/list`。
-4. 找到目标页面的 WebSocket 调试地址。
-5. 读取页面正文、输入控件、问题容器和文件上传属性。
-6. 按真实页面交互顺序展开条件题并填写。
+1. 先访问 `http://localhost:9222/json/version` 检查专用 Agent Chrome 是否已经运行。
+2. 已运行则直接复用；未运行才探测 Chrome 路径，并以 `%USERPROFILE%\.agent-browser\chrome-profile` 启动 `9222` CDP 实例。
+3. 读取 `/json/list`，优先复用目标 URL/标题对应的现有标签页；没有时在同一个浏览器实例中打开目标页。
+4. 找到目标页面的 WebSocket 调试地址并建立页面级 CDP 连接。
+5. 读取页面正文、动态列表、输入控件、问题容器和文件上传属性。
+6. 按真实页面交互顺序抓取、展开条件题或填写。
 7. 对姓名、日期、金额、编号等关键字段进行回读校验。
-8. 在文件上传限制、验证码、隐私确认等环节按需交还用户。
-9. 把页面停在用户容易复核的位置。
+8. 在登录、文件上传限制、验证码、隐私确认等环节按需交还用户。
+9. 把页面停在用户容易复核的位置；单次任务结束后保留专用 Chrome 和 Profile。
 10. 只有在用户随后明确授权后，才执行提交、发送、付款、发布等最终动作。
 
 ## 技术实现

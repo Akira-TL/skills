@@ -1,7 +1,7 @@
 ---
 name: visible-browser-form-automation
-summary: 在 Agent 自动操作网页表单时保留用户可见浏览器，优先让 WSL 中的自动化通过 Chrome DevTools Protocol 控制 Windows Chrome，并在提交、付款、发送等不可逆动作前停下等待用户确认。
-description: 用于需要“Agent 自动填写或检查网页，但用户要在 Windows 上实时看到页面”的浏览器任务；尤其适用于 WSL 中运行自动化、Windows Chrome 提供可视化界面的场景。也用于表单存在条件题、文件上传、动态 DOM 或需要严格禁止自动提交的工作流。
+summary: 在 WSL 中通过 Chrome DevTools Protocol 控制 Windows Chrome，固定复用一个持久专用 Profile 保存登录态，并在提交、付款、发送等不可逆动作前停下等待用户确认。
+description: 用于需要 Agent 控制 Windows 上可见 Chrome 的网页任务；包括登录后页面抓取、网页检查和自动填写，尤其适用于 WSL 中运行自动化、需要长期复用登录态、动态 DOM、文件上传或严格禁止自动提交的工作流。
 ---
 
 # 可视化浏览器表单自动化 Skill
@@ -10,34 +10,45 @@ description: 用于需要“Agent 自动填写或检查网页，但用户要在 
 
 本 Skill 用于执行“Agent 自动操作网页，同时用户能实时观察并在最终动作前复核”的浏览器任务。
 
-默认架构是：自动化逻辑运行在 WSL，浏览器运行在 Windows，二者通过 Chrome DevTools Protocol（CDP）连接。这样既保留脚本化控制能力，又避免真正 headless 浏览器不可直接查看的问题。
+默认架构是：自动化逻辑运行在 WSL，Windows Chrome 使用一个**持久专用 Profile** 运行，并固定开放 Chrome DevTools Protocol（CDP）控制端口。后续任务先复用现有 CDP 实例；只有实例不存在时才用同一个 Profile 重新启动。这样既保留脚本化控制能力，也让网站 Cookie、登录态和授权状态跨任务保留。
 
-本 Skill 的核心不是追求无界面运行，而是建立“可观察、可复核、可中止”的自动化闭环。
+本 Skill 的核心是建立“一个专用浏览器环境、长期复用控制通道、用户可观察且关键动作可复核”的自动化闭环。
 
 ## 二、适用场景
 
 优先在以下情况调用本 Skill：
 
-1. 用户要求自动填写问卷、报销表、申请表、报名表或其他网页表单，并明确要求不要立即提交。
-2. Agent 运行在 WSL、SSH、DevSpace 或其他 Linux 环境，但用户希望在 Windows 桌面直接看到被操作的浏览器。
-3. 页面包含条件显示题、单选触发后续字段、只读日期框、动态表格、上传控件或其他需要 DOM 勘察的交互。
-4. 用户希望先让 Agent 完成大部分机械填写，再由自己上传敏感文件、截图、验证码或完成最后确认。
+1. 用户要求读取、检查或抓取需要登录的网页，并希望登录一次后后续任务继续复用登录态。
+2. 用户要求自动填写问卷、报销表、申请表、报名表或其他网页表单，并明确要求不要立即提交。
+3. Agent 运行在 WSL、SSH、DevSpace 或其他 Linux 环境，但用户希望在 Windows 桌面直接看到被操作的浏览器。
+4. 页面包含条件显示题、动态列表、虚拟滚动、只读日期框、上传控件或其他需要 DOM 勘察的交互。
+5. 用户希望先让 Agent 完成机械操作，再由自己处理验证码、二次认证、敏感附件或最终确认。
 
-如果用户只要求无头抓取、测试或批量爬取，且无需人工观察，不必为了本 Skill 强行启用可视化浏览器。
+如果用户只要求无头抓取、测试或批量爬取，且无需登录态复用或人工观察，不必为了本 Skill 强行启用可视化浏览器。
 
 ## 三、浏览器拓扑选择
 
-### 3.1 首选：WSL 控制 Windows Chrome
+### 3.1 首选：持久专用 Profile + Windows Chrome CDP
 
-在 Windows Chrome 上启用远程调试端口，并使用独立的临时用户数据目录。自动化进程通过 `http://localhost:<port>` 或对应 WebSocket 调试地址连接。
+固定使用一个只供 Agent 控制的持久 Profile。默认建议路径为：
 
-必须使用独立 profile。不要对用户日常使用的默认 Chrome profile 直接开启远程调试，也不要复用包含个人登录状态、扩展数据和长期 Cookie 的默认目录。
+```text
+%USERPROFILE%\.agent-browser\chrome-profile
+```
+
+固定 CDP 端口优先使用 `9222`。每次网页任务开始时，**先访问 `http://localhost:9222/json/version`**：
+
+- 能访问：直接复用当前浏览器实例和登录态，禁止再次启动 Chrome；
+- 不能访问：探测 Chrome 实际路径，然后使用同一个持久 Profile 启动调试实例；
+- 浏览器被用户关闭、崩溃或系统重启后：仍用同一个 Profile 重启，因此 Cookie 和登录态继续保留。
 
 Windows Chrome 启动形态示例：
 
 ```text
-chrome.exe --remote-debugging-port=9222 --user-data-dir=C:\Temp\agent-browser <URL>
+chrome.exe --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 --user-data-dir="C:\Users\<USER>\.agent-browser\chrome-profile" <URL>
 ```
+
+专用 Profile 与用户日常 Chrome Profile 必须隔离。首次遇到需要登录的网站时，让用户在这个专用窗口中完成登录；后续只有网站自身会话过期时才需要重新认证，不能因为 Agent 重建 Profile 而要求用户重复登录。
 
 从 WSL 调起 Windows 程序时，可以通过 PowerShell 或直接执行挂载到 `/mnt/c` 下的 `chrome.exe`。具体路径应先探测，不得假定所有机器都安装在同一个目录。
 
@@ -51,13 +62,13 @@ chrome.exe --remote-debugging-port=9222 --user-data-dir=C:\Temp\agent-browser <U
 
 只有当 WSLg 和 Windows Chrome 都不可用时，才考虑 Xvfb、x11vnc、noVNC 或类似虚拟桌面方案。该方案复杂度更高，不应作为默认路径。
 
-## 四、建立 CDP 连接
+## 四、复用并建立 CDP 连接
 
-1. 启动独立 Windows Chrome 调试实例。
-2. 从自动化环境访问 `http://localhost:9222/json/version`，确认能获得浏览器版本和 `webSocketDebuggerUrl`。
-3. 访问 `http://localhost:9222/json/list`，找到目标页面的 `type=page` 条目。
-4. 使用 Playwright 的 CDP 接口，或直接使用 WebSocket 调用 CDP。
-5. 如果本地没有 Playwright，不要为了一个简单表单任务立刻引入大型依赖。Python 的 `websocket` / `websockets` 加 `Runtime.evaluate`、`Page.*`、`DOM.*` 通常足够完成勘察和填写。
+1. 先请求 `http://localhost:9222/json/version`。成功即表示专用 Agent Chrome 已在运行，直接进入下一步；不得再次启动第二个实例。
+2. 若连接失败，使用固定持久 Profile 启动 Windows Chrome，然后再次验证 `/json/version`，直到获得浏览器版本和 `webSocketDebuggerUrl`。
+3. 访问 `http://localhost:9222/json/list`，优先复用 URL 或标题匹配的 `type=page` 标签页；没有匹配页时，只在**同一个浏览器实例**中打开或导航到目标 URL。
+4. 使用 Playwright 的 CDP 接口，或直接使用 WebSocket 调用 CDP。任务之间复用的是浏览器实例与 Profile，不要求长期持有同一条页面 WebSocket；页面目标变化时重新从 `/json/list` 获取最新地址即可。
+5. 如果本地没有 Playwright，不要为了简单任务立刻引入大型依赖。Python 的 `websocket` / `websockets` 加 `Runtime.evaluate`、`Page.*`、`DOM.*` 通常足够完成勘察、抓取和填写。
 
 如果 WSL 中的 `localhost` 无法访问 Windows 调试端口，再检查 WSL 网络模式和 Windows 防火墙。只有在确有必要时才让 Chrome 监听非 localhost 地址；远程调试端口属于高权限控制面，不应无保护暴露到局域网。
 
@@ -137,8 +148,8 @@ chrome.exe --remote-debugging-port=9222 --user-data-dir=C:\Temp\agent-browser <U
 
 Agent 应完成可机械化部分，把页面停在准确位置，并清楚报告“已完成什么、还剩什么、没有触发什么”。
 
-## 十一、任务结束
+## 十一、任务结束与浏览器生命周期
 
-用户确认任务完成后，可以关闭专用浏览器实例或保留给用户继续检查。不要主动关闭用户日常 Chrome。
+专用 Agent Chrome 默认**跨任务常驻并复用**。单次网页任务结束时只结束当前自动化操作，不主动关闭专用浏览器，不删除持久 Profile，也不清除 Cookie、站点数据或登录态。
 
-临时 profile 可以在用户确认不再需要后清理；在任务尚未完成或可能需要复核时不要提前删除。
+后续任务再次调用本 Skill 时，从 `localhost:9222` 重新发现现有实例和目标标签页即可，不需要重复创建浏览器控制环境。只有用户明确要求关闭或清理 Agent 浏览器时，才结束实例或删除专用 Profile；用户日常 Chrome 始终不在本 Skill 的清理范围内。
