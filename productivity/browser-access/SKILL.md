@@ -62,9 +62,9 @@ description: 用于需要 Agent 进入动态或已登录网页、控制用户可
 
 ### 4.2 Persistent Profile
 
-任何自行启动的浏览器都应指定固定的持久 Profile。浏览器关闭、崩溃或系统重启后，仍以同一个 Profile 恢复；不能为了方便重新建立临时目录导致用户反复登录。
+任何由本 Skill 自行创建的专用浏览器 Profile，统一使用固定 identity：`agent-browser`。浏览器关闭、崩溃或系统重启后，仍以这个 Profile 恢复；不能为了方便重新建立临时目录导致用户反复登录。
 
-用户日常 Profile 与专用 Agent Profile 默认隔离。只有用户明确授权直接控制某个现有 Profile 时才连接它，而且后续始终绑定同一个 Profile identity。
+具体浏览器可以把 `agent-browser` 映射到自己的持久 data directory，但 identity 不变。用户日常 Profile 与该专用 Agent Profile 默认隔离。只有用户明确授权直接控制某个现有 Profile 时才连接它，而且后续始终绑定同一个既有 Profile identity，而不是把它重命名为 `agent-browser`。
 
 ### 4.3 登录与人工接管
 

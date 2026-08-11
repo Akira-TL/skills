@@ -22,7 +22,7 @@ Windows Chrome/CDP 是当前 Akira 环境中验证过的一个实现，但不是
 
 用户同意后，在当前对话中将同一个浏览器 + Profile 视为已批准的 `Browser Grant`。后续继续使用该控制目标时不重复询问；只有换浏览器、换 Profile 或明显扩大控制权限时才重新获得授权。
 
-自行启动的浏览器必须使用固定持久 Profile，而不是每次创建临时目录。浏览器关闭或系统重启后继续用同一个 Profile 恢复登录态。用户日常 Profile 与专用 Agent Profile 默认隔离，只有用户明确授权时才连接现有个人 Profile。
+自行启动的浏览器必须使用固定持久 Profile，而不是每次创建临时目录。统一的逻辑 Profile identity 为 `agent-browser`；各浏览器 adapter 将它映射到自己的持久 data directory。浏览器关闭或系统重启后继续用同一个 Profile 恢复登录态。用户日常 Profile 与专用 Agent Profile 默认隔离，只有用户明确授权时才连接现有个人 Profile。
 
 ## 登录与人机协作
 
@@ -59,7 +59,8 @@ Agent 可以打开登录入口、选择机构登录、定位验证码区域并�
 
 ```text
 CDP: http://localhost:9222
-Profile: %USERPROFILE%\.agent-browser\chrome-profile
+Profile identity: agent-browser
+Profile directory: %USERPROFILE%\.agent-browser\profile
 ```
 
 使用前先检查现有 CDP 实例；存在就复用，不存在才以同一 Profile 启动 Chrome。完整的 CDP 连接、DOM 表达式、网络资源解析、跨系统上传路径和问卷实践经验位于：

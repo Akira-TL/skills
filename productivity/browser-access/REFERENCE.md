@@ -10,7 +10,8 @@
 
 ```text
 CDP: http://localhost:9222
-Profile: %USERPROFILE%\.agent-browser\chrome-profile
+Profile identity: agent-browser
+Profile directory: %USERPROFILE%\.agent-browser\profile
 ```
 
 每次任务先检查现有实例：
@@ -31,7 +32,7 @@ C:\Program Files (x86)\Google\Chrome\Application\chrome.exe
 使用固定的持久专用 Profile：
 
 ```powershell
-$agentProfile = Join-Path $env:USERPROFILE ".agent-browser\chrome-profile"
+$agentProfile = Join-Path $env:USERPROFILE ".agent-browser\profile"
 
 Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" -ArgumentList @(
   "--remote-debugging-address=127.0.0.1",
