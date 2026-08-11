@@ -11,8 +11,10 @@ description: 用于需要真正取得论文原文而不是只读取标题或摘�
 ## 核心边界
 
 - 本 Skill 只处理 **access**：从 citation / DOI / PMID / PMCID / URL 到全文 artifact。
-- 文献检索、筛选、证据抽取和综述属于上层科研 Skill，不在这里完成。
-- 浏览器只用于动态页面解析、用户授权访问和资源请求解析；浏览器发现、Profile、登录和人机协作由当前环境可用的浏览器能力负责。
+- 允许为了取得一篇**已经确定身份的目标论文**执行 exact-work resolution search，例如用 DOI、PMID、完整标题或作者 + 年份寻找 publisher、repository、开放副本或全文入口。
+- 不负责从研究主题发现候选论文，也不负责筛选、证据抽取、研究笔记、论文关系图或研究项目管理；这些属于上层科研 Skill。
+- 优先使用当前环境已有的 WebFetch / HTTP / web search 能力完成直接获取和 resolution search；需要动态页面、用户授权或会话解析时，再把浏览器部分交给当前环境可用的浏览器访问能力。
+- 浏览器发现、Profile、登录和人机协作由浏览器能力负责，本 Skill 不复制这些规则。
 - 浏览器不承担文件落盘。解析出最终资源请求后，优先由 Agent 直接、内联地传输文件。
 - 只使用公开可得版本或用户已有合法权限能够访问的版本。
 
@@ -56,14 +58,18 @@ expires_at
 
 ## 输出契约
 
-完成时返回：
+完成时返回 acquisition result；它只描述“拿到了哪一份全文”，不创建或更新研究项目记录：
 
 ```text
 status: FULL_TEXT_READY
 identity: DOI / PMID / PMCID / canonical citation
+version: version-of-record / accepted-manuscript / preprint / other
 source: publisher / repository / preprint / other authorized source
+source_url
+retrieved_at
 artifact: local path or runtime file reference
 content_type
+sha256
 access_route: open / authenticated
 ```
 
