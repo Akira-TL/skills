@@ -23,7 +23,7 @@ skills/
 - `engineering/devspace-orchestration`：DevSpace 多 Agent、tmux 与 Git worktree 编排。
 - `productivity/general-word-document-generation`：Word 原生语义的正式 DOCX 生成与修订。
 - `productivity/scientific-presentation-authoring`：科研与学术类 PPT 的结构、页面文案和结果页图文编排。
-- `productivity/visible-browser-form-automation`：WSL 控制用户可见 Windows Chrome 的表单自动化。
+- `productivity/browser-access`：按当前 harness 能力发现并复用可控浏览器，支持持久登录态、动态网页、网络资源解析和表单操作。
 
 对应用户文档位于 `docs/<category>/<skill-name>.md`。
 

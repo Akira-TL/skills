@@ -1,8 +1,10 @@
-# 可视化浏览器自动化参考
+# Browser Access 实现参考
 
-本文件存放 `visible-browser-form-automation` 的实现细节。主 Skill 只在需要建立 WSL → Windows Chrome 的 CDP 通路、检查动态表单或处理上传控件时加载本参考。
+本文件保存 `browser-access` 的低层实现细节。通用路由、Browser Grant 和 Profile 规则位于 `SKILL.md`；只有当前选择了 WSL → Windows Chrome CDP adapter、需要直接调用 CDP、检查动态 DOM、解析网络资源或处理跨系统上传时才读取本文。
 
-## 1. Windows Chrome 持久实例模式
+这里的 Windows Chrome 路径是一个 adapter，不是浏览器选择的默认起点。调用方必须先按 `SKILL.md` 完成 capability discovery；harness 原生浏览器已经满足需求时不读取或套用本 adapter。
+
+## 1. Adapter：Windows Chrome 持久实例模式
 
 默认控制面固定为：
 
@@ -93,7 +95,30 @@ DOM.setFileInputFiles
 
 对于简单表单，`Runtime.evaluate` 足以完成大部分勘察、点击、赋值、滚动和状态验证。
 
-## 4. 页面勘察表达式
+## 4. 网络资源与 Artifact Request 解析
+
+浏览器需要为上层任务解析 PDF、数据文件或其他资源时，先从页面静态状态寻找真实资源地址，再使用网络观察；不要一开始就模拟下载。
+
+优先检查 `a[href]`、`iframe[src]`、`embed[src]`、`object[data]`、页面 meta/JSON state 等是否已经暴露目标 URL。若 URL 只有点击、脚本执行或重定向后才出现，在触发动作**之前**启用 CDP `Network` 域，观察 `Network.requestWillBeSent`、`Network.responseReceived` 及必要的 extra-info 事件。
+
+对候选请求至少核对 URL、method、响应 `Content-Type`、`Content-Disposition`、redirect chain 和当前页面 referer。需要认证时，只提取重放目标 artifact 所需的最小临时请求上下文；Cookie、Authorization、signed token 等不得写入项目文件或长期缓存。
+
+上层需要直接传输时，返回类似以下临时 `Artifact Request`：
+
+```text
+url
+method
+headers
+referer
+session_context
+content_type
+suggested_filename
+expires_at
+```
+
+能在普通 HTTP 客户端重放时，由调用方直接传输。如果资源与浏览器会话强绑定，优先在已授权页面上下文执行 `fetch` 并返回响应体，或在响应仍可读取时使用 `Network.getResponseBody`。浏览器默认 Downloads 目录不是资源解析的完成条件。
+
+## 5. 页面勘察表达式
 
 读取可见正文：
 
@@ -132,7 +157,7 @@ document.body.innerText
 
 不要依赖某个站点一定使用 `div1`、`q1` 这类命名；先观察再建立当前页面映射。
 
-## 5. 填写普通输入框
+## 6. 填写普通输入框
 
 需要让页面监听到变更时，不只设置 `value`，还要触发事件：
 
@@ -147,7 +172,7 @@ el.blur();
 
 如果框架重写了原生 setter，可以调用 `HTMLInputElement.prototype` 上的 setter，再派发事件。
 
-## 6. 单选和条件题
+## 7. 单选和条件题
 
 优先让页面自己的点击逻辑生效：
 
@@ -159,7 +184,7 @@ document.querySelector('#q2_1')?.click();
 
 不要一次性给所有隐藏题写值再假定页面会接受；条件题应按真实交互顺序展开。
 
-## 7. 日期控件
+## 8. 日期控件
 
 对只读日期输入框，首选点击页面日期选择器。如果必须直接设置，应在设置后验证站点是否接受：
 
@@ -173,7 +198,7 @@ el.dispatchEvent(new Event('change', { bubbles: true }));
 
 不要把这一方式当作默认做法。不同站点可能把真实值保存在隐藏字段或框架状态中。
 
-## 8. 文件上传与跨系统路径
+## 9. 文件上传与跨系统路径
 
 先确认 `input[type=file]` 是否存在，以及：
 
@@ -199,7 +224,7 @@ C:\Users\Akira\Downloads\evidence.zip
 
 如果页面只允许上传一个文件，而凭证有多个，优先按主办方要求打包，不要尝试多次覆盖同一个单文件上传框。
 
-## 9. 文件按时间定位
+## 10. 文件按时间定位
 
 当用户只记得“几个文件挨得比较近”时，可以先按修改时间列出下载目录，再由文件名、时间和大小交叉确认。
 
@@ -213,7 +238,7 @@ Get-ChildItem "$env:USERPROFILE\Downloads" |
 
 不要只凭“最近的 PDF”自动上传，尤其在报销、合同、身份材料等场景。至少核对文件名和时间，必要时让用户确认。
 
-## 10. 表单完成后的机器校验
+## 11. 表单完成后的机器校验
 
 最终检查可以返回一组结构化状态，例如：
 
@@ -230,7 +255,7 @@ Get-ChildItem "$env:USERPROFILE\Downloads" |
 
 实际字段名必须来自当前页面勘察结果。
 
-## 11. 事故预防
+## 12. 事故预防
 
 自动填写阶段不要执行以下行为：
 
@@ -244,13 +269,13 @@ Get-ChildItem "$env:USERPROFILE\Downloads" |
 
 如果用户要求“先不要提交”，最可靠的验收证据是：关键字段值已经填好、页面 URL 仍是填写页、提交按钮未触发、用户能在可视化 Chrome 中直接检查。
 
-## 12. 登录态与任务结束
+## 13. 登录态与任务结束
 
 首次进入需要认证的网站时，由用户在专用 Agent Chrome 内完成登录。登录后保留该浏览器和 Profile，单次任务完成只断开自动化操作，不清除 Cookie、不删除 Profile，也不因为“任务结束”主动关闭专用浏览器。
 
 如果网站自己让会话过期、撤销设备登录或要求二次认证，才再次让用户处理登录；这属于站点认证生命周期，不应通过创建新 Profile 解决。
 
-## 13. 本次问卷星实践得到的经验
+## 14. 本次问卷星实践得到的经验
 
 在问卷星类动态问卷中，页面初始只显示顶层问题；选择“有”后，后续日期、交通工具、金额和发票号才会显示。实际操作应先点击上游单选，再读取新出现的 DOM。
 
