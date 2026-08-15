@@ -1,6 +1,6 @@
 # Research SQLite Contract
 
-本文件定义 `ask-akira-research` 的项目级科研知识数据库契约。当前阶段只记录 schema 与 CLI 行为，`research-db` 脚本尚未实现。
+本文件定义 `ask-akira-research` 的项目级科研知识数据库契约。当前已实现 v1 schema migration，以及 `init`、`migrate`、`status`、`validate` 基础命令；bundle 写入、FTS 检索与 evidence 查询仍按本契约继续实现。
 
 ## 1. Source of truth
 
@@ -370,9 +370,20 @@ relations[]
 
 只有 target、source locator、basis、severity、confidence 与相关 artifact 检查均满足契约后，才能把论文标记为 `critically_reviewed`。
 
-## 5. 计划 CLI
+## 5. CLI
 
-第一版脚本接口目标：
+当前可用：
+
+```bash
+uv run scripts/research_db.py init
+uv run scripts/research_db.py migrate
+uv run scripts/research_db.py status
+uv run scripts/research_db.py validate
+```
+
+默认从当前目录向上定位 `RESEARCH.md` 或 `.research/research.sqlite`；也可用全局 `--project <path>` 显式指定科研项目根目录。命令输出结构化 JSON。
+
+后续接口目标：
 
 ```text
 research-db init

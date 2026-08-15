@@ -32,4 +32,4 @@ disable-model-invocation: true
 
 科研历史依赖 Git 保存版本演化；结构化数据库内部另保留语义 change log。提交围绕科研事件命名，避免 `update research` 一类无信息提交。
 
-本 Skill 当前处于 `in-progress`。SQLite schema 与 CLI 契约已记录，但 `research-db` 脚本尚未实现；到实现阶段按 [`RESEARCH-DB.md`](RESEARCH-DB.md) 建立 migration、事务写入、查询与 validate，而不是让 Agent 直接散写 SQL。
+本 Skill 当前处于 `in-progress`。`research-db` 已实现 v1 schema migration 与 `init`、`migrate`、`status`、`validate` 基础命令；写入 bundle、FTS 检索和 evidence 查询仍按 [`RESEARCH-DB.md`](RESEARCH-DB.md) 继续实现。Agent 通过脚本维护数据库，不把直接散写 SQL 作为正常科研工作流。
