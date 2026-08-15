@@ -16,6 +16,10 @@ It adapts to academic papers, research reports, project proposals, business repo
 
 The skill starts from a blank DOCX unless the user explicitly requires a supplied template. It defines a coherent Word style system, converts content into semantic document objects, applies character-level scientific formatting where needed, and renders the result page by page for visual inspection before delivery. Color is determined by object type: an exported chart or diagram inserted as an image may remain colored, while editable Word charts, shapes, SmartArt, text boxes, and tables remain non-colored by default.
 
+When revising an existing DOCX under a “text only / keep formatting” constraint, the existing sections, margins, styles, tables, images, captions, headers, footers, fields, and pagination are treated as owned layout. The skill changes only the requested text region and reuses the surrounding paragraph and run formatting instead of normalizing or rebuilding the document.
+
+For academic papers and research reports, the skill also enforces argument structure rather than only typography. Section titles must match what the section actually contains; literature-review claims must be supported by real, verifiable papers; a heading such as “国内外研究进展” is used only when the body actually reviews that literature, otherwise a concrete thematic heading or “相关研究进展” is preferred. Academic prose is organized around the research object, existing evidence, unresolved boundary, and the current study rather than proposal-style formulas such as repeated “研究目的”“旨在” or “为了”. Results state observations and statistics first, while discussion compares evidence, considers mechanisms and alternatives, and keeps conclusions within the resolution of the method. Reference theses are used to learn organization and disciplinary rhetoric, not to transplant their claims, data, or citations.
+
 Chinese text uses full-width Chinese punctuation and “double” or ‘nested’ quotation marks. Latin genus and species names use real italic formatting. Statistical symbols such as *P* use semantic italic formatting rather than visible Markdown markers.
 
 ## Source
