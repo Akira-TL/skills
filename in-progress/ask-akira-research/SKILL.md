@@ -32,4 +32,4 @@ disable-model-invocation: true
 
 科研历史依赖 Git 保存版本演化；结构化数据库内部另保留语义 change log。提交围绕科研事件命名，避免 `update research` 一类无信息提交。
 
-本 Skill 当前处于 `in-progress`。`research-db` 已实现 v1 schema migration 与 `init`、`migrate`、`status`、`validate` 基础命令；写入 bundle、FTS 检索和 evidence 查询仍按 [`RESEARCH-DB.md`](RESEARCH-DB.md) 继续实现。Agent 通过脚本维护数据库，不把直接散写 SQL 作为正常科研工作流。
+本 Skill 当前处于 `in-progress`。`research-db` 已实现 v1 schema migration、`init`、`migrate`、`ingest-paper`、`status` 与 `validate`；论文获取结果可通过 acquisition bundle 原子登记 Paper identity、artifact hash/provenance 与 change log。Reconstruction / Critical Audit bundle、FTS 检索和 evidence 查询仍按 [`RESEARCH-DB.md`](RESEARCH-DB.md) 继续实现。Agent 通过脚本维护数据库，不把直接散写 SQL 作为正常科研工作流。

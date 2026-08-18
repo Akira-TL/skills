@@ -1,6 +1,6 @@
 # Research SQLite Contract
 
-本文件定义 `ask-akira-research` 的项目级科研知识数据库契约。当前已实现 v1 schema migration，以及 `init`、`migrate`、`status`、`validate` 基础命令；bundle 写入、FTS 检索与 evidence 查询仍按本契约继续实现。
+本文件定义 `ask-akira-research` 的项目级科研知识数据库契约。当前已实现 v1 schema migration，以及 `init`、`migrate`、`ingest-paper`、`status`、`validate`；Reconstruction / Critical Audit bundle、FTS 检索与 evidence 查询仍按本契约继续实现。
 
 ## 1. Source of truth
 
@@ -326,6 +326,18 @@ Git 保存数据库版本快照，`change_log` 保存数据库内部语义演化
 
 Skill 默认不让 Agent 对每个 Method / Observation / Issue 分散执行大量 `INSERT`，也不把直接 SQL 当作正常写入接口。
 
+### Paper acquisition bundle
+
+当前接口：
+
+```bash
+uv run scripts/research_db.py ingest-paper paper.json
+```
+
+输入 JSON 至少包含 `title`、稳定论文身份和一个 `kind=main_text` 的真实 artifact。稳定身份来自 DOI、PMID 或调用方已经完成 identity resolution 后提供的 `canonical_identity`。`artifacts[].path` 相对路径按科研项目根目录解析；文件必须真实存在，SHA256 由脚本现场计算并写入数据库，不接受调用方提供的 hash 代替校验。
+
+写入前完成 artifact 存在性与身份检查；正式写入使用单一事务，自动分配 `P000001` 形式的 Paper ID、登记 artifact provenance，并同步写入 `change_log`。DOI 会规范化后去重；发现已存在身份或任一 artifact 无效时整次写入失败，不留下部分 Paper / artifact 记录。
+
 ### Reconstruction bundle
 
 计划接口：
@@ -377,6 +389,7 @@ relations[]
 ```bash
 uv run scripts/research_db.py init
 uv run scripts/research_db.py migrate
+uv run scripts/research_db.py ingest-paper paper.json
 uv run scripts/research_db.py status
 uv run scripts/research_db.py validate
 ```
@@ -386,9 +399,6 @@ uv run scripts/research_db.py validate
 后续接口目标：
 
 ```text
-research-db init
-research-db migrate
-research-db ingest-paper
 research-db ingest-reading
 research-db ingest-critical
 

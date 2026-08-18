@@ -16,6 +16,7 @@ from research_db_core import (
     status,
     validate,
 )
+from research_db_ingest import PaperIngestBundle, ingest_paper
 
 
 def emit(payload: dict[str, Any]) -> None:
@@ -53,6 +54,23 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 0 if payload["ok"] else 1
 
 
+def _load_json_object(path_value: str) -> PaperIngestBundle:
+    if path_value == "-":
+        raw = json.load(sys.stdin)
+    else:
+        raw = json.loads(Path(path_value).expanduser().read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ResearchDbError("ingest-paper 输入必须是 JSON object。")
+    return raw
+
+
+def cmd_ingest_paper(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    bundle = _load_json_object(args.bundle)
+    emit(ingest_paper(project_root, bundle))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="research-db",
@@ -73,6 +91,12 @@ def build_parser() -> argparse.ArgumentParser:
     for name, help_text, handler in commands:
         command_parser = subparsers.add_parser(name, help=help_text)
         command_parser.set_defaults(handler=handler)
+
+    ingest_parser = subparsers.add_parser(
+        "ingest-paper", help="登记一篇已获取论文及其 artifact provenance。"
+    )
+    ingest_parser.add_argument("bundle", help="Paper JSON bundle 文件；传 '-' 时从 stdin 读取。")
+    ingest_parser.set_defaults(handler=cmd_ingest_paper)
 
     return parser
 
