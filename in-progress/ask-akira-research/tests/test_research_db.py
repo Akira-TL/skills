@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import sqlite3
 import sys
 import tempfile
@@ -11,7 +10,14 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from research_db_core import database_path, init_database, status, validate  # noqa: E402
+from research_db_core import (  # noqa: E402
+    MIGRATION_DIR,
+    apply_migrations,
+    database_path,
+    init_database,
+    status,
+    validate,
+)
 
 
 class ResearchDbTests(unittest.TestCase):
@@ -23,16 +29,75 @@ class ResearchDbTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tempdir.cleanup()
 
-    def test_init_creates_v1_schema(self) -> None:
+    def test_init_creates_current_schema(self) -> None:
         result = init_database(self.root)
 
-        self.assertEqual(result["schema_version"], 1)
+        self.assertEqual(result["schema_version"], 2)
         db_status = status(self.root)
         self.assertTrue(db_status["exists"])
-        self.assertEqual(db_status["schema_version"], 1)
-        self.assertEqual(db_status["meta_schema_version"], 1)
+        self.assertEqual(db_status["schema_version"], 2)
+        self.assertEqual(db_status["meta_schema_version"], 2)
         self.assertEqual(db_status["tables"]["papers"], 0)
         self.assertTrue(validate(self.root)["ok"])
+
+        with sqlite3.connect(database_path(self.root)) as connection:
+            artifact_columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(artifacts)")
+            }
+            issue_columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(issues)")
+            }
+        self.assertNotIn("sha256", artifact_columns)
+        self.assertIn("nature", issue_columns)
+
+    def test_migrate_v1_to_v2_preserves_artifacts_and_maps_issue_model(self) -> None:
+        db_path = database_path(self.root)
+        db_path.parent.mkdir(parents=True)
+        v1_sql = (MIGRATION_DIR / "001_initial.sql").read_text(encoding="utf-8")
+        now = datetime.now(timezone.utc).isoformat()
+        with sqlite3.connect(db_path) as connection:
+            connection.executescript(v1_sql)
+            connection.execute("PRAGMA user_version = 1")
+            connection.execute(
+                "INSERT INTO meta(key, value) VALUES('schema_version', '1')"
+            )
+            connection.execute(
+                "INSERT INTO papers(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                ("P000001", "Legacy Paper", now, now),
+            )
+            connection.execute(
+                """
+                INSERT INTO artifacts(paper_id, kind, path, sha256, created_at)
+                VALUES (?, 'main_text', 'legacy.pdf', 'legacy-hash', ?)
+                """,
+                ("P000001", now),
+            )
+            connection.execute(
+                """
+                INSERT INTO issues(
+                    paper_id, category, assessment, basis, severity, confidence, created_at
+                ) VALUES (?, 'design', 'Legacy issue', 'potential_concern',
+                          'major', 'medium', ?)
+                """,
+                ("P000001", now),
+            )
+
+        self.assertEqual(apply_migrations(db_path), [2])
+        with sqlite3.connect(db_path) as connection:
+            connection.row_factory = sqlite3.Row
+            artifact_columns = {
+                row["name"] for row in connection.execute("PRAGMA table_info(artifacts)")
+            }
+            artifact = connection.execute(
+                "SELECT paper_id, kind, path FROM artifacts"
+            ).fetchone()
+            issue = connection.execute(
+                "SELECT nature, basis, severity, confidence FROM issues"
+            ).fetchone()
+
+        self.assertNotIn("sha256", artifact_columns)
+        self.assertEqual(tuple(artifact), ("P000001", "main_text", "legacy.pdf"))
+        self.assertEqual(tuple(issue), ("concern", "potential", "major", "medium"))
 
     def test_validate_requires_reconstruction_run_for_reconstructed_paper(self) -> None:
         init_database(self.root)
@@ -52,40 +117,27 @@ class ResearchDbTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertTrue(any("reconstruction run" in error for error in result["errors"]))
 
-    def test_validate_detects_artifact_hash_mismatch(self) -> None:
+    def test_validate_detects_missing_artifact_file(self) -> None:
         init_database(self.root)
         now = datetime.now(timezone.utc).isoformat()
-        paper_dir = self.root / "literature" / "papers" / "P000001"
-        paper_dir.mkdir(parents=True)
-        pdf_path = paper_dir / "paper.pdf"
-        pdf_path.write_bytes(b"not really a pdf")
-
         with sqlite3.connect(database_path(self.root)) as connection:
             connection.execute("PRAGMA foreign_keys = ON")
             connection.execute(
-                """
-                INSERT INTO papers(id, title, created_at, updated_at)
-                VALUES (?, ?, ?, ?)
-                """,
+                "INSERT INTO papers(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
                 ("P000001", "Test Paper", now, now),
             )
             connection.execute(
                 """
                 INSERT INTO artifacts(
-                    paper_id, kind, path, sha256, content_type, created_at
-                ) VALUES (?, 'main_text', ?, ?, 'application/pdf', ?)
+                    paper_id, kind, path, content_type, retrieved_at, created_at
+                ) VALUES (?, 'main_text', ?, 'application/pdf', ?, ?)
                 """,
-                (
-                    "P000001",
-                    str(pdf_path.relative_to(self.root)),
-                    hashlib.sha256(b"different").hexdigest(),
-                    now,
-                ),
+                ("P000001", "literature/papers/P000001/paper.pdf", now, now),
             )
 
         result = validate(self.root)
         self.assertFalse(result["ok"])
-        self.assertTrue(any("SHA256" in error for error in result["errors"]))
+        self.assertTrue(any("文件不存在" in error for error in result["errors"]))
 
     def test_validate_warns_when_critical_review_has_no_issue(self) -> None:
         init_database(self.root)
@@ -101,28 +153,44 @@ class ResearchDbTests(unittest.TestCase):
                 """,
                 ("P000001", "Test Paper", now, now),
             )
-            connection.execute(
-                """
-                INSERT INTO reading_runs(
-                    paper_id, pass, depth, started_at, completed_at,
-                    artifacts_checked, sections_checked
-                ) VALUES (?, 'reconstruction', 'full_scan', ?, ?, '[]', '[]')
-                """,
-                ("P000001", now, now),
-            )
-            connection.execute(
-                """
-                INSERT INTO reading_runs(
-                    paper_id, pass, depth, started_at, completed_at,
-                    artifacts_checked, sections_checked
-                ) VALUES (?, 'critical_audit', 'full_scan', ?, ?, '[]', '[]')
-                """,
-                ("P000001", now, now),
-            )
+            for reading_pass in ("reconstruction", "critical_audit"):
+                connection.execute(
+                    """
+                    INSERT INTO reading_runs(
+                        paper_id, pass, depth, started_at, completed_at,
+                        artifacts_checked, sections_checked
+                    ) VALUES (?, ?, 'full_scan', ?, ?, '[]', '[]')
+                    """,
+                    ("P000001", reading_pass, now, now),
+                )
 
         result = validate(self.root)
         self.assertTrue(result["ok"])
         self.assertTrue(any("没有记录 Issue" in warning for warning in result["warnings"]))
+
+    def test_not_reported_issue_still_requires_locator(self) -> None:
+        init_database(self.root)
+        now = datetime.now(timezone.utc).isoformat()
+        with sqlite3.connect(database_path(self.root)) as connection:
+            connection.execute("PRAGMA foreign_keys = ON")
+            connection.execute(
+                "INSERT INTO papers(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                ("P000001", "Test Paper", now, now),
+            )
+            connection.execute(
+                """
+                INSERT INTO issues(
+                    paper_id, category, nature, assessment, basis, severity,
+                    confidence, created_at
+                ) VALUES (?, 'reporting', 'reporting_gap', ?, 'not_reported',
+                          'moderate', 'high', ?)
+                """,
+                ("P000001", "Randomization procedure is not reported.", now),
+            )
+
+        result = validate(self.root)
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("not_reported" in error for error in result["errors"]))
 
 
 if __name__ == "__main__":

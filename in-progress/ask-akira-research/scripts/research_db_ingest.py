@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 import mimetypes
 import re
+import shutil
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TypedDict
 
-from research_db_core import ResearchDbError, _sha256, connect, database_path
+from research_db_core import ResearchDbError, connect, database_path
 
 
 class ArtifactSpec(TypedDict, total=False):
@@ -38,8 +39,7 @@ class PaperIngestBundle(TypedDict, total=False):
 
 class PreparedArtifact(TypedDict):
     kind: str
-    stored_path: str
-    sha256: str
+    source_path: Path
     content_type: str | None
     version: str | None
     source: str | None
@@ -100,13 +100,6 @@ def _paper_id(connection: sqlite3.Connection) -> str:
     return f"P{highest + 1:06d}"
 
 
-def _stored_path(project_root: Path, path: Path) -> str:
-    try:
-        return str(path.relative_to(project_root))
-    except ValueError:
-        return str(path)
-
-
 def _prepare_artifacts(project_root: Path, specs: object) -> list[PreparedArtifact]:
     if not isinstance(specs, list) or not specs:
         raise ResearchDbError("ingest-paper 至少需要一个真实 artifact。")
@@ -135,8 +128,7 @@ def _prepare_artifacts(project_root: Path, specs: object) -> list[PreparedArtifa
         prepared.append(
             {
                 "kind": kind,
-                "stored_path": _stored_path(project_root, path),
-                "sha256": _sha256(path),
+                "source_path": path,
                 "content_type": content_type,
                 "version": _clean_optional_text(raw.get("version")),
                 "source": _clean_optional_text(raw.get("source")),
@@ -144,9 +136,53 @@ def _prepare_artifacts(project_root: Path, specs: object) -> list[PreparedArtifa
                 "retrieved_at": _clean_optional_text(raw.get("retrieved_at")),
             }
         )
+
     if not any(artifact["kind"] == "main_text" for artifact in prepared):
         raise ResearchDbError("ingest-paper 至少需要一个 kind=main_text 的 artifact。")
     return prepared
+
+
+def _artifact_basename(kind: str, source_path: Path) -> str:
+    stem = "paper" if kind == "main_text" else re.sub(r"[^a-z0-9]+", "-", kind.lower()).strip("-")
+    suffix = source_path.suffix.lower()
+    return f"{stem}{suffix}" if suffix else stem
+
+
+def _materialize_artifacts(
+    project_root: Path, paper_id: str, artifacts: list[PreparedArtifact]
+) -> tuple[Path, list[dict[str, Any]]]:
+    paper_dir = project_root / "literature" / "papers" / paper_id
+    if paper_dir.exists():
+        raise ResearchDbError(f"Paper artifact 目录已存在，拒绝覆盖：{paper_dir}")
+    paper_dir.mkdir(parents=True)
+
+    materialized: list[dict[str, Any]] = []
+    name_counts: dict[str, int] = {}
+    try:
+        for artifact in artifacts:
+            base = _artifact_basename(artifact["kind"], artifact["source_path"])
+            count = name_counts.get(base, 0) + 1
+            name_counts[base] = count
+            if count > 1:
+                candidate = Path(base)
+                base = f"{candidate.stem}-{count:02d}{candidate.suffix}"
+            destination = paper_dir / base
+            shutil.copy2(artifact["source_path"], destination)
+            materialized.append(
+                {
+                    "kind": artifact["kind"],
+                    "path": str(destination.relative_to(project_root)),
+                    "content_type": artifact["content_type"],
+                    "version": artifact["version"],
+                    "source": artifact["source"],
+                    "source_url": artifact["source_url"],
+                    "retrieved_at": artifact["retrieved_at"],
+                }
+            )
+    except Exception:
+        shutil.rmtree(paper_dir, ignore_errors=True)
+        raise
+    return paper_dir, materialized
 
 
 def _duplicate_identity(
@@ -183,9 +219,13 @@ def ingest_paper(project_root: Path, bundle: PaperIngestBundle) -> dict[str, Any
 
     authors = bundle.get("authors")
     if authors is not None:
-        if not isinstance(authors, list) or not all(isinstance(author, str) and author.strip() for author in authors):
+        if not isinstance(authors, list) or not all(
+            isinstance(author, str) and author.strip() for author in authors
+        ):
             raise ResearchDbError("authors 必须是非空字符串数组。")
-        authors_json = json.dumps([author.strip() for author in authors], ensure_ascii=False)
+        authors_json = json.dumps(
+            [author.strip() for author in authors], ensure_ascii=False
+        )
     else:
         authors_json = None
 
@@ -197,9 +237,11 @@ def ingest_paper(project_root: Path, bundle: PaperIngestBundle) -> dict[str, Any
         raise ResearchDbError(
             "无法建立稳定论文身份；请提供 doi、pmid 或显式 canonical_identity。"
         )
-    artifacts = _prepare_artifacts(project_root, bundle.get("artifacts"))
+
+    prepared = _prepare_artifacts(project_root, bundle.get("artifacts"))
     timestamp = _now()
     reason = _clean_optional_text(bundle.get("reason")) or "Registered acquired paper"
+    paper_dir: Path | None = None
 
     with connect(db_path) as connection:
         try:
@@ -211,6 +253,13 @@ def ingest_paper(project_root: Path, bundle: PaperIngestBundle) -> dict[str, Any
                 raise ResearchDbError(f"论文身份已存在：{duplicate}")
 
             paper_id = _paper_id(connection)
+            paper_dir, artifacts = _materialize_artifacts(
+                project_root, paper_id, prepared
+            )
+            for artifact in artifacts:
+                if not artifact["retrieved_at"]:
+                    artifact["retrieved_at"] = timestamp
+
             connection.execute(
                 """
                 INSERT INTO papers(
@@ -240,7 +289,13 @@ def ingest_paper(project_root: Path, bundle: PaperIngestBundle) -> dict[str, Any
                     timestamp, action, entity_type, entity_id, paper_id, reason, summary
                 ) VALUES (?, 'ADD', 'paper', ?, ?, ?, ?)
                 """,
-                (timestamp, paper_id, paper_id, reason, f"Registered acquired paper: {title}"),
+                (
+                    timestamp,
+                    paper_id,
+                    paper_id,
+                    reason,
+                    f"Registered acquired paper: {title}",
+                ),
             )
 
             artifact_rows: list[dict[str, Any]] = []
@@ -248,15 +303,14 @@ def ingest_paper(project_root: Path, bundle: PaperIngestBundle) -> dict[str, Any
                 cursor = connection.execute(
                     """
                     INSERT INTO artifacts(
-                        paper_id, kind, path, sha256, content_type, version,
+                        paper_id, kind, path, content_type, version,
                         source, source_url, retrieved_at, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         paper_id,
                         artifact["kind"],
-                        artifact["stored_path"],
-                        artifact["sha256"],
+                        artifact["path"],
                         artifact["content_type"],
                         artifact["version"],
                         artifact["source"],
@@ -277,16 +331,19 @@ def ingest_paper(project_root: Path, bundle: PaperIngestBundle) -> dict[str, Any
                         str(artifact_id),
                         paper_id,
                         reason,
-                        f"Registered {artifact['kind']} artifact: {artifact['stored_path']}",
+                        f"Registered {artifact['kind']} artifact: {artifact['path']}",
                     ),
                 )
                 artifact_rows.append(
                     {
                         "id": artifact_id,
                         "kind": artifact["kind"],
-                        "path": artifact["stored_path"],
-                        "sha256": artifact["sha256"],
+                        "path": artifact["path"],
                         "content_type": artifact["content_type"],
+                        "version": artifact["version"],
+                        "source": artifact["source"],
+                        "source_url": artifact["source_url"],
+                        "retrieved_at": artifact["retrieved_at"],
                     }
                 )
 
@@ -294,6 +351,8 @@ def ingest_paper(project_root: Path, bundle: PaperIngestBundle) -> dict[str, Any
         except Exception:
             if connection.in_transaction:
                 connection.rollback()
+            if paper_dir is not None:
+                shutil.rmtree(paper_dir, ignore_errors=True)
             raise
 
     return {
@@ -304,5 +363,6 @@ def ingest_paper(project_root: Path, bundle: PaperIngestBundle) -> dict[str, Any
         "pmid": pmid,
         "canonical_identity": canonical,
         "status": "acquired",
+        "paper_dir": str(paper_dir.relative_to(project_root)) if paper_dir else None,
         "artifacts": artifact_rows,
     }

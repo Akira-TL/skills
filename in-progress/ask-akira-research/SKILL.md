@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Ask Akira Research
 
-本 Skill 是 Akira 科研工作的主 Router。科研项目以 Git 仓库承载；`RESEARCH.md` 保存当前研究状态，项目级 `research.sqlite` 保存详细结构化科研知识，原始论文与补充材料作为外部 artifact 保留并由数据库记录路径、hash 与来源。
+本 Skill 是 Akira 科研工作的主 Router。科研项目以 Git 仓库承载；`RESEARCH.md` 保存当前研究状态，项目级 `research.sqlite` 保存详细结构化科研知识，原始论文与补充材料作为外部 artifact 保留并由数据库记录路径、版本、来源与获取时间。
 
 ## 1. 进入项目
 
@@ -32,4 +32,4 @@ disable-model-invocation: true
 
 科研历史依赖 Git 保存版本演化；结构化数据库内部另保留语义 change log。提交围绕科研事件命名，避免 `update research` 一类无信息提交。
 
-本 Skill 当前处于 `in-progress`。`research-db` 已实现 v1 schema migration、`init`、`migrate`、`ingest-paper`、`status` 与 `validate`；论文获取结果可通过 acquisition bundle 原子登记 Paper identity、artifact hash/provenance 与 change log。Reconstruction / Critical Audit bundle、FTS 检索和 evidence 查询仍按 [`RESEARCH-DB.md`](RESEARCH-DB.md) 继续实现。Agent 通过脚本维护数据库，不把直接散写 SQL 作为正常科研工作流。
+本 Skill 当前处于 `in-progress`。`research-db` 已实现 schema migration、`init`、`migrate`、`ingest-paper`、`status` 与 `validate`；论文获取结果可通过 acquisition bundle 原子登记 Paper identity、canonical artifact path、provenance 与 change log。Reconstruction / Critical Audit bundle、FTS 检索和 evidence 查询仍按 [`RESEARCH-DB.md`](RESEARCH-DB.md) 继续实现。Agent 通过脚本维护数据库，不把直接散写 SQL 作为正常科研工作流。

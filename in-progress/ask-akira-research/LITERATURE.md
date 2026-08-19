@@ -37,7 +37,7 @@ Active Uncertainty
 
 ## 3. 全文获取与阅读深度
 
-已知论文交给 `literature-access` 获取正文；浏览器只在需要登录、动态页面或真实资源请求解析时参与。正文、supplement、代码和数据仓库仍是独立 artifact，SQLite 只记录路径、hash 与 provenance。
+已知论文交给 `literature-access` 获取正文；浏览器只在需要登录、动态页面或真实资源请求解析时参与。正文、supplement、代码和数据仓库仍是独立 artifact，SQLite 只记录 canonical path、版本、来源、来源 URL 与获取时间；论文身份优先由 DOI / PMID / PMCID 等稳定标识确认，不为日常文献入库计算内容 hash。
 
 相关论文至少执行 `FULL_SCAN`：整篇正文过一遍并识别 research problem、design、methods、experiments、major observations、claims、limitations 与 leads。核心或方法学重要论文执行 `DEEP_EXTRACTION`：继续深入 exact protocol、关键参数、supplement、统计细节、figure/table-level result、代码/数据仓库与关键引用链。
 
@@ -79,15 +79,16 @@ Paper 保留稳定 `P000001` 一类 ID；论文内部知识单元由数据库主
 
 作者自己声明的 limitation 与 Critical Audit 发现的问题必须分开。
 
-每个 `Issue` 至少保存 category、target、assessment、basis、severity、confidence、why it matters、alternative explanation / possible resolution（若适用）以及 source locator。
+每个 `Issue` 至少保存 category、nature、target、assessment、basis、severity、confidence、why it matters、alternative explanation / possible resolution（若适用）以及 source locator。
 
-`basis` 取：
+`nature` 取：
 
-- `demonstrated_flaw`：原文直接支持缺陷存在；
-- `potential_concern`：存在合理风险，但当前证据不足以下定论；
-- `not_reported`：检查正文与相关 supplement / referenced protocol 后仍无法确认。
+- `flaw`：设计、执行、分析或推理中存在会削弱结论的实际缺陷；
+- `scope_limitation`：研究本身可以成立，但证据外推范围受到 population、时间尺度、实验条件等明确边界限制；
+- `reporting_gap`：关键过程或参数在检查正文、supplement 与被引用 protocol 后仍未报告；
+- `concern`：有合理风险需要继续核查，但当前材料不足以归入以上更确定类别。
 
-`severity` 取 `critical | major | moderate | minor`；`confidence` 取 `high | medium | low`。缺少报告不等于证明没有执行，批判本身也必须避免 overclaim。
+`basis` 取 `demonstrated | potential | not_reported`，回答当前判断的证据状态，而不是给问题贴价值标签。`severity` 取 `critical | major | moderate | minor`；`confidence` 取 `high | medium | low`。例如“只研究年轻男性”可以是 `scope_limitation + demonstrated`，不应为了批判而称为 flaw。缺少报告也不等于证明没有执行，批判本身必须避免 overclaim。
 
 只有完成 Reconstruction 与 Critical Audit，论文才可标记为 `critically_reviewed` 并进入后续跨论文综合。
 

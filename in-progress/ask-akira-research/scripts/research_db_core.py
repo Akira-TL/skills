@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -206,14 +205,6 @@ def status(project_root: Path) -> dict[str, Any]:
     return result
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def _entity_exists(connection: sqlite3.Connection, entity_type: str, entity_id: str) -> bool:
     table = ENTITY_TABLES.get(entity_type)
     if table is None:
@@ -303,17 +294,13 @@ def validate(project_root: Path) -> dict[str, Any]:
                 warnings.append(f"{row['id']} 已 critically_reviewed，但没有记录 Issue；请确认这是有意结果。")
 
             for row in connection.execute(
-                "SELECT id, path, sha256 FROM artifacts ORDER BY id"
+                "SELECT id, path FROM artifacts ORDER BY id"
             ):
                 artifact_path = Path(row["path"])
                 if not artifact_path.is_absolute():
                     artifact_path = project_root / artifact_path
                 if not artifact_path.exists():
                     errors.append(f"artifact {row['id']} 文件不存在：{artifact_path}")
-                    continue
-                actual_hash = _sha256(artifact_path)
-                if actual_hash.lower() != str(row["sha256"]).lower():
-                    errors.append(f"artifact {row['id']} SHA256 不匹配：{artifact_path}")
 
             for row in connection.execute(
                 "SELECT id, sidecar_path FROM papers WHERE sidecar_path IS NOT NULL AND trim(sidecar_path) <> ''"

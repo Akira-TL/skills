@@ -69,7 +69,6 @@ source_url
 retrieved_at
 artifact: local path or runtime file reference
 content_type
-sha256
 access_route: open / authenticated
 ```
 

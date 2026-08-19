@@ -1,6 +1,6 @@
 # Research SQLite Contract
 
-本文件定义 `ask-akira-research` 的项目级科研知识数据库契约。当前已实现 v1 schema migration，以及 `init`、`migrate`、`ingest-paper`、`status`、`validate`；Reconstruction / Critical Audit bundle、FTS 检索与 evidence 查询仍按本契约继续实现。
+本文件定义 `ask-akira-research` 的项目级科研知识数据库契约。当前已实现 schema migration，以及 `init`、`migrate`、`ingest-paper`、`status`、`validate`；Reconstruction / Critical Audit bundle、FTS 检索与 evidence 查询仍按本契约继续实现。
 
 ## 1. Source of truth
 
@@ -8,15 +8,15 @@
 
 - `RESEARCH.md`：当前研究状态与路线的 canonical source。
 - `.research/research.sqlite`：详细结构化科研知识的 canonical source，并进入 Git 保存版本快照。
-- PDF、supplement、代码、数据等原始 artifact：保持为独立文件；数据库只记录路径、SHA256、版本、来源与获取时间，不保存 blob。
+- PDF、supplement、代码、数据等原始 artifact：保持为独立文件；数据库只记录路径、版本、来源、来源 URL 与获取时间，不保存 blob。论文身份优先由 DOI / PMID / PMCID 等稳定标识确认，不为日常文献入库计算内容 hash。
 
 每篇已下载论文旁边保留精简的人类 sidecar；sidecar 是给用户阅读的 synthesis，不复制数据库的完整 extraction，也不作为详细知识的 canonical source。
 
-PDF 的长期 artifact storage / Git 策略仍是独立设计问题；本契约只要求数据库能够通过 path + hash + provenance 回到对应文件。
+PDF 的长期 artifact storage / Git 策略仍是独立设计问题；本契约只要求数据库能够通过 Paper identity + path + provenance 回到对应文件。
 
 ## 2. 数据库边界
 
-一个科研项目只维护一个 `research.sqlite`。v1 只建立真正需要的表：
+一个科研项目只维护一个 `research.sqlite`。当前 schema 只建立真正需要的表：
 
 ```text
 meta
@@ -87,7 +87,6 @@ id
 paper_id
 kind
 path
-sha256
 content_type
 version
 source
@@ -232,6 +231,7 @@ source_locator
 id
 paper_id
 category
+nature
 target_type
 target_id
 assessment
@@ -249,10 +249,13 @@ created_at
 固定枚举：
 
 ```text
-basis: demonstrated_flaw | potential_concern | not_reported
+nature: flaw | scope_limitation | reporting_gap | concern
+basis: demonstrated | potential | not_reported
 severity: critical | major | moderate | minor
 confidence: high | medium | low
 ```
+
+`nature` 回答“这是什么性质的问题”，`basis` 回答“我们凭什么这样判断”。例如只覆盖年轻男性而限制外推范围可记为 `scope_limitation + demonstrated`，不把明确的研究边界误称为 flaw。
 
 ### `leads`
 
@@ -334,9 +337,9 @@ Skill 默认不让 Agent 对每个 Method / Observation / Issue 分散执行大�
 uv run scripts/research_db.py ingest-paper paper.json
 ```
 
-输入 JSON 至少包含 `title`、稳定论文身份和一个 `kind=main_text` 的真实 artifact。稳定身份来自 DOI、PMID 或调用方已经完成 identity resolution 后提供的 `canonical_identity`。`artifacts[].path` 相对路径按科研项目根目录解析；文件必须真实存在，SHA256 由脚本现场计算并写入数据库，不接受调用方提供的 hash 代替校验。
+输入 JSON 至少包含 `title`、稳定论文身份和一个 `kind=main_text` 的真实 artifact。稳定身份来自 DOI、PMID 或调用方已经完成 identity resolution 后提供的 `canonical_identity`。`artifacts[].path` 相对路径按科研项目根目录解析；文件必须真实存在。
 
-写入前完成 artifact 存在性与身份检查；正式写入使用单一事务，自动分配 `P000001` 形式的 Paper ID、登记 artifact provenance，并同步写入 `change_log`。DOI 会规范化后去重；发现已存在身份或任一 artifact 无效时整次写入失败，不留下部分 Paper / artifact 记录。
+写入前完成 artifact 存在性与论文身份检查；正式写入使用单一事务，自动分配 `P000001` 形式的 Paper ID，并把来源文件复制到 `literature/papers/<paper-id>/` 的 canonical artifact 目录。主文使用 `paper.<ext>`，补充材料按 `kind` 生成稳定文件名；原来源文件保持不变。数据库登记最终路径、版本、来源 URL 与 `retrieved_at`，缺少获取时间时由 ingest 记录当前时间。DOI 会规范化后去重；发现已存在身份、目标 Paper 目录冲突或任一 artifact 无效时整次数据库写入失败，并清理本次新建的 canonical artifact 目录。
 
 ### Reconstruction bundle
 
@@ -380,7 +383,7 @@ alternative_explanations[]
 relations[]
 ```
 
-只有 target、source locator、basis、severity、confidence 与相关 artifact 检查均满足契约后，才能把论文标记为 `critically_reviewed`。
+只有 target、source locator、nature、basis、severity、confidence 与相关 artifact 检查均满足契约后，才能把论文标记为 `critically_reviewed`。
 
 ## 5. CLI
 
@@ -418,7 +421,7 @@ Skill 与其他 Agent 通过 CLI / structured JSON 读取数据库，避免 Prom
 
 ## 6. 检索
 
-v1 使用 SQLite 普通索引 + FTS5，不引入向量数据库。索引至少覆盖：
+检索层使用 SQLite 普通索引 + FTS5，不引入向量数据库。索引至少覆盖：
 
 ```text
 paper title
@@ -452,7 +455,7 @@ research-db paper-context P000001 --for-sidecar
 - dangling relation / nonexistent target；
 - observation 指向不存在的 experiment；
 - issue target 不存在；
-- artifact path 缺失或 SHA256 不匹配；
+- artifact path 缺失；
 - reconstructed 状态缺少已完成 reconstruction run；
 - critically reviewed 状态缺少已完成 critical audit run；
 - `not_reported` issue 缺少足够 artifact / source inspection 记录；
