@@ -343,17 +343,15 @@ uv run scripts/research_db.py ingest-paper paper.json
 
 ### Reconstruction bundle
 
-计划接口：
+当前接口：
 
 ```bash
-research-db ingest-reading reconstruction.json
+uv run scripts/research_db.py ingest-reading reconstruction.json
 ```
 
-bundle 至少可包含：
+bundle 至少包含 `paper_id`、`artifacts_checked`、`sections_checked`，以及至少一种知识单元：
 
 ```text
-paper
-artifacts_checked
 methods[]
 experiments[]
 observations[]
@@ -362,28 +360,32 @@ leads[]
 relations[]
 ```
 
-脚本顺序：validate bundle → `BEGIN TRANSACTION` → upsert entities → validate relations → write change log → mark reading run / paper state → `COMMIT`。任何结构或关系校验失败则 `ROLLBACK`，不能留下半篇论文。
+每个新知识单元提供当前 bundle 内唯一的 `ref`。relation 使用 `subject_type + subject_ref/id` 与 `object_type + object_ref/id`，脚本在事务内把临时 ref 解析为数据库主键；Observation 也可通过 `experiment_ref` 连接当前 bundle 的 Experiment。来源定位可使用 `artifact_id`、唯一 `artifact_kind` 或 canonical `artifact_path`，并保存 section / page / figure/table 等 `source_locator`。
+
+脚本顺序：validate bundle → `BEGIN IMMEDIATE` → 建立 Reconstruction reading run → 写入知识单元 → 解析并校验 relations → write change log → 将论文更新为 `reading_status=reconstructed` → `COMMIT`。任何结构、source artifact 或 relation 校验失败都 `ROLLBACK`，不能留下半篇论文。已完成 Reconstruction 的 Paper 默认拒绝重复导入，避免无意复制知识单元。
 
 ### Critical Audit bundle
 
-计划接口：
+当前接口：
 
 ```bash
-research-db ingest-critical critical.json
+uv run scripts/research_db.py ingest-critical critical.json
 ```
 
-bundle 至少可包含：
+Critical Audit 必须建立在已经完成的 Reconstruction 上。bundle 至少包含：
 
 ```text
 paper_id
+artifacts_checked
+sections_checked
 issues[]
-claim_reassessments[]
-observation_reassessments[]
-alternative_explanations[]
 relations[]
+sidecar_path          -- 可选
 ```
 
-只有 target、source locator、nature、basis、severity、confidence 与相关 artifact 检查均满足契约后，才能把论文标记为 `critically_reviewed`。
+每个 Issue 使用 bundle `ref`，并保存 category、nature、assessment、basis、severity、confidence 与 source locator。Issue 可通过 `target_type + target_id` 指向 Reconstruction 已写入的 Claim / Observation / Method / Experiment；`ingest-reading` 返回的 `refs` map 可用于取得这些内部 ID。Issue 与 Claim/Observation 的 `LIMITS`、`CHALLENGES`、`WEAKENS`、`QUALIFIES` 等明确关系继续写入 `relations`。
+
+若 Agent 已在论文 canonical 目录写好人类必读 `README.md`，可通过 `sidecar_path` 一并关联；脚本只链接已存在文件，不负责机械生成 synthesis。全部校验通过后才将论文更新为 `reading_status=extracted`、`critical_status=critically_reviewed`。任何 target、artifact、relation 或 sidecar 错误都整次回滚。
 
 ## 5. CLI
 
@@ -393,6 +395,8 @@ relations[]
 uv run scripts/research_db.py init
 uv run scripts/research_db.py migrate
 uv run scripts/research_db.py ingest-paper paper.json
+uv run scripts/research_db.py ingest-reading reconstruction.json
+uv run scripts/research_db.py ingest-critical critical.json
 uv run scripts/research_db.py status
 uv run scripts/research_db.py validate
 ```
@@ -402,9 +406,6 @@ uv run scripts/research_db.py validate
 后续接口目标：
 
 ```text
-research-db ingest-reading
-research-db ingest-critical
-
 research-db paper P000001
 research-db search <query>
 research-db methods <query>
