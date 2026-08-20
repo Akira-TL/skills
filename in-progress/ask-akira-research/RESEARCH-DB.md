@@ -1,6 +1,6 @@
 # Research SQLite Contract
 
-本文件定义 `ask-akira-research` 的项目级科研知识数据库契约。当前已实现 schema migration，以及 `init`、`migrate`、`ingest-paper`、`status`、`validate`；Reconstruction / Critical Audit bundle、FTS 检索与 evidence 查询仍按本契约继续实现。
+本文件定义 `ask-akira-research` 的项目级科研知识数据库契约。当前已实现 schema migration、`init`、`migrate`、`ingest-paper`、`ingest-reading`、`ingest-critical`、`status` 与 `validate`；FTS 检索与 evidence 查询仍按本契约继续实现。
 
 ## 1. Source of truth
 
@@ -198,8 +198,8 @@ id
 paper_id
 experiment_id
 statement
-effect
-statistics_json
+effect              -- 数据直接报告的 contrast / effect size，不承载 Agent 解释
+statistics_json     -- n / estimate / CI / P / FDR 等作者报告的具体统计量
 scope
 certainty
 artifact_id
@@ -339,9 +339,9 @@ uv run scripts/research_db.py ingest-paper
 
 默认读取 `.research/bundles/paper.json`。只有调试或外部调用需要时才显式传入其他 JSON 路径或 `-`（stdin）；内部 bundle 不放在科研项目根目录。
 
-输入 JSON 至少包含 `title`、稳定论文身份和一个 `kind=main_text` 的真实 artifact。稳定身份来自 DOI、PMID 或调用方已经完成 identity resolution 后提供的 `canonical_identity`。`artifacts[].path` 相对路径按科研项目根目录解析；文件必须真实存在。
+输入 JSON 至少包含 `title`、稳定论文身份和一个 `kind=main_text` 的真实 artifact。论文身份按 DOI → PMID → 显式 `canonical_identity` 的顺序确定：存在 DOI 时 canonical identity 必须是 `doi:<normalized-doi>`，否则存在 PMID 时为 `pmid:<pmid>`；显式 `canonical_identity` 只用于两者都不存在但调用方已经完成 identity resolution 的情况，`"doi"` 这类 identity type 标签不是论文身份。`artifacts[].path` 相对路径按科研项目根目录解析；文件必须真实存在。
 
-写入前完成 artifact 存在性与论文身份检查；正式写入使用单一事务，自动分配 `P000001` 形式的 Paper ID，并把来源文件复制到 `literature/papers/<paper-id>/` 的 canonical artifact 目录。主文使用 `paper.<ext>`，补充材料按 `kind` 生成稳定文件名；原来源文件保持不变。数据库登记最终路径、版本、来源 URL 与 `retrieved_at`，缺少获取时间时由 ingest 记录当前时间。DOI 会规范化后去重；发现已存在身份、目标 Paper 目录冲突或任一 artifact 无效时整次数据库写入失败，并清理本次新建的 canonical artifact 目录。
+写入前完成 artifact 存在性与论文身份检查；正式写入使用单一事务，自动分配 `P000001` 形式的 Paper ID，并把来源文件复制到 `literature/papers/<paper-id>/` 的 canonical artifact 目录。主文使用 `paper.<ext>`，补充材料按 `kind` 生成稳定文件名；来源 staging 文件没有后缀时根据 `content_type` 推断 canonical 扩展名，无法推断时拒绝写入，不生成无扩展名的 canonical 主文。原来源文件保持不变。数据库登记最终路径、版本、来源 URL 与 `retrieved_at`，缺少获取时间时由 ingest 记录当前时间。DOI 会规范化后去重；发现已存在身份、目标 Paper 目录冲突或任一 artifact 无效时整次数据库写入失败，并清理本次新建的 canonical artifact 目录。
 
 ### Reconstruction bundle
 
@@ -460,7 +460,8 @@ research-db paper-context P000001 --for-sidecar
 
 `research-db validate` 相当于科研知识库的 integrity check。至少检查：
 
-- duplicate DOI / PMID / canonical identity；
+- duplicate DOI / PMID / canonical identity，以及 DOI/PMID 与 canonical identity 不一致；
+- canonical `main_text` artifact 缺少文件扩展名；
 - dangling relation / nonexistent target；
 - observation 指向不存在的 experiment；
 - issue target 不存在；

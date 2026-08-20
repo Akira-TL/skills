@@ -59,7 +59,7 @@ Paper 保留稳定 `P000001` 一类 ID；论文内部知识单元由数据库主
 
 每个进入数据库的 Method、Experiment、Observation、Claim、Lead 都必须定位到具体 artifact，并给出可回到原文的 `source_locator`，优先精确到 section + figure/table/supplement；仅有模糊的“Results”或无来源定位不能视为完成 extraction。
 
-Observation 与 Claim 强制分离。不得把 Agent 自己的解释写成作者 Claim；Agent 对证据强弱的判断进入 relation、Issue 或后续 synthesis。
+Observation 与 Claim 强制分离。`Observation.statement` 与 `effect` 只承载图表、表格或正文能够直接复述的结果；`effect` 用于直接 contrast / effect size，bundle 的 `statistics` 保存作者报告的 n、estimate、CI、P/FDR 等具体统计量。对结果大小的意义、外部一致性、机制兼容性、缺失数据后果等解释进入 Claim、relation、Issue 或后续 synthesis。不得把 Agent 自己的解释写成作者 Claim。
 
 ### Evidence → Claim 关系必须说明“能支撑到哪一级”
 

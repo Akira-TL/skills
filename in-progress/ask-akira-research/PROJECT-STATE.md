@@ -32,7 +32,7 @@
 
 - `Objective`：当前研究试图理解、解释或解决什么；尚未形成具体问题时允许保持宽泛。
 - `Current Loop`：只用于定位当前主要研究区域，取 `EXPLORE`、`QUESTION`、`HYPOTHESIS`、`DESIGN`、`DATA`、`ANALYSIS`、`INTERPRETATION`、`COMMUNICATION` 之一；它不规定下一步。
-- `Active Uncertainty`：当前最值得解决、且真实阻塞研究推进的 primary uncertainty。任何时刻只保留一个 primary Active Uncertainty。
+- `Active Uncertainty`：当前最值得解决、且真实阻塞研究推进的一项 primary uncertainty。它必须能作为一个独立问题被回答；若一句话中的多个问题可以由不同证据或不同下一动作分别解决，只保留信息增益最高的一个，其余移入 `Open Threads`。
 - `Current State`：让新的 Agent 在较短文本内理解“目前已经知道什么、还不知道什么”的 current synthesis。
 - `Active Work`：现在正在做什么，以及它为什么能降低 Active Uncertainty；与 uncertainty 本身分开记录。
 - `Open Threads`：已经发现但当前不追的其他问题，避免研究被每个新线索带走。

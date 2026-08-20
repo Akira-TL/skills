@@ -34,6 +34,8 @@ disable-model-invocation: true
 
 内部 acquisition / reconstruction / critical bundle 默认放在 `.research/bundles/`，属于 Agent 与数据库脚本之间的内部事务载荷，不放在项目根目录，也不作为科研知识的 canonical source。
 
+用户显式需要完整的人类可读科研评估时，可以额外保存 derived report。它只是原始 artifacts + `research.sqlite` 的派生视图，不形成第四个 canonical source；报告必须指回对应 Paper identity、数据库与原文，任何只存在于报告而没有进入应有 canonical source 的重要 Observation、Claim、Issue 或 evidence boundary 都视为尚未持久化完成。
+
 完成标准：新的 evidence、decision 或 uncertainty 已进入对应 canonical source；`RESEARCH.md` 仍然是短小的 current research map，而不是日志或数据库。
 
 ## 5. 审计与提交
