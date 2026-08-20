@@ -102,7 +102,9 @@ def ingest_critical(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
             run_id = int(run_cursor.lastrowid)
 
             for spec in issues:
-                artifact_id, locator = _source_fields(connection, paper_id, spec)
+                artifact_id, locator = _source_fields(
+                    connection, paper_id, spec, required=True, field="Issue"
+                )
                 target_type = _text(spec.get("target_type"))
                 target_ref = _text(spec.get("target_ref"))
                 target_id = _text(spec.get("target_id"))

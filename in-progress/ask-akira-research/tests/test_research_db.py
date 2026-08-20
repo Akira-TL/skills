@@ -33,6 +33,10 @@ class ResearchDbTests(unittest.TestCase):
         result = init_database(self.root)
 
         self.assertEqual(result["schema_version"], 2)
+        self.assertEqual(
+            Path(result["bundle_directory"]), self.root / ".research" / "bundles"
+        )
+        self.assertTrue((self.root / ".research" / "bundles").is_dir())
         db_status = status(self.root)
         self.assertTrue(db_status["exists"])
         self.assertEqual(db_status["schema_version"], 2)

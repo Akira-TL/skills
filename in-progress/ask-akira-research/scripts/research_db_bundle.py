@@ -140,10 +140,19 @@ def _checked_artifacts(
 
 
 def _source_fields(
-    connection: sqlite3.Connection, paper_id: str, spec: dict[str, Any]
+    connection: sqlite3.Connection,
+    paper_id: str,
+    spec: dict[str, Any],
+    *,
+    required: bool = False,
+    field: str = "knowledge unit",
 ) -> tuple[int | None, str | None]:
     artifact_id = _artifact_id(connection, paper_id, spec)
     source_locator = _text(spec.get("source_locator"))
+    if required and artifact_id is None:
+        raise ResearchDbError(f"{field} 必须定位到具体 artifact。")
+    if required and source_locator is None:
+        raise ResearchDbError(f"{field} 必须提供 source_locator。")
     return artifact_id, source_locator
 
 
@@ -241,6 +250,13 @@ def _insert_relations(
             connection, paper_id, refs, spec, "object"
         )
         predicate = _text(spec.get("predicate"), required=True, field="predicate")
+        note = _text(spec.get("note"))
+        if predicate == "SUPPORTS":
+            raise ResearchDbError(
+                "科研证据关系不得使用模糊 SUPPORTS；请明确 DIRECTLY_SUPPORTS 或 INDIRECTLY_SUPPORTS。"
+            )
+        if predicate in {"INDIRECTLY_SUPPORTS", "QUALIFIES", "DOES_NOT_TEST"} and note is None:
+            raise ResearchDbError(f"{predicate} relation 必须说明证据边界 note。")
         cursor = connection.execute(
             """
             INSERT INTO relations(
@@ -255,7 +271,7 @@ def _insert_relations(
                 object_type,
                 object_id,
                 _text(spec.get("confidence")),
-                _text(spec.get("note")),
+                note,
                 timestamp,
             ),
         )

@@ -81,7 +81,9 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
             run_id = int(run_cursor.lastrowid)
 
             for spec in methods:
-                artifact_id, locator = _source_fields(connection, paper_id, spec)
+                artifact_id, locator = _source_fields(
+                    connection, paper_id, spec, required=True, field="Method"
+                )
                 cursor = connection.execute(
                     """
                     INSERT INTO methods(
@@ -108,7 +110,9 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
                 counts["methods"] += 1
 
             for spec in experiments:
-                artifact_id, locator = _source_fields(connection, paper_id, spec)
+                artifact_id, locator = _source_fields(
+                    connection, paper_id, spec, required=True, field="Experiment"
+                )
                 cursor = connection.execute(
                     """
                     INSERT INTO experiments(
@@ -136,7 +140,9 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
                 counts["experiments"] += 1
 
             for spec in observations:
-                artifact_id, locator = _source_fields(connection, paper_id, spec)
+                artifact_id, locator = _source_fields(
+                    connection, paper_id, spec, required=True, field="Observation"
+                )
                 experiment_id = None
                 if spec.get("experiment_ref") is not None:
                     key = ("experiment", _text(spec.get("experiment_ref"), required=True, field="observation.experiment_ref"))
@@ -168,7 +174,9 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
                 counts["observations"] += 1
 
             for spec in claims:
-                artifact_id, locator = _source_fields(connection, paper_id, spec)
+                artifact_id, locator = _source_fields(
+                    connection, paper_id, spec, required=True, field="Claim"
+                )
                 cursor = connection.execute(
                     """
                     INSERT INTO claims(
@@ -192,7 +200,9 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
                 counts["claims"] += 1
 
             for spec in leads:
-                artifact_id, locator = _source_fields(connection, paper_id, spec)
+                artifact_id, locator = _source_fields(
+                    connection, paper_id, spec, required=True, field="Lead"
+                )
                 cursor = connection.execute(
                     """
                     INSERT INTO leads(

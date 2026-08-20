@@ -21,6 +21,13 @@ from research_db_ingest import PaperIngestBundle, ingest_paper
 from research_db_reading import ingest_reading
 
 
+BUNDLE_DEFAULTS = {
+    "ingest-paper": "paper.json",
+    "ingest-reading": "reconstruction.json",
+    "ingest-critical": "critical.json",
+}
+
+
 def emit(payload: dict[str, Any]) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
 
@@ -56,11 +63,38 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 0 if payload["ok"] else 1
 
 
-def _load_json_object(path_value: str) -> dict[str, Any]:
+def bundle_directory(project_root: Path) -> Path:
+    return project_root / ".research" / "bundles"
+
+
+def bundle_path(
+    project_root: Path,
+    command: str,
+    path_value: str | None,
+) -> Path | None:
     if path_value == "-":
+        return None
+    if path_value is None:
+        return bundle_directory(project_root) / BUNDLE_DEFAULTS[command]
+
+    path = Path(path_value).expanduser()
+    if not path.is_absolute():
+        path = project_root / path
+    return path.resolve()
+
+
+def _load_json_object(
+    project_root: Path,
+    command: str,
+    path_value: str | None,
+) -> dict[str, Any]:
+    path = bundle_path(project_root, command, path_value)
+    if path is None:
         raw = json.load(sys.stdin)
     else:
-        raw = json.loads(Path(path_value).expanduser().read_text(encoding="utf-8"))
+        if not path.is_file():
+            raise ResearchDbError(f"bundle 文件不存在：{path}")
+        raw = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ResearchDbError("bundle 输入必须是 JSON object。")
     return raw
@@ -68,20 +102,32 @@ def _load_json_object(path_value: str) -> dict[str, Any]:
 
 def cmd_ingest_paper(args: argparse.Namespace) -> int:
     project_root = discover_project_root(args.project)
-    bundle: PaperIngestBundle = _load_json_object(args.bundle)
+    bundle: PaperIngestBundle = _load_json_object(
+        project_root, "ingest-paper", args.bundle
+    )
     emit(ingest_paper(project_root, bundle))
     return 0
 
 
 def cmd_ingest_reading(args: argparse.Namespace) -> int:
     project_root = discover_project_root(args.project)
-    emit(ingest_reading(project_root, _load_json_object(args.bundle)))
+    emit(
+        ingest_reading(
+            project_root,
+            _load_json_object(project_root, "ingest-reading", args.bundle),
+        )
+    )
     return 0
 
 
 def cmd_ingest_critical(args: argparse.Namespace) -> int:
     project_root = discover_project_root(args.project)
-    emit(ingest_critical(project_root, _load_json_object(args.bundle)))
+    emit(
+        ingest_critical(
+            project_root,
+            _load_json_object(project_root, "ingest-critical", args.bundle),
+        )
+    )
     return 0
 
 
@@ -110,25 +156,25 @@ def build_parser() -> argparse.ArgumentParser:
         (
             "ingest-paper",
             "登记一篇已获取论文及其 artifact provenance。",
-            "Paper acquisition JSON bundle；传 '-' 时从 stdin 读取。",
+            "Paper acquisition JSON bundle；默认 .research/bundles/paper.json；传 '-' 从 stdin 读取。",
             cmd_ingest_paper,
         ),
         (
             "ingest-reading",
             "原子写入 Pass 1 Reconstruction 及知识单元。",
-            "Reconstruction JSON bundle；传 '-' 时从 stdin 读取。",
+            "Reconstruction JSON bundle；默认 .research/bundles/reconstruction.json；传 '-' 从 stdin 读取。",
             cmd_ingest_reading,
         ),
         (
             "ingest-critical",
             "原子写入 Pass 2 Critical Audit，并可关联人类 sidecar。",
-            "Critical Audit JSON bundle；传 '-' 时从 stdin 读取。",
+            "Critical Audit JSON bundle；默认 .research/bundles/critical.json；传 '-' 从 stdin 读取。",
             cmd_ingest_critical,
         ),
     ]
     for name, help_text, bundle_help, handler in bundle_commands:
         command_parser = subparsers.add_parser(name, help=help_text)
-        command_parser.add_argument("bundle", help=bundle_help)
+        command_parser.add_argument("bundle", nargs="?", help=bundle_help)
         command_parser.set_defaults(handler=handler)
 
     return parser

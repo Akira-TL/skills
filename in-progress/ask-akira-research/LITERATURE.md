@@ -37,7 +37,7 @@ Active Uncertainty
 
 ## 3. 全文获取与阅读深度
 
-已知论文交给 `literature-access` 获取正文；浏览器只在需要登录、动态页面或真实资源请求解析时参与。正文、supplement、代码和数据仓库仍是独立 artifact，SQLite 只记录 canonical path、版本、来源、来源 URL 与获取时间；论文身份优先由 DOI / PMID / PMCID 等稳定标识确认，不为日常文献入库计算内容 hash。
+已知论文交给 `literature-access` 获取正文；浏览器只在需要登录、动态页面或真实资源请求解析时参与。正文、supplement、代码和数据仓库仍是独立 artifact，SQLite 记录论文身份、路径、版本、来源与获取时间。
 
 相关论文至少执行 `FULL_SCAN`：整篇正文过一遍并识别 research problem、design、methods、experiments、major observations、claims、limitations 与 leads。核心或方法学重要论文执行 `DEEP_EXTRACTION`：继续深入 exact protocol、关键参数、supplement、统计细节、figure/table-level result、代码/数据仓库与关键引用链。
 
@@ -47,17 +47,31 @@ Active Uncertainty
 
 ### Pass 1 — Reconstruction
 
-第一遍忠实重建论文，不急于反驳作者。至少区分以下知识类型，正文使用完整类型名，不要求用户记忆字母缩写：
+第一遍忠实重建论文，不急于反驳作者。至少区分：
 
 - `Method`：作者具体怎么做，包括关键 protocol、参数、材料、软件和可复用细节。
 - `Experiment`：为了回答什么问题，采用什么 design、sample、group、control、measurement 与 analysis。
-- `Observation`：数据直接观察到了什么；与作者解释分开。
-- `Claim`：作者基于 observation 提出的 descriptive、association、causal、mechanistic 或 speculative statement。
+- `Observation`：数据直接显示了什么；不写作者解释，不用“支持”“证明”“有助于”替代实际结果。
+- `Claim`：作者自己根据 observation 提出的 descriptive、association、causal、mechanistic 或 speculative statement。
 - `Lead`：值得继续追的论文、方法、数据、代码、protocol、数据库或新问题。
 
 Paper 保留稳定 `P000001` 一类 ID；论文内部知识单元由数据库主键管理，人类 sidecar 不暴露满屏缩写编号。
 
-每个重要知识单元必须能够回到原文，记录可得的 artifact、section、page、figure/table 等 source locator。Observation 与 Claim 强制分离；Claim 应通过 relation 指向支持或削弱它的 Observation。
+每个进入数据库的 Method、Experiment、Observation、Claim、Lead 都必须定位到具体 artifact，并给出可回到原文的 `source_locator`，优先精确到 section + figure/table/supplement；仅有模糊的“Results”或无来源定位不能视为完成 extraction。
+
+Observation 与 Claim 强制分离。不得把 Agent 自己的解释写成作者 Claim；Agent 对证据强弱的判断进入 relation、Issue 或后续 synthesis。
+
+### Evidence → Claim 关系必须说明“能支撑到哪一级”
+
+不能因为一个 Observation 与某个 Claim 方向一致就机械写 `SUPPORTS`。至少区分：
+
+- `DIRECTLY_SUPPORTS`：当前实验直接检验该层级 Claim，设计和 measurement 与 Claim 对齐。
+- `INDIRECTLY_SUPPORTS`：方向一致，但存在物种、分类层级、代理指标、观察性设计或其他 inference gap；必须写 `note` 说明为什么只是间接支持。
+- `QUALIFIES`：证据限定 Claim 的范围、机制或解释。
+- `CONTRADICTS`：数据与 Claim 的明确预测相反；不能把单纯 `P > 0.05` 当作 contradiction。
+- `DOES_NOT_TEST`：看似相关，但实际上没有检验该 Claim；必须写 `note`。
+
+特别地：人类观察性关联不能直接建立人类因果结论；某一菌株在小鼠中的随机干预可以支持“该菌株在该小鼠模型中的因果效应”，但只能间接支持“人类某 genus/群落导致高原适应”这类跨物种、跨分类层级结论。
 
 ### Pass 2 — Critical Audit
 
@@ -79,14 +93,16 @@ Paper 保留稳定 `P000001` 一类 ID；论文内部知识单元由数据库主
 
 作者自己声明的 limitation 与 Critical Audit 发现的问题必须分开。
 
-每个 `Issue` 至少保存 category、nature、target、assessment、basis、severity、confidence、why it matters、alternative explanation / possible resolution（若适用）以及 source locator。
+每个 `Issue` 至少保存 category、nature、target、assessment、basis、severity、confidence、why it matters、alternative explanation / possible resolution（若适用）以及具体 artifact + source locator。
 
-`nature` 取：
+`nature` 描述问题是什么：
 
-- `flaw`：设计、执行、分析或推理中存在会削弱结论的实际缺陷；
-- `scope_limitation`：研究本身可以成立，但证据外推范围受到 population、时间尺度、实验条件等明确边界限制；
-- `reporting_gap`：关键过程或参数在检查正文、supplement 与被引用 protocol 后仍未报告；
-- `concern`：有合理风险需要继续核查，但当前材料不足以归入以上更确定类别。
+```text
+flaw
+scope_limitation
+reporting_gap
+concern
+```
 
 `basis` 取 `demonstrated | potential | not_reported`，回答当前判断的证据状态，而不是给问题贴价值标签。`severity` 取 `critical | major | moderate | minor`；`confidence` 取 `high | medium | low`。例如“只研究年轻男性”可以是 `scope_limitation + demonstrated`，不应为了批判而称为 flaw。缺少报告也不等于证明没有执行，批判本身必须避免 overclaim。
 
@@ -94,23 +110,40 @@ Paper 保留稳定 `P000001` 一类 ID；论文内部知识单元由数据库主
 
 ## 5. 人类 sidecar
 
-每篇下载论文旁边保留一份短小的人类必读 sidecar，例如 `README.md`。它是精简视图，不是数据库 dump。目标是在 1–3 分钟内让用户恢复“为什么保存这篇、做了什么、发现什么、哪里有问题、我们能学什么”。
+每篇下载论文旁边保留一份短小的人类必读 sidecar，例如 `README.md`。它是精简视图，不是数据库 dump。目标是在 1–3 分钟内让用户恢复“为什么保存这篇、数据真正显示什么、作者怎么解释、哪里有问题、我们能学什么”。
 
-建议包含：
+推荐结构：
 
 ```text
+Source
 Why It Matters
 What They Did
-What They Found
+What The Data Directly Show
+What The Authors Claim
+Our Evidence Assessment
 What We Can Reuse
 What Is Wrong / Uncertain
-Innovation
 Bottom Line
 ```
 
+`Bottom Line` 必须把“论文直接支持什么”和“尚未建立什么”分开，不用“强烈支持某因果结论”概括一个主要由观察性人群数据加跨物种动物实验组成的证据链。
+
 数据库保存尽可能完整的结构化 extraction；sidecar 只保留高价值 synthesis。
 
-## 6. 跨论文证据综合
+## 6. 科研结论的 Evidence Gate
+
+任何由 Agent 给出的项目级科研结论都必须能追溯到明确论文，而不是来自模型常识或无引用综合。进入结论前依次回答：
+
+1. 哪些 Paper（Paper ID + DOI/PMID）提供证据？
+2. 每篇 Paper 的哪些 Observation 是直接数据？
+3. 这些 Observation 与目标 Claim 是 `DIRECTLY_SUPPORTS`、`INDIRECTLY_SUPPORTS`、`QUALIFIES`、`CONTRADICTS` 还是 `DOES_NOT_TEST`？
+4. Claim 层级是 descriptive、association、causal 还是 mechanistic；证据是否真的达到同一层级？
+5. Critical Audit 中哪些 Issue 会降低该证据的 directness、scope 或 confidence？
+6. 支持证据与反证/边界条件都考虑后，最窄、最可辩护的结论是什么？
+
+没有明确 supporting Paper 或无法说明 evidence-to-claim fit 时，结论保持 `UNRESOLVED`，不能由模型补齐。
+
+## 7. 跨论文证据综合
 
 Evidence Map 不再人工维护为大量 Markdown，而是由 SQLite 中的 Observation、Claim、Issue、Paper 关系动态生成。综合时：
 
@@ -122,4 +155,4 @@ Evidence Map 不再人工维护为大量 Markdown，而是由 SQLite 中的 Obse
 - 对矛盾主动寻找 population、exposure duration、diet、platform、preservation、analysis pipeline、definition 等 heterogeneity / boundary condition；
 - Research Gap 优先来自 unresolved contradiction、untested alternative、missing control、missing population / temporal scale、measurement limitation 或 unvalidated mechanism，而不是简单“研究较少”。
 
-证据视图由脚本检索和展开关系，Agent 负责科学解释；不要在脚本中硬编码伪精确的自动 evidence score。
+证据视图由脚本检索和展开关系，主模型负责科学解释；脚本不得用硬编码评分替代 evidence-to-claim 判断。

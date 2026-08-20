@@ -114,9 +114,10 @@ class ResearchDbReadingTests(unittest.TestCase):
                 {
                     "subject_type": "observation",
                     "subject_ref": "observation-1",
-                    "predicate": "SUPPORTS",
+                    "predicate": "INDIRECTLY_SUPPORTS",
                     "object_type": "claim",
                     "object_ref": "claim-1",
+                    "note": "Human longitudinal association is directionally consistent but does not itself establish causality.",
                 },
             ],
         }
@@ -147,7 +148,7 @@ class ResearchDbReadingTests(unittest.TestCase):
             {
                 "subject_type": "observation",
                 "subject_ref": "missing-observation",
-                "predicate": "SUPPORTS",
+                "predicate": "DIRECTLY_SUPPORTS",
                 "object_type": "claim",
                 "object_ref": "claim-1",
             }
@@ -166,6 +167,28 @@ class ResearchDbReadingTests(unittest.TestCase):
             ).fetchone()[0]
         self.assertEqual(counts, (0, 0, 0, 0, 0, 0, 0))
         self.assertEqual(paper, "unread")
+
+    def test_ambiguous_support_relation_is_rejected(self) -> None:
+        bundle = self.reconstruction_bundle()
+        bundle["relations"][1]["predicate"] = "SUPPORTS"
+        bundle["relations"][1].pop("note", None)
+
+        with self.assertRaisesRegex(RuntimeError, "不得使用模糊 SUPPORTS"):
+            ingest_reading(self.root, bundle)
+
+    def test_indirect_support_requires_boundary_note(self) -> None:
+        bundle = self.reconstruction_bundle()
+        bundle["relations"][1].pop("note")
+
+        with self.assertRaisesRegex(RuntimeError, "必须说明证据边界"):
+            ingest_reading(self.root, bundle)
+
+    def test_knowledge_unit_requires_source_locator(self) -> None:
+        bundle = self.reconstruction_bundle()
+        bundle["observations"][0].pop("source_locator")
+
+        with self.assertRaisesRegex(RuntimeError, "Observation 必须提供 source_locator"):
+            ingest_reading(self.root, bundle)
 
     def test_critical_audit_requires_reconstruction(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "尚未完成 Reconstruction"):

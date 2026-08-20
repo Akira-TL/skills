@@ -334,8 +334,10 @@ Skill 默认不让 Agent 对每个 Method / Observation / Issue 分散执行大�
 当前接口：
 
 ```bash
-uv run scripts/research_db.py ingest-paper paper.json
+uv run scripts/research_db.py ingest-paper
 ```
+
+默认读取 `.research/bundles/paper.json`。只有调试或外部调用需要时才显式传入其他 JSON 路径或 `-`（stdin）；内部 bundle 不放在科研项目根目录。
 
 输入 JSON 至少包含 `title`、稳定论文身份和一个 `kind=main_text` 的真实 artifact。稳定身份来自 DOI、PMID 或调用方已经完成 identity resolution 后提供的 `canonical_identity`。`artifacts[].path` 相对路径按科研项目根目录解析；文件必须真实存在。
 
@@ -346,8 +348,10 @@ uv run scripts/research_db.py ingest-paper paper.json
 当前接口：
 
 ```bash
-uv run scripts/research_db.py ingest-reading reconstruction.json
+uv run scripts/research_db.py ingest-reading
 ```
+
+默认读取 `.research/bundles/reconstruction.json`。bundle 是内部事务载荷，不是用户需要维护或阅读的科研文档。
 
 bundle 至少包含 `paper_id`、`artifacts_checked`、`sections_checked`，以及至少一种知识单元：
 
@@ -360,7 +364,9 @@ leads[]
 relations[]
 ```
 
-每个新知识单元提供当前 bundle 内唯一的 `ref`。relation 使用 `subject_type + subject_ref/id` 与 `object_type + object_ref/id`，脚本在事务内把临时 ref 解析为数据库主键；Observation 也可通过 `experiment_ref` 连接当前 bundle 的 Experiment。来源定位可使用 `artifact_id`、唯一 `artifact_kind` 或 canonical `artifact_path`，并保存 section / page / figure/table 等 `source_locator`。
+每个新知识单元提供当前 bundle 内唯一的 `ref`。relation 使用 `subject_type + subject_ref/id` 与 `object_type + object_ref/id`，脚本在事务内把临时 ref 解析为数据库主键；Observation 也可通过 `experiment_ref` 连接当前 bundle 的 Experiment。每个 Method / Experiment / Observation / Claim / Lead 都必须定位到具体 artifact，并保存能够回到原文的 section / page / figure/table 等 `source_locator`；来源过于模糊时不应视为完成 extraction。
+
+证据关系不能把“方向一致”一律写成 `SUPPORTS`。科研层优先使用 `DIRECTLY_SUPPORTS | INDIRECTLY_SUPPORTS | QUALIFIES | CONTRADICTS | DOES_NOT_TEST`；其中 `INDIRECTLY_SUPPORTS`、`QUALIFIES`、`DOES_NOT_TEST` 必须通过 relation `note` 说明 inference gap 或边界。脚本只校验结构，主模型负责判断证据是否真的达到目标 Claim 的 descriptive / association / causal / mechanistic 层级。
 
 脚本顺序：validate bundle → `BEGIN IMMEDIATE` → 建立 Reconstruction reading run → 写入知识单元 → 解析并校验 relations → write change log → 将论文更新为 `reading_status=reconstructed` → `COMMIT`。任何结构、source artifact 或 relation 校验失败都 `ROLLBACK`，不能留下半篇论文。已完成 Reconstruction 的 Paper 默认拒绝重复导入，避免无意复制知识单元。
 
@@ -369,8 +375,10 @@ relations[]
 当前接口：
 
 ```bash
-uv run scripts/research_db.py ingest-critical critical.json
+uv run scripts/research_db.py ingest-critical
 ```
+
+默认读取 `.research/bundles/critical.json`；同样属于隐藏的内部事务载荷。
 
 Critical Audit 必须建立在已经完成的 Reconstruction 上。bundle 至少包含：
 
@@ -383,7 +391,7 @@ relations[]
 sidecar_path          -- 可选
 ```
 
-每个 Issue 使用 bundle `ref`，并保存 category、nature、assessment、basis、severity、confidence 与 source locator。Issue 可通过 `target_type + target_id` 指向 Reconstruction 已写入的 Claim / Observation / Method / Experiment；`ingest-reading` 返回的 `refs` map 可用于取得这些内部 ID。Issue 与 Claim/Observation 的 `LIMITS`、`CHALLENGES`、`WEAKENS`、`QUALIFIES` 等明确关系继续写入 `relations`。
+每个 Issue 使用 bundle `ref`，并保存 category、nature、assessment、basis、severity、confidence、具体 artifact 与 source locator。Issue 可通过 `target_type + target_id` 指向 Reconstruction 已写入的 Claim / Observation / Method / Experiment；`ingest-reading` 返回的 `refs` map 可用于取得这些内部 ID。Issue 与 Claim/Observation 的 `LIMITS`、`CHALLENGES`、`WEAKENS`、`QUALIFIES` 等明确关系继续写入 `relations`。
 
 若 Agent 已在论文 canonical 目录写好人类必读 `README.md`，可通过 `sidecar_path` 一并关联；脚本只链接已存在文件，不负责机械生成 synthesis。全部校验通过后才将论文更新为 `reading_status=extracted`、`critical_status=critically_reviewed`。任何 target、artifact、relation 或 sidecar 错误都整次回滚。
 
@@ -394,14 +402,14 @@ sidecar_path          -- 可选
 ```bash
 uv run scripts/research_db.py init
 uv run scripts/research_db.py migrate
-uv run scripts/research_db.py ingest-paper paper.json
-uv run scripts/research_db.py ingest-reading reconstruction.json
-uv run scripts/research_db.py ingest-critical critical.json
+uv run scripts/research_db.py ingest-paper
+uv run scripts/research_db.py ingest-reading
+uv run scripts/research_db.py ingest-critical
 uv run scripts/research_db.py status
 uv run scripts/research_db.py validate
 ```
 
-默认从当前目录向上定位 `RESEARCH.md` 或 `.research/research.sqlite`；也可用全局 `--project <path>` 显式指定科研项目根目录。命令输出结构化 JSON。
+默认从当前目录向上定位 `RESEARCH.md` 或 `.research/research.sqlite`；也可用全局 `--project <path>` 显式指定科研项目根目录。`init` 同时创建 `.research/bundles/`；三个 ingest 命令省略 bundle 参数时分别读取 `paper.json`、`reconstruction.json`、`critical.json`。命令输出结构化 JSON。
 
 后续接口目标：
 

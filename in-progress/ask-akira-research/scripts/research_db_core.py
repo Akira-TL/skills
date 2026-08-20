@@ -148,9 +148,12 @@ def init_database(project_root: Path) -> dict[str, Any]:
     if db_path.exists():
         raise ResearchDbError(f"数据库已存在：{db_path}")
     applied = apply_migrations(db_path)
+    bundle_dir = db_path.parent / "bundles"
+    bundle_dir.mkdir(parents=True, exist_ok=True)
     return {
         "project_root": str(project_root),
         "database": str(db_path),
+        "bundle_directory": str(bundle_dir),
         "created": True,
         "applied_migrations": applied,
         "schema_version": latest_version(),
