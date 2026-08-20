@@ -39,3 +39,37 @@ Synthesis 必须接收：
 - 不把作者 claim 当作独立证据。
 - 不生成 evidence score 替代科学判断。
 - 不隐藏 contradiction、negative result 或 reporting gap。
+
+## Evidence Boundary Report 格式
+
+Evidence Synthesis 的人类可读输出应采用固定结构，避免退化为普通文献综述：
+
+```text
+Research Question:
+
+Current Evidence State:
+
+Supported:
+- claim
+- linked evidence units
+- scope boundary
+
+Indirectly Supported:
+- claim
+- inference gap
+
+Qualified:
+- limitation
+- alternative explanation
+
+Contradicted:
+- conflicting evidence
+
+Unresolved:
+- question that current evidence cannot distinguish
+
+Most Discriminating Next Evidence:
+- observation / experiment / analysis that would reduce uncertainty
+```
+
+该报告是 derived synthesis，不替代 `research.sqlite` 中的 Paper、Observation、Claim、Issue 和 Relation canonical records。
