@@ -18,6 +18,7 @@ from research_db_core import (
 )
 from research_db_critical import ingest_critical
 from research_db_ingest import PaperIngestBundle, ingest_paper
+from research_db_query import evidence_packet
 from research_db_reading import ingest_reading
 
 
@@ -131,6 +132,12 @@ def cmd_ingest_critical(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_evidence(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(evidence_packet(project_root, args.query, limit=args.limit))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="research-db",
@@ -151,6 +158,14 @@ def build_parser() -> argparse.ArgumentParser:
     for name, help_text, handler in commands:
         command_parser = subparsers.add_parser(name, help=help_text)
         command_parser.set_defaults(handler=handler)
+
+    evidence_parser = subparsers.add_parser(
+        "evidence",
+        help="返回与问题相关的证据单元和关系图，不进行科研强度判断。",
+    )
+    evidence_parser.add_argument("query", help="科研问题或关键词。")
+    evidence_parser.add_argument("--limit", type=int, default=20)
+    evidence_parser.set_defaults(handler=cmd_evidence)
 
     bundle_commands = [
         (

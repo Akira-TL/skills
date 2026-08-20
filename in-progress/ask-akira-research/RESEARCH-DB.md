@@ -1,6 +1,6 @@
 # Research SQLite Contract
 
-本文件定义 `ask-akira-research` 的项目级科研知识数据库契约。当前已实现 schema migration、`init`、`migrate`、`ingest-paper`、`ingest-reading`、`ingest-critical`、`status` 与 `validate`；FTS 检索与 evidence 查询仍按本契约继续实现。
+本文件定义 `ask-akira-research` 的项目级科研知识数据库契约。当前已实现 schema migration、`init`、`migrate`、`ingest-paper`、`ingest-reading`、`ingest-critical`、`status`、`validate`、FTS 检索与 `evidence` 查询。
 
 ## 1. Source of truth
 
@@ -37,7 +37,23 @@ change_log
 
 暂不建立独立 evidence graph、method graph、evidence family 或 contradiction Markdown / tables；能够从现有节点与关系动态查询得到的视图先不物化。未来只有出现稳定的独立领域对象时再通过 migration 增加表。
 
-## 3. 核心表
+## 3. 查询层：Search 与 Evidence
+
+查询层只负责从 canonical source 提取可追溯证据单元，不替代科研判断。
+
+- `search`：信息发现，返回匹配的 Paper / Method / Observation / Claim / Issue。
+- `evidence`：证据包，返回相关 Claim、Observation、Issue 与 relations，并保留 artifact locator。
+- `evidence` 不输出证据强弱评分，不自动生成结论；DIRECTLY_SUPPORTS、QUALIFIES 等关系仍需要由主模型结合研究问题解释。
+
+例如：
+
+```bash
+research-db evidence "hypoxia gut microbiome adaptation"
+```
+
+输出可作为 Evidence Synthesis 的输入，而不是最终科研结论。
+
+## 4. 核心表
 
 ### `meta`
 
@@ -325,7 +341,7 @@ summary
 
 Git 保存数据库版本快照，`change_log` 保存数据库内部语义演化。
 
-## 4. 写入契约：Bundle + Transaction
+## 5. 写入契约：Bundle + Transaction
 
 Skill 默认不让 Agent 对每个 Method / Observation / Issue 分散执行大量 `INSERT`，也不把直接 SQL 当作正常写入接口。
 
@@ -395,7 +411,7 @@ sidecar_path          -- 可选
 
 若 Agent 已在论文 canonical 目录写好人类必读 `README.md`，可通过 `sidecar_path` 一并关联；脚本只链接已存在文件，不负责机械生成 synthesis。全部校验通过后才将论文更新为 `reading_status=extracted`、`critical_status=critically_reviewed`。任何 target、artifact、relation 或 sidecar 错误都整次回滚。
 
-## 5. CLI
+## 6. CLI
 
 当前可用：
 
@@ -428,7 +444,7 @@ research-db validate
 
 Skill 与其他 Agent 通过 CLI / structured JSON 读取数据库，避免 Prompt 与 SQL schema 过度耦合。低层 SQL 可以供脚本实现与调试使用，但不是正常 Agent 工作流。
 
-## 6. 检索
+## 7. 检索
 
 检索层使用 SQLite 普通索引 + FTS5，不引入向量数据库。索引至少覆盖：
 
@@ -446,7 +462,7 @@ Agent 根据用户问题生成关键词、同义词或结构过滤条件；SQLit
 
 `research-db evidence <query>` 先检索相关 Claim / Observation / Issue，再沿 `relations` 展开支持、冲突、批判、共享数据与来源 Paper，输出 machine-readable evidence packet。脚本负责检索图，不负责用硬编码评分替代科研判断。
 
-## 7. Sidecar
+## 8. Sidecar
 
 计划接口可以提供：
 
@@ -456,7 +472,7 @@ research-db paper-context P000001 --for-sidecar
 
 它返回 identity、high-value methods、major observations、main claims、critical/major issues、reusable knowledge 与 innovation candidates。Agent据此结合全文理解更新论文旁边的 `README.md`；sidecar 目标是短小的人类 synthesis，而不是模板化 dump。
 
-## 8. Validate
+## 9. Validate
 
 `research-db validate` 相当于科研知识库的 integrity check。至少检查：
 

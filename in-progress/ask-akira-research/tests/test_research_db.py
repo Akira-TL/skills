@@ -32,15 +32,15 @@ class ResearchDbTests(unittest.TestCase):
     def test_init_creates_current_schema(self) -> None:
         result = init_database(self.root)
 
-        self.assertEqual(result["schema_version"], 2)
+        self.assertEqual(result["schema_version"], 3)
         self.assertEqual(
             Path(result["bundle_directory"]), self.root / ".research" / "bundles"
         )
         self.assertTrue((self.root / ".research" / "bundles").is_dir())
         db_status = status(self.root)
         self.assertTrue(db_status["exists"])
-        self.assertEqual(db_status["schema_version"], 2)
-        self.assertEqual(db_status["meta_schema_version"], 2)
+        self.assertEqual(db_status["schema_version"], 3)
+        self.assertEqual(db_status["meta_schema_version"], 3)
         self.assertEqual(db_status["tables"]["papers"], 0)
         self.assertTrue(validate(self.root)["ok"])
 
@@ -53,6 +53,11 @@ class ResearchDbTests(unittest.TestCase):
             }
         self.assertNotIn("sha256", artifact_columns)
         self.assertIn("nature", issue_columns)
+        with sqlite3.connect(database_path(self.root)) as connection:
+            fts_table = connection.execute(
+                "SELECT name FROM sqlite_master WHERE name = 'knowledge_fts'"
+            ).fetchone()
+        self.assertIsNotNone(fts_table)
 
     def test_migrate_v1_to_v2_preserves_artifacts_and_maps_issue_model(self) -> None:
         db_path = database_path(self.root)
@@ -86,7 +91,7 @@ class ResearchDbTests(unittest.TestCase):
                 ("P000001", now),
             )
 
-        self.assertEqual(apply_migrations(db_path), [2])
+        self.assertEqual(apply_migrations(db_path), [2, 3])
         with sqlite3.connect(db_path) as connection:
             connection.row_factory = sqlite3.Row
             artifact_columns = {
