@@ -81,14 +81,11 @@ def normalize_identifier(value: object) -> str | None:
 
 
 def canonical_identity(bundle: PaperIngestBundle, doi: str | None, pmid: str | None) -> str | None:
-    explicit = _clean_optional_text(bundle.get("canonical_identity"))
-    if explicit:
-        return explicit
     if doi:
         return f"doi:{doi}"
     if pmid:
         return f"pmid:{pmid}"
-    return None
+    return _clean_optional_text(bundle.get("canonical_identity"))
 
 
 def _paper_id(connection: sqlite3.Connection) -> str:
@@ -142,10 +139,19 @@ def _prepare_artifacts(project_root: Path, specs: object) -> list[PreparedArtifa
     return prepared
 
 
-def _artifact_basename(kind: str, source_path: Path) -> str:
+def _artifact_basename(kind: str, source_path: Path, content_type: str | None) -> str:
     stem = "paper" if kind == "main_text" else re.sub(r"[^a-z0-9]+", "-", kind.lower()).strip("-")
     suffix = source_path.suffix.lower()
-    return f"{stem}{suffix}" if suffix else stem
+    if not suffix and content_type:
+        media_type = content_type.split(";", 1)[0].strip().lower()
+        suffix = (mimetypes.guess_extension(media_type, strict=False) or "").lower()
+        if suffix == ".htm":
+            suffix = ".html"
+    if not suffix:
+        raise ResearchDbError(
+            f"artifact {kind!r} 的来源文件没有扩展名，且无法从 content_type 推断：{source_path}"
+        )
+    return f"{stem}{suffix}"
 
 
 def _materialize_artifacts(
@@ -160,7 +166,9 @@ def _materialize_artifacts(
     name_counts: dict[str, int] = {}
     try:
         for artifact in artifacts:
-            base = _artifact_basename(artifact["kind"], artifact["source_path"])
+            base = _artifact_basename(
+                artifact["kind"], artifact["source_path"], artifact["content_type"]
+            )
             count = name_counts.get(base, 0) + 1
             name_counts[base] = count
             if count > 1:

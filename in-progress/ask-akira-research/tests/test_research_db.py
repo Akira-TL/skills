@@ -143,6 +143,55 @@ class ResearchDbTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertTrue(any("文件不存在" in error for error in result["errors"]))
 
+    def test_validate_rejects_canonical_identity_that_conflicts_with_doi(self) -> None:
+        init_database(self.root)
+        now = datetime.now(timezone.utc).isoformat()
+        with sqlite3.connect(database_path(self.root)) as connection:
+            connection.execute(
+                """
+                INSERT INTO papers(
+                    id, title, doi, canonical_identity, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "P000001",
+                    "Test Paper",
+                    "10.1234/test.paper",
+                    "doi",
+                    now,
+                    now,
+                ),
+            )
+
+        result = validate(self.root)
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("canonical_identity" in error for error in result["errors"]))
+
+    def test_validate_rejects_extensionless_main_text_artifact(self) -> None:
+        init_database(self.root)
+        now = datetime.now(timezone.utc).isoformat()
+        paper_dir = self.root / "literature" / "papers" / "P000001"
+        paper_dir.mkdir(parents=True)
+        (paper_dir / "paper").write_text("<html></html>", encoding="utf-8")
+        with sqlite3.connect(database_path(self.root)) as connection:
+            connection.execute("PRAGMA foreign_keys = ON")
+            connection.execute(
+                "INSERT INTO papers(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                ("P000001", "Test Paper", now, now),
+            )
+            connection.execute(
+                """
+                INSERT INTO artifacts(
+                    paper_id, kind, path, content_type, retrieved_at, created_at
+                ) VALUES (?, 'main_text', ?, 'text/html', ?, ?)
+                """,
+                ("P000001", "literature/papers/P000001/paper", now, now),
+            )
+
+        result = validate(self.root)
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("扩展名" in error for error in result["errors"]))
+
     def test_validate_warns_when_critical_review_has_no_issue(self) -> None:
         init_database(self.root)
         now = datetime.now(timezone.utc).isoformat()

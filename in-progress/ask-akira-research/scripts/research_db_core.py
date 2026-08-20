@@ -297,9 +297,31 @@ def validate(project_root: Path) -> dict[str, Any]:
                 warnings.append(f"{row['id']} 已 critically_reviewed，但没有记录 Issue；请确认这是有意结果。")
 
             for row in connection.execute(
-                "SELECT id, path FROM artifacts ORDER BY id"
+                "SELECT id, doi, pmid, canonical_identity FROM papers ORDER BY id"
             ):
-                artifact_path = Path(row["path"])
+                doi = str(row["doi"]).strip().lower() if row["doi"] else None
+                pmid = str(row["pmid"]).strip() if row["pmid"] else None
+                expected_identity = f"doi:{doi}" if doi else (f"pmid:{pmid}" if pmid else None)
+                canonical = (
+                    str(row["canonical_identity"]).strip().lower()
+                    if row["canonical_identity"]
+                    else None
+                )
+                if expected_identity and canonical != expected_identity.lower():
+                    errors.append(
+                        f"{row['id']} canonical_identity={row['canonical_identity']!r} "
+                        f"与稳定论文身份 {expected_identity!r} 不一致。"
+                    )
+
+            for row in connection.execute(
+                "SELECT id, kind, path, content_type FROM artifacts ORDER BY id"
+            ):
+                stored_path = Path(row["path"])
+                if row["kind"] == "main_text" and not stored_path.suffix:
+                    errors.append(
+                        f"artifact {row['id']} 的 canonical main_text 路径缺少文件扩展名：{row['path']}"
+                    )
+                artifact_path = stored_path
                 if not artifact_path.is_absolute():
                     artifact_path = project_root / artifact_path
                 if not artifact_path.exists():

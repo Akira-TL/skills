@@ -82,6 +82,37 @@ class ResearchDbIngestPaperTests(unittest.TestCase):
         self.assertIsNotNone(artifact[5])
         self.assertEqual(log_count, 2)
 
+    def test_extensionless_main_text_uses_content_type_for_canonical_suffix(self) -> None:
+        html_path = self.incoming / "PMC_HTML"
+        html_bytes = b"<!doctype html><html><body>paper</body></html>"
+        html_path.write_bytes(html_bytes)
+        bundle = self.bundle()
+        bundle["artifacts"][0]["path"] = str(html_path)
+        bundle["artifacts"][0]["content_type"] = "text/html"
+
+        result = ingest_paper(self.root, bundle)
+
+        self.assertEqual(
+            result["artifacts"][0]["path"],
+            "literature/papers/P000001/paper.html",
+        )
+        canonical_html = self.root / "literature" / "papers" / "P000001" / "paper.html"
+        self.assertEqual(canonical_html.read_bytes(), html_bytes)
+        self.assertTrue(html_path.exists(), "ingest should copy, not move, the source artifact")
+
+    def test_doi_takes_precedence_over_explicit_identity_label(self) -> None:
+        bundle = self.bundle()
+        bundle["canonical_identity"] = "doi"
+
+        result = ingest_paper(self.root, bundle)
+
+        self.assertEqual(result["canonical_identity"], "doi:10.1234/test.paper")
+        with sqlite3.connect(database_path(self.root)) as connection:
+            canonical = connection.execute(
+                "SELECT canonical_identity FROM papers WHERE id = 'P000001'"
+            ).fetchone()[0]
+        self.assertEqual(canonical, "doi:10.1234/test.paper")
+
     def test_multiple_artifacts_receive_stable_names(self) -> None:
         supplement = self.incoming / "source-supplement.xlsx"
         supplement.write_bytes(b"xlsx placeholder")
