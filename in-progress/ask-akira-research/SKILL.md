@@ -42,4 +42,4 @@ disable-model-invocation: true
 
 科研历史依赖 Git 保存版本演化；结构化数据库内部另保留语义 change log。提交围绕科研事件命名，避免 `update research` 一类无信息提交。
 
-本 Skill 当前处于 `in-progress`。`research-db` 已实现 schema migration、`init`、`migrate`、`ingest-paper`、`ingest-reading`、`ingest-critical`、`status` 与 `validate`；论文获取、Pass 1 Reconstruction 和 Pass 2 Critical Audit 都通过原子 bundle 写入，并把 canonical artifact、知识单元、批判问题、关系与 change log 保存在同一项目数据库中。FTS 检索和 evidence 查询仍按 [`RESEARCH-DB.md`](RESEARCH-DB.md) 继续实现。Agent 通过脚本维护数据库，不把直接散写 SQL 作为正常科研工作流。
+本 Skill 当前处于 `in-progress`。`research-db` 已实现 schema migration、`init`、`migrate`、`ingest-paper`、`ingest-reading`、`ingest-critical`、`status` 与 `validate`；论文获取、Pass 1 Reconstruction 和 Pass 2 Critical Audit 都通过原子 bundle 写入，并把 canonical artifact、知识单元、批判问题、关系与 change log 保存在同一项目数据库中。FTS 检索和 evidence 查询已实现；Evidence Synthesis 规则见 [`RESEARCH-SYNTHESIS.md`](RESEARCH-SYNTHESIS.md)。Agent 通过脚本维护数据库，不把直接散写 SQL 作为正常科研工作流。
