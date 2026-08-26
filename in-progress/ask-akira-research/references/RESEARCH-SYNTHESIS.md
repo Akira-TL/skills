@@ -1,6 +1,6 @@
 # Evidence Synthesis Contract
 
-`research-db evidence` 输出的是 provenance-preserving evidence packet，不是科研结论。Evidence Synthesis 是 Agent 在读取 packet、原始 artifact 和必要全文上下文后的解释步骤。
+`research-db evidence` 输出的是 provenance-preserving evidence packet，不是科研结论。Evidence Synthesis 是 Agent 在读取 packet、原始 artifact 和必要全文上下文后的解释步骤。所有面向用户的科研表述同时遵守 [`ACADEMIC-LANGUAGE.md`](standards/ACADEMIC-LANGUAGE.md)；本文件中的 `supported`、`qualified`、`evidence_families` 等是内部工作流/数据结构标签，不自动属于学界术语，不能在用户科研文本中被包装成新概念。
 
 ## 输入
 
@@ -40,9 +40,9 @@ Synthesis 必须接收：
 - 不生成 evidence score 替代科学判断。
 - 不隐藏 contradiction、negative result 或 reporting gap。
 
-## Evidence Boundary Report 格式
+## 人类可读综合格式（内部模板）
 
-Evidence Synthesis 的人类可读输出应采用固定结构，避免退化为普通文献综述：
+Evidence Synthesis 的人类可读输出应保持下面的信息结构，避免退化为普通文献综述；标题可按用户语言采用规范学术表述，不把内部模板名当作新的学术概念：
 
 ```text
 Research Question:

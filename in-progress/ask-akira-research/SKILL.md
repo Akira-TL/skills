@@ -28,7 +28,13 @@ disable-model-invocation: true
 
 脚本与其他确定性工具只承担全文获取、文本/文件解析、格式转换、结构校验、事务写入、检索与关系展开；它们不得自行生成或升级科学 Claim、Issue、support relation 或结论。机械性信息摘取可以由工具辅助，但进入科研知识库前必须由主模型核对原文和证据边界。
 
-## 4. 更新研究状态
+## 4. 学术术语与科研表述
+
+所有面向用户或进入科研项目的人类可读 scientific prose，包括 `RESEARCH.md`、论文 sidecar、跨论文综合、derived report、论文/摘要/图注草稿，都必须遵守 [`references/standards/ACADEMIC-LANGUAGE.md`](references/standards/ACADEMIC-LANGUAGE.md)。优先使用领域已经存在并可核验的标准学术术语；中文科研写作中重要专业术语首次出现时优先采用“中文标准术语（English standard term）”。对中文译名、英文近义词或领域惯例不确定时，先查同行评议文献或权威术语来源，不凭语言感觉替换。
+
+Agent 不得为了叙事自行创造新词、组合词、效应名、模式名、闭环名或其他命名概念，也不得把内部工作流标签冒充学术概念。尚无固定术语的现象用普通描述性语言表达。确实需要提出新概念时，只能先与用户讨论其必要性、边界和操作性定义；只有用户明确批准名称与定义后，才可进入 canonical scientific prose，并把该决定记录到 `RESEARCH.md` 的 `Key Decisions`。
+
+## 5. 更新研究状态
 
 一次科研动作结束后，只把仍然影响当前路线的高层状态写回 `RESEARCH.md`。详细的论文知识、方法、实验、观察、作者声明、批判问题、检索记录和关系进入 `research.sqlite`；面向人的论文 sidecar 只保留精简核心，不复制数据库。
 
@@ -38,8 +44,8 @@ disable-model-invocation: true
 
 完成标准：新的 evidence、decision 或 uncertainty 已进入对应 canonical source；`RESEARCH.md` 仍然是短小的 current research map，而不是日志或数据库。
 
-## 5. 审计与提交
+## 6. 审计与提交
 
 科研历史依赖 Git 保存版本演化；结构化数据库内部另保留语义 change log。提交围绕科研事件命名，避免 `update research` 一类无信息提交。
 
-本 Skill 当前处于 `in-progress`。`research-db` 已实现 schema migration、Discovery Search Run / Candidate 队列、论文 acquisition、Pass 1 Reconstruction、Pass 2 Critical Audit、FTS/evidence 检索、状态与完整性校验；搜索、候选发现、canonical artifact、知识单元、批判问题、关系与 change log 均持久化到同一项目数据库。Evidence Synthesis 规则见 [`references/RESEARCH-SYNTHESIS.md`](references/RESEARCH-SYNTHESIS.md)。Agent 通过脚本维护数据库，不把直接散写 SQL 作为正常科研工作流。
+本 Skill 当前处于 `in-progress`。`research-db` 已实现 schema migration、Discovery Search Run / Candidate 队列、Candidate identity reconciliation、论文 acquisition、Pass 1 Reconstruction、Pass 2 Critical Audit、FTS/evidence 检索、跨论文 relation、Discovery closure、状态与完整性校验，以及最终科研项目 `validate --completion` 门禁；搜索、候选发现、canonical artifact、知识单元、批判问题、关系与 change log 均持久化到同一项目数据库。Evidence Synthesis 规则见 [`references/RESEARCH-SYNTHESIS.md`](references/RESEARCH-SYNTHESIS.md)。Agent 通过脚本维护数据库，不把直接散写 SQL 作为正常科研工作流。

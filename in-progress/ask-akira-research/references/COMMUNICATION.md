@@ -1,6 +1,6 @@
 # Research Communication Contract
 
-Communication 的任务是把已经建立的研究状态、证据边界、方法与不确定性准确地转成论文、报告、摘要、图表、答辩或其他面向人的产物。传播形式可以变化，但科研 Claim 不能因为进入写作阶段而升级。
+Communication 的任务是把已经建立的研究状态、证据边界、方法与不确定性准确地转成论文、报告、摘要、图表、答辩或其他面向人的产物。传播形式可以变化，但科研 Claim 不能因为进入写作阶段而升级。所有术语选择、中文/英文首次出现方式、新概念命名和近义词使用统一遵守 [`ACADEMIC-LANGUAGE.md`](standards/ACADEMIC-LANGUAGE.md)。
 
 ## 1. 进入条件
 
