@@ -32,15 +32,15 @@ class ResearchDbTests(unittest.TestCase):
     def test_init_creates_current_schema(self) -> None:
         result = init_database(self.root)
 
-        self.assertEqual(result["schema_version"], 4)
+        self.assertEqual(result["schema_version"], 5)
         self.assertEqual(
             Path(result["bundle_directory"]), self.root / ".research" / "bundles"
         )
         self.assertTrue((self.root / ".research" / "bundles").is_dir())
         db_status = status(self.root)
         self.assertTrue(db_status["exists"])
-        self.assertEqual(db_status["schema_version"], 4)
-        self.assertEqual(db_status["meta_schema_version"], 4)
+        self.assertEqual(db_status["schema_version"], 5)
+        self.assertEqual(db_status["meta_schema_version"], 5)
         self.assertEqual(db_status["tables"]["papers"], 0)
         self.assertTrue(validate(self.root)["ok"])
 
@@ -91,7 +91,7 @@ class ResearchDbTests(unittest.TestCase):
                 ("P000001", now),
             )
 
-        self.assertEqual(apply_migrations(db_path), [2, 3, 4])
+        self.assertEqual(apply_migrations(db_path), [2, 3, 4, 5])
         with sqlite3.connect(db_path) as connection:
             connection.row_factory = sqlite3.Row
             artifact_columns = {
@@ -107,6 +107,49 @@ class ResearchDbTests(unittest.TestCase):
         self.assertNotIn("sha256", artifact_columns)
         self.assertEqual(tuple(artifact), ("P000001", "main_text", "legacy.pdf"))
         self.assertEqual(tuple(issue), ("concern", "potential", "major", "medium"))
+
+    def test_candidate_link_is_backfilled_when_migrating_from_v4(self) -> None:
+        db_path = database_path(self.root)
+        db_path.parent.mkdir(parents=True)
+        with sqlite3.connect(db_path) as connection:
+            for migration_name in (
+                "001_initial.sql",
+                "002_provenance_and_issue_model.sql",
+                "003_knowledge_fts.sql",
+                "004_discovery_workflow.sql",
+            ):
+                connection.executescript((MIGRATION_DIR / migration_name).read_text(encoding="utf-8"))
+            connection.execute("PRAGMA user_version = 4")
+            connection.execute(
+                "INSERT INTO meta(key, value) VALUES('schema_version', '4')"
+            )
+            now = datetime.now(timezone.utc).isoformat()
+            connection.execute(
+                """
+                INSERT INTO papers(
+                    id, title, doi, canonical_identity, created_at, updated_at
+                ) VALUES ('P000001', 'Known paper', '10.1234/known',
+                          'doi:10.1234/known', ?, ?)
+                """,
+                (now, now),
+            )
+            connection.execute(
+                """
+                INSERT INTO candidates(
+                    title, doi, identity_status, relevance_status, paper_id,
+                    created_at, updated_at
+                ) VALUES ('Known paper', '10.1234/known', 'resolved', 'relevant',
+                          'P000001', ?, ?)
+                """,
+                (now, now),
+            )
+
+        self.assertEqual(apply_migrations(db_path), [5])
+        with sqlite3.connect(db_path) as connection:
+            row = connection.execute(
+                "SELECT acquisition_status, identity_status FROM candidates"
+            ).fetchone()
+        self.assertEqual(tuple(row), ("acquired", "resolved"))
 
     def test_validate_requires_reconstruction_run_for_reconstructed_paper(self) -> None:
         init_database(self.root)
