@@ -197,6 +197,72 @@ class ResearchDbTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertTrue(any("扩展名" in error for error in result["errors"]))
 
+    def test_validate_rejects_excluded_candidate_without_reason(self) -> None:
+        init_database(self.root)
+        now = datetime.now(timezone.utc).isoformat()
+        with sqlite3.connect(database_path(self.root)) as connection:
+            connection.execute(
+                """
+                INSERT INTO candidates(
+                    title, identity_status, relevance_status, acquisition_status,
+                    reading_priority, created_at, updated_at
+                ) VALUES ('Noise result', 'unresolved', 'excluded', 'pending',
+                          'low', ?, ?)
+                """,
+                (now, now),
+            )
+
+        result = validate(self.root)
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("exclusion_reason" in error for error in result["errors"]))
+
+    def test_validate_rejects_acquired_candidate_without_paper(self) -> None:
+        init_database(self.root)
+        now = datetime.now(timezone.utc).isoformat()
+        with sqlite3.connect(database_path(self.root)) as connection:
+            connection.execute(
+                """
+                INSERT INTO candidates(
+                    title, doi, identity_status, relevance_status, acquisition_status,
+                    reading_priority, created_at, updated_at
+                ) VALUES ('Orphan acquired result', '10.1234/orphan', 'resolved',
+                          'relevant', 'acquired', 'core', ?, ?)
+                """,
+                (now, now),
+            )
+
+        result = validate(self.root)
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("没有关联 Paper" in error for error in result["errors"]))
+
+    def test_validate_rejects_candidate_paper_identity_conflict(self) -> None:
+        init_database(self.root)
+        now = datetime.now(timezone.utc).isoformat()
+        with sqlite3.connect(database_path(self.root)) as connection:
+            connection.execute(
+                """
+                INSERT INTO papers(
+                    id, title, doi, canonical_identity, created_at, updated_at
+                ) VALUES ('P000001', 'Known paper', '10.1234/paper',
+                          'doi:10.1234/paper', ?, ?)
+                """,
+                (now, now),
+            )
+            connection.execute(
+                """
+                INSERT INTO candidates(
+                    title, doi, identity_status, relevance_status, acquisition_status,
+                    reading_priority, paper_id, created_at, updated_at
+                ) VALUES ('Wrong identity', '10.1234/other', 'resolved', 'relevant',
+                          'acquired', 'core', 'P000001', ?, ?)
+                """,
+                (now, now),
+            )
+
+        result = validate(self.root)
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("DOI" in error and "不一致" in error for error in result["errors"]))
+
     def test_validate_warns_when_critical_review_has_no_issue(self) -> None:
         init_database(self.root)
         now = datetime.now(timezone.utc).isoformat()

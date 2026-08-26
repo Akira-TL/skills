@@ -495,6 +495,7 @@ research-db paper-context P000001 --for-sidecar
 `research-db validate` 相当于科研知识库的 integrity check。至少检查：
 
 - duplicate DOI / PMID / canonical identity，以及 DOI/PMID 与 canonical identity 不一致；
+- Candidate 的 identity/relevance/acquisition 状态自洽：`excluded` 有 exclusion reason，`acquired` 已关联 Paper，已关联 Paper 的 DOI/PMID 与 Candidate 不冲突；
 - canonical `main_text` artifact 缺少文件扩展名；
 - dangling relation / nonexistent target；
 - observation 指向不存在的 experiment；

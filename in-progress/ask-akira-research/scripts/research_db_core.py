@@ -315,6 +315,54 @@ def validate(project_root: Path) -> dict[str, Any]:
                     )
 
             for row in connection.execute(
+                """
+                SELECT id, identity_status, relevance_status, exclusion_reason,
+                       acquisition_status, paper_id, doi, pmid
+                FROM candidates ORDER BY id
+                """
+            ):
+                candidate_id = int(row["id"])
+                doi = str(row["doi"]).strip().lower() if row["doi"] else None
+                pmid = str(row["pmid"]).strip() if row["pmid"] else None
+                if row["relevance_status"] == "excluded" and not (
+                    row["exclusion_reason"] and str(row["exclusion_reason"]).strip()
+                ):
+                    errors.append(
+                        f"candidate {candidate_id} 标记为 excluded，但缺少 exclusion_reason。"
+                    )
+                if row["acquisition_status"] == "acquired" and not row["paper_id"]:
+                    errors.append(
+                        f"candidate {candidate_id} 标记为 acquired，但没有关联 Paper。"
+                    )
+                if row["paper_id"] and row["acquisition_status"] != "acquired":
+                    errors.append(
+                        f"candidate {candidate_id} 已关联 {row['paper_id']}，但 acquisition_status 不是 acquired。"
+                    )
+                if row["identity_status"] == "resolved" and not (doi or pmid or row["paper_id"]):
+                    errors.append(
+                        f"candidate {candidate_id} 标记为 resolved，但没有 DOI/PMID/Paper identity。"
+                    )
+                if row["identity_status"] == "unresolved" and (doi or pmid or row["paper_id"]):
+                    errors.append(
+                        f"candidate {candidate_id} 已有稳定身份，但 identity_status 仍为 unresolved。"
+                    )
+                if row["paper_id"]:
+                    paper = connection.execute(
+                        "SELECT doi, pmid FROM papers WHERE id = ?", (row["paper_id"],)
+                    ).fetchone()
+                    if paper is not None:
+                        paper_doi = str(paper["doi"]).strip().lower() if paper["doi"] else None
+                        paper_pmid = str(paper["pmid"]).strip() if paper["pmid"] else None
+                        if doi and paper_doi and doi != paper_doi:
+                            errors.append(
+                                f"candidate {candidate_id} DOI 与关联 Paper {row['paper_id']} 不一致。"
+                            )
+                        if pmid and paper_pmid and pmid != paper_pmid:
+                            errors.append(
+                                f"candidate {candidate_id} PMID 与关联 Paper {row['paper_id']} 不一致。"
+                            )
+
+            for row in connection.execute(
                 "SELECT id, kind, path, content_type FROM artifacts ORDER BY id"
             ):
                 stored_path = Path(row["path"])
