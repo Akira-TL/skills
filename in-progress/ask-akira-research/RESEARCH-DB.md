@@ -438,14 +438,14 @@ uv run scripts/research_db.py validate
 
 默认从当前目录向上定位 `RESEARCH.md` 或 `.research/research.sqlite`；也可用全局 `--project <path>` 显式指定科研项目根目录。`init` 同时创建 `.research/bundles/`；`record-search` 默认读取 `search.json`，`update-candidate` 默认读取 `candidate-update.json`，三个 ingest 命令分别读取 `paper.json`、`reconstruction.json`、`critical.json`；都可显式传其他 JSON 路径或 `-` 从 stdin 读取。命令输出结构化 JSON。
 
-后续接口目标：
+知识读取接口当前可用：
 
 ```text
 research-db paper P000001
 research-db search <query>
-research-db methods <query>
-research-db issues [filters]
-research-db claims <query>
+research-db methods [query]
+research-db issues [query] [filters]
+research-db claims [query]
 research-db evidence <query>
 research-db related P000001
 research-db history P000001
@@ -469,7 +469,7 @@ issue assessment / alternative_explanations
 lead title
 ```
 
-Agent 根据用户问题生成关键词、同义词或结构过滤条件；SQLite 返回候选 knowledge units，Agent 再读取候选和必要原文完成解释。数据库负责记忆与定位，原始论文负责最终核验。
+Agent 根据用户问题生成关键词、同义词或结构过滤条件；SQLite 返回候选 knowledge units，Agent 再读取候选和必要原文完成解释。`paper` 返回 identity/artifact/reading-run/counts，`methods`/`claims`/`issues` 支持 Paper 与文本/问题过滤，`history` 返回语义 change log，`related` 根据跨 Paper relation 动态聚合关联论文。数据库负责记忆与定位，原始论文负责最终核验。
 
 `research-db evidence <query>` 先检索相关 Claim / Observation / Issue，再沿 `relations` 展开支持、冲突、批判、共享数据与来源 Paper，输出 machine-readable evidence packet。脚本负责检索图，不负责用硬编码评分替代科研判断。
 

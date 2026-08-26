@@ -276,6 +276,78 @@ def list_entities(
     }
 
 
+def _paper_id_for_entity(
+    connection: sqlite3.Connection, entity_type: str, entity_id: str
+) -> str | None:
+    if entity_type == "paper":
+        row = connection.execute("SELECT id FROM papers WHERE id = ?", (entity_id,)).fetchone()
+        return str(row["id"]) if row else None
+    table = ENTITY_TABLES.get(entity_type)
+    if table is None:
+        return None
+    row = connection.execute(
+        f'SELECT paper_id FROM "{table}" WHERE CAST(id AS TEXT) = ?', (entity_id,)
+    ).fetchone()
+    return str(row["paper_id"]) if row else None
+
+
+def related_papers(project_root: Path, paper_id: str) -> dict[str, Any]:
+    with connect(_db_path(project_root)) as connection:
+        if _entity_record(connection, "paper", paper_id) is None:
+            raise ResearchDbError(f"Paper 不存在：{paper_id}")
+        grouped: dict[str, dict[str, Any]] = {}
+        for relation_row in connection.execute("SELECT * FROM relations ORDER BY id"):
+            relation = dict(relation_row)
+            subject_paper = _paper_id_for_entity(
+                connection, str(relation["subject_type"]), str(relation["subject_id"])
+            )
+            object_paper = _paper_id_for_entity(
+                connection, str(relation["object_type"]), str(relation["object_id"])
+            )
+            other_paper: str | None = None
+            if subject_paper == paper_id and object_paper and object_paper != paper_id:
+                other_paper = object_paper
+            elif object_paper == paper_id and subject_paper and subject_paper != paper_id:
+                other_paper = subject_paper
+            if other_paper is None:
+                continue
+            bucket = grouped.setdefault(
+                other_paper,
+                {
+                    "paper": _entity_record(connection, "paper", other_paper),
+                    "relations": [],
+                },
+            )
+            bucket["relations"].append(relation)
+    return {
+        "ok": True,
+        "paper_id": paper_id,
+        "related": list(grouped.values()),
+    }
+
+
+def paper_history(
+    project_root: Path, paper_id: str, *, limit: int = 100
+) -> dict[str, Any]:
+    limit = _limit(limit)
+    with connect(_db_path(project_root)) as connection:
+        if _entity_record(connection, "paper", paper_id) is None:
+            raise ResearchDbError(f"Paper 不存在：{paper_id}")
+        rows = [
+            dict(row)
+            for row in connection.execute(
+                """
+                SELECT * FROM change_log
+                WHERE paper_id = ?
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (paper_id, limit),
+            )
+        ]
+    return {"ok": True, "paper_id": paper_id, "history": rows}
+
+
 def get_paper(project_root: Path, paper_id: str) -> dict[str, Any]:
     with connect(_db_path(project_root)) as connection:
         paper = _entity_record(connection, "paper", paper_id)

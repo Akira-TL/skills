@@ -24,7 +24,14 @@ from research_db_discovery import (
     update_candidate,
 )
 from research_db_ingest import PaperIngestBundle, ingest_paper
-from research_db_query import evidence_packet
+from research_db_query import (
+    evidence_packet,
+    get_paper,
+    list_entities,
+    paper_history,
+    related_papers,
+    search_knowledge,
+)
 from research_db_reading import ingest_reading
 
 
@@ -183,6 +190,66 @@ def cmd_ingest_critical(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_search(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(
+        search_knowledge(
+            project_root,
+            args.query,
+            entity_types=args.entity_type,
+            paper_id=args.paper,
+            limit=args.limit,
+        )
+    )
+    return 0
+
+
+def cmd_paper(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(get_paper(project_root, args.paper_id))
+    return 0
+
+
+def _cmd_entity_list(args: argparse.Namespace, entity_type: str) -> int:
+    project_root = discover_project_root(args.project)
+    emit(
+        list_entities(
+            project_root,
+            entity_type,
+            query=args.query,
+            paper_id=args.paper,
+            limit=args.limit,
+            severity=getattr(args, "severity", None),
+            nature=getattr(args, "nature", None),
+        )
+    )
+    return 0
+
+
+def cmd_methods(args: argparse.Namespace) -> int:
+    return _cmd_entity_list(args, "method")
+
+
+def cmd_claims(args: argparse.Namespace) -> int:
+    return _cmd_entity_list(args, "claim")
+
+
+def cmd_issues(args: argparse.Namespace) -> int:
+    return _cmd_entity_list(args, "issue")
+
+
+def cmd_related(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(related_papers(project_root, args.paper_id))
+    return 0
+
+
+def cmd_history(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(paper_history(project_root, args.paper_id, limit=args.limit))
+    return 0
+
+
 def cmd_evidence(args: argparse.Namespace) -> int:
     project_root = discover_project_root(args.project)
     emit(evidence_packet(project_root, args.query, limit=args.limit))
@@ -246,6 +313,46 @@ def build_parser() -> argparse.ArgumentParser:
         help="Candidate update JSON；默认 .research/bundles/candidate-update.json；传 '-' 从 stdin 读取。",
     )
     update_candidate_parser.set_defaults(handler=cmd_update_candidate)
+
+    search_parser = subparsers.add_parser(
+        "search", help="FTS 检索已沉淀的 Paper/Method/Experiment/Observation/Claim/Issue/Lead。"
+    )
+    search_parser.add_argument("query")
+    search_parser.add_argument(
+        "--entity-type",
+        action="append",
+        choices=["paper", "method", "experiment", "observation", "claim", "issue", "lead"],
+    )
+    search_parser.add_argument("--paper")
+    search_parser.add_argument("--limit", type=int, default=20)
+    search_parser.set_defaults(handler=cmd_search)
+
+    paper_parser = subparsers.add_parser("paper", help="读取一篇 Paper 的身份、artifact、阅读运行与知识计数。")
+    paper_parser.add_argument("paper_id")
+    paper_parser.set_defaults(handler=cmd_paper)
+
+    for name, help_text, handler in (
+        ("methods", "查询或列出 Method。", cmd_methods),
+        ("claims", "查询或列出 Claim。", cmd_claims),
+        ("issues", "查询或列出 Critical Issue。", cmd_issues),
+    ):
+        entity_parser = subparsers.add_parser(name, help=help_text)
+        entity_parser.add_argument("query", nargs="?")
+        entity_parser.add_argument("--paper")
+        entity_parser.add_argument("--limit", type=int, default=50)
+        if name == "issues":
+            entity_parser.add_argument("--severity")
+            entity_parser.add_argument("--nature")
+        entity_parser.set_defaults(handler=handler)
+
+    related_parser = subparsers.add_parser("related", help="返回通过关系图连接的其他 Paper。")
+    related_parser.add_argument("paper_id")
+    related_parser.set_defaults(handler=cmd_related)
+
+    history_parser = subparsers.add_parser("history", help="返回一篇 Paper 的语义 change log。")
+    history_parser.add_argument("paper_id")
+    history_parser.add_argument("--limit", type=int, default=100)
+    history_parser.set_defaults(handler=cmd_history)
 
     evidence_parser = subparsers.add_parser(
         "evidence",

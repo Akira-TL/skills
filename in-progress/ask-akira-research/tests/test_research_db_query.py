@@ -11,7 +11,14 @@ SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from research_db_core import database_path, init_database  # noqa: E402
-from research_db_query import evidence_packet, get_paper, list_entities, search_knowledge  # noqa: E402
+from research_db_query import (  # noqa: E402
+    evidence_packet,
+    get_paper,
+    list_entities,
+    paper_history,
+    related_papers,
+    search_knowledge,
+)
 
 
 class ResearchDbQueryTests(unittest.TestCase):
@@ -82,6 +89,14 @@ class ResearchDbQueryTests(unittest.TestCase):
             )
             connection.execute(
                 """
+                INSERT INTO change_log(
+                    timestamp, action, entity_type, entity_id, paper_id, summary
+                ) VALUES (?, 'ADD', 'paper', 'P000001', 'P000001', 'Paper registered')
+                """,
+                (now,),
+            )
+            connection.execute(
+                """
                 INSERT INTO issues(
                     paper_id, category, nature, target_type, target_id, assessment,
                     basis, severity, confidence, why_it_matters, artifact_id,
@@ -142,6 +157,43 @@ class ResearchDbQueryTests(unittest.TestCase):
         self.assertGreaterEqual(len(result["evidence_units"]), 1)
         self.assertEqual(result["relations"][0]["predicate"], "QUALIFIES")
         self.assertIn("不代表科研结论强度判断", result["note"])
+
+    def test_related_papers_returns_cross_paper_relation(self) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with sqlite3.connect(database_path(self.root)) as connection:
+            connection.execute(
+                """
+                INSERT INTO papers(
+                    id, title, doi, canonical_identity, created_at, updated_at
+                ) VALUES ('P000002', 'Related cohort paper', '10.1234/related',
+                          'doi:10.1234/related', ?, ?)
+                """,
+                (now, now),
+            )
+            connection.execute(
+                """
+                INSERT INTO relations(
+                    subject_type, subject_id, predicate, object_type, object_id,
+                    confidence, note, created_at
+                ) VALUES ('paper', 'P000001', 'SHARES_DATA_WITH', 'paper', 'P000002',
+                          'high', 'Same deposited cohort data.', ?)
+                """,
+                (now,),
+            )
+
+        result = related_papers(self.root, "P000001")
+
+        self.assertEqual(len(result["related"]), 1)
+        self.assertEqual(result["related"][0]["paper"]["id"], "P000002")
+        self.assertEqual(
+            result["related"][0]["relations"][0]["predicate"], "SHARES_DATA_WITH"
+        )
+
+    def test_paper_history_returns_semantic_change_log(self) -> None:
+        result = paper_history(self.root, "P000001")
+
+        self.assertEqual(len(result["history"]), 1)
+        self.assertEqual(result["history"][0]["summary"], "Paper registered")
 
     def test_get_paper_returns_identity_artifacts_and_knowledge_counts(self) -> None:
         result = get_paper(self.root, "P000001")

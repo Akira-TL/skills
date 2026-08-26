@@ -53,6 +53,31 @@ class ResearchDbCliTests(unittest.TestCase):
         )
         self.assertIsNone(search_args.bundle)
 
+    def test_read_query_commands_are_exposed(self) -> None:
+        search_args = build_parser().parse_args(
+            ["--project", str(self.root), "search", "Blautia", "--entity-type", "claim"]
+        )
+        self.assertEqual(search_args.entity_type, ["claim"])
+
+        issue_args = build_parser().parse_args(
+            [
+                "--project",
+                str(self.root),
+                "issues",
+                "--paper",
+                "P000001",
+                "--severity",
+                "major",
+            ]
+        )
+        self.assertEqual(issue_args.paper, "P000001")
+        self.assertEqual(issue_args.severity, "major")
+
+        related_args = build_parser().parse_args(
+            ["--project", str(self.root), "related", "P000001"]
+        )
+        self.assertEqual(related_args.paper_id, "P000001")
+
     def test_candidate_queue_filters_are_exposed(self) -> None:
         args = build_parser().parse_args(
             [
