@@ -86,6 +86,26 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
         self.assertEqual(len(candidates[0]["search_runs"]), 2)
         self.assertEqual(len(list_search_runs(self.root)["search_runs"]), 2)
 
+    def test_relevant_candidate_defaults_to_acquisition_queue(self) -> None:
+        record_search_run(
+            self.root,
+            {
+                "purpose": "Seed search",
+                "source": "PubMed",
+                "query": "altitude microbiome",
+                "candidates": [
+                    {
+                        "title": "Relevant paper",
+                        "relevance_status": "relevant",
+                        "relevance_reason": "Directly studies the target population.",
+                    }
+                ],
+            },
+        )
+
+        candidate = list_candidates(self.root)["candidates"][0]
+        self.assertEqual(candidate["acquisition_status"], "queued")
+
     def test_existing_paper_marks_discovered_candidate_acquired(self) -> None:
         now = datetime.now(timezone.utc).isoformat()
         with sqlite3.connect(database_path(self.root)) as connection:

@@ -161,7 +161,7 @@ def _record_candidate(
     acquisition_status = _enum(
         raw.get("acquisition_status"),
         ACQUISITION_STATUSES,
-        default="pending",
+        default="queued" if relevance_status == "relevant" else "pending",
         field="acquisition_status",
     )
     reading_priority = _enum(
