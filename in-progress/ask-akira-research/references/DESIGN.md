@@ -130,7 +130,7 @@ Design 在数据产生前至少说明 primary analysis 需要尊重的结构：
 
 ## 9. 完成条件
 
-Design 可以进入 Data 阶段时，至少满足：
+Design 可以按 [`DATA.md`](DATA.md) 进入 Data 阶段时，至少满足：
 
 1. discriminator 已转换成明确 estimand / target contrast；
 2. independent unit、groups/comparator、measurements 与 time 已定义；
