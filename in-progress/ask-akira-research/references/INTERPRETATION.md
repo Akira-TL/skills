@@ -109,4 +109,4 @@ Interpretation 完成时必须能清楚回答：
 6. 当前最窄、最可辩护的结论是什么？
 7. primary Active Uncertainty 是否改变，下一条最有信息增益的 evidence 是什么？
 
-如果第 7 项仍能由文献、分析或设计动作推进，就继续科研循环；Communication 只在确有传播/写作目标时进入，不是 Interpretation 后的强制下一阶段。
+如果第 7 项仍能由文献、分析或设计动作推进，就继续科研循环；只有确有传播/写作目标时才按 [`COMMUNICATION.md`](COMMUNICATION.md) 进入 Communication，它不是 Interpretation 后的强制下一阶段。
