@@ -98,4 +98,4 @@ Hypothesis 阶段完成时必须有：
 3. 明确的 discriminator / decision boundary；
 4. 下一步 evidence 是否已存在于当前数据中、需要额外分析，还是必须进入新 Design 的判断。
 
-只有第 4 项指向新的 sampling、measurement、control 或 intervention 时才进入 `DESIGN`。
+只有第 4 项指向新的 sampling、measurement、control 或 intervention 时才按 [`DESIGN.md`](DESIGN.md) 进入 `DESIGN`。
