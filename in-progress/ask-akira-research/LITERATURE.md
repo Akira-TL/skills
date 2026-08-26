@@ -23,6 +23,8 @@ Active Uncertainty
 
 搜索停止依据是相对当前 Active Uncertainty 的边际知识增益：连续检索与引用追踪不再产生新的重要方法、观察、解释、矛盾、边界条件、研究设计或基础工作时，可以认为 discovery 达到当前目的的 saturation；不以固定论文数量作为停止条件。
 
+每次真实搜索结束后用 `research-db record-search` 原子持久化 Search Run 与本次保留的 Candidate；同一论文在 seed search、query expansion 与 citation chasing 中重复出现时应复用 Candidate，并保留每个 `search_run_candidates` 发现边。`what_we_learned` 与 `next_decision` 记录这次检索如何改变下一步，而不是事后写成检索日志散文。
+
 ## 2. Candidate 默认进入全文队列
 
 摘要只承担导航，不代表论文。完成 identity resolution 与 deduplication 后，除明显错误命中、非目标 scholarly work、重复记录等低成本可确认噪声外，相关 Candidate 默认进入全文获取与阅读队列。
@@ -33,7 +35,7 @@ Active Uncertainty
 - 调整全文阅读优先级；
 - 在写作阶段补充一个只需要摘要级背景的引用。
 
-研究启动、问题发现、方法学习与证据综合阶段，不以“摘要看起来足够”作为结束条件。
+研究启动、问题发现、方法学习与证据综合阶段，不以“摘要看起来足够”作为结束条件。Candidate 的 `relevance_status`、`acquisition_status` 与 `reading_priority` 分开维护：相关性决定是否属于问题空间，获取状态说明全文是否已拿到，优先级只决定阅读顺序；`excluded` 必须留下明确 exclusion reason。相关 Candidate 默认进入 `queued` 全文获取队列，成功 `ingest-paper` 后自动回链正式 Paper。
 
 ## 3. 全文获取与阅读深度
 
