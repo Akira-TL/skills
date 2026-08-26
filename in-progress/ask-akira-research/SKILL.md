@@ -18,7 +18,7 @@ disable-model-invocation: true
 
 `Current Loop` 只表示研究当前主要位于哪里，不规定下一步。允许的定位词为：`EXPLORE`、`QUESTION`、`HYPOTHESIS`、`DESIGN`、`DATA`、`ANALYSIS`、`INTERPRETATION`、`COMMUNICATION`。
 
-每轮先判断当前最阻塞研究的不确定性，再选择信息增益最高且成本合理的下一动作。当前问题混有多个子问题、已有 competing explanations、或需要决定什么 evidence 最能改变当前判断时，读取 [`ACTIVE-UNCERTAINTY.md`](ACTIVE-UNCERTAINTY.md)；需要把 competing explanations 变成可判别预测时继续读取 [`HYPOTHESIS.md`](HYPOTHESIS.md)；判别 evidence 需要新的 sampling、measurement、control 或 intervention 时读取 [`DESIGN.md`](DESIGN.md)。需要文献发现、全文获取、论文阅读、批判审阅或跨论文证据综合时，读取 [`LITERATURE.md`](LITERATURE.md)。需要持久化、检索、校验或生成证据视图时，读取 [`RESEARCH-DB.md`](RESEARCH-DB.md)。
+每轮先判断当前最阻塞研究的不确定性，再选择信息增益最高且成本合理的下一动作。当前问题混有多个子问题、已有 competing explanations、或需要决定什么 evidence 最能改变当前判断时，读取 [`references/ACTIVE-UNCERTAINTY.md`](references/ACTIVE-UNCERTAINTY.md)；需要把 competing explanations 变成可判别预测时继续读取 [`references/HYPOTHESIS.md`](references/HYPOTHESIS.md)；判别 evidence 需要新的 sampling、measurement、control 或 intervention 时读取 [`references/DESIGN.md`](references/DESIGN.md)。需要文献发现、全文获取、论文阅读、批判审阅或跨论文证据综合时，读取 [`LITERATURE.md`](LITERATURE.md)。需要持久化、检索、校验或生成证据视图时，读取 [`RESEARCH-DB.md`](RESEARCH-DB.md)。
 
 不要把科研过程强制推进成单向流水线；文献、假设、实验设计、数据分析和解释可以反复回到彼此。
 
@@ -42,4 +42,4 @@ disable-model-invocation: true
 
 科研历史依赖 Git 保存版本演化；结构化数据库内部另保留语义 change log。提交围绕科研事件命名，避免 `update research` 一类无信息提交。
 
-本 Skill 当前处于 `in-progress`。`research-db` 已实现 schema migration、`init`、`migrate`、`ingest-paper`、`ingest-reading`、`ingest-critical`、`status` 与 `validate`；论文获取、Pass 1 Reconstruction 和 Pass 2 Critical Audit 都通过原子 bundle 写入，并把 canonical artifact、知识单元、批判问题、关系与 change log 保存在同一项目数据库中。FTS 检索和 evidence 查询已实现；Evidence Synthesis 规则见 [`RESEARCH-SYNTHESIS.md`](RESEARCH-SYNTHESIS.md)。Agent 通过脚本维护数据库，不把直接散写 SQL 作为正常科研工作流。
+本 Skill 当前处于 `in-progress`。`research-db` 已实现 schema migration、`init`、`migrate`、`ingest-paper`、`ingest-reading`、`ingest-critical`、`status` 与 `validate`；论文获取、Pass 1 Reconstruction 和 Pass 2 Critical Audit 都通过原子 bundle 写入，并把 canonical artifact、知识单元、批判问题、关系与 change log 保存在同一项目数据库中。FTS 检索和 evidence 查询已实现；Evidence Synthesis 规则见 [`references/RESEARCH-SYNTHESIS.md`](references/RESEARCH-SYNTHESIS.md)。Agent 通过脚本维护数据库，不把直接散写 SQL 作为正常科研工作流。
