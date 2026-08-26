@@ -11,12 +11,13 @@ SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from research_db_core import ResearchDbError, database_path, init_database  # noqa: E402
-from research_db_ops.discovery import (  # noqa: E402
+from research_db_ops.candidates import (  # noqa: E402
+    discovery_readiness,
     list_candidates,
-    list_search_runs,
-    record_search_run,
+    merge_candidates,
     update_candidate,
 )
+from research_db_ops.discovery import list_search_runs, record_search_run  # noqa: E402
 from research_db_ingest import ingest_paper  # noqa: E402
 
 
@@ -202,6 +203,123 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
         candidate = list_candidates(self.root)["candidates"][0]
         self.assertEqual(candidate["paper_id"], ingested["paper_id"])
         self.assertEqual(candidate["acquisition_status"], "acquired")
+
+    def test_identity_resolution_reuses_title_match_despite_punctuation(self) -> None:
+        first = record_search_run(
+            self.root,
+            {
+                "purpose": "Seed search",
+                "source": "Web",
+                "query": "yak microbiome",
+                "candidates": [
+                    {
+                        "title": "Host Bias in Diet-Source Microbiome Transmission in Wild Cohabitating Herbivores",
+                        "year": 2021,
+                        "relevance_status": "relevant",
+                    }
+                ],
+            },
+        )
+        second = record_search_run(
+            self.root,
+            {
+                "purpose": "Identity resolution",
+                "source": "Europe PMC",
+                "query": "exact title",
+                "candidates": [
+                    {
+                        "title": "Host Bias in Diet–Source Microbiome Transmission in Wild Cohabitating Herbivores.",
+                        "year": 2021,
+                        "doi": "10.1128/spectrum.00756-21",
+                        "relevance_status": "relevant",
+                    }
+                ],
+            },
+        )
+
+        self.assertEqual(first["persisted_candidates"][0]["id"], second["persisted_candidates"][0]["id"])
+        self.assertEqual(len(list_candidates(self.root)["candidates"]), 1)
+
+    def test_merge_candidates_preserves_search_provenance(self) -> None:
+        first = record_search_run(
+            self.root,
+            {
+                "purpose": "Seed",
+                "source": "Web",
+                "query": "paper a",
+                "candidates": [{"title": "Paper A", "year": 2024}],
+            },
+        )
+        second = record_search_run(
+            self.root,
+            {
+                "purpose": "Independent identity result",
+                "source": "Crossref",
+                "query": "10.1234/a",
+                "candidates": [
+                    {
+                        "title": "Different indexing title",
+                        "year": 2024,
+                        "doi": "10.1234/a",
+                        "relevance_status": "relevant",
+                        "reading_priority": "core",
+                    }
+                ],
+            },
+        )
+        keep_id = first["persisted_candidates"][0]["id"]
+        merge_id = second["persisted_candidates"][0]["id"]
+        merged = merge_candidates(
+            self.root,
+            keep_id,
+            merge_id,
+            reason="Exact DOI and manual title verification show the same scholarly work.",
+        )
+
+        self.assertTrue(merged["ok"])
+        candidates = list_candidates(self.root)["candidates"]
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0]["doi"], "10.1234/a")
+        self.assertEqual(candidates[0]["reading_priority"], "core")
+        self.assertEqual(len(candidates[0]["search_runs"]), 2)
+
+    def test_discovery_readiness_requires_core_closure_and_high_defer_reason(self) -> None:
+        result = record_search_run(
+            self.root,
+            {
+                "purpose": "Seed",
+                "source": "Web",
+                "query": "yak microbiome",
+                "candidates": [
+                    {
+                        "title": "Core paper",
+                        "relevance_status": "relevant",
+                        "reading_priority": "core",
+                    },
+                    {
+                        "title": "High paper",
+                        "relevance_status": "relevant",
+                        "reading_priority": "high",
+                    },
+                ],
+            },
+        )
+        core_id = result["persisted_candidates"][0]["id"]
+        high_id = result["persisted_candidates"][1]["id"]
+
+        first = discovery_readiness(self.root)
+        self.assertFalse(first["ready_for_saturation"])
+        self.assertEqual(len(first["blockers"]), 2)
+
+        update_candidate(self.root, core_id, {"acquisition_status": "unavailable"})
+        update_candidate(
+            self.root,
+            high_id,
+            {
+                "defer_reason": "Additional reading is unlikely to change the current uncertainty boundary.",
+            },
+        )
+        self.assertTrue(discovery_readiness(self.root)["ready_for_saturation"])
 
     def test_record_search_rejects_missing_parent_run(self) -> None:
         with self.assertRaises(ResearchDbError):

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -272,6 +273,67 @@ def validate(project_root: Path) -> dict[str, Any]:
             for row in reconstructed_without_run:
                 errors.append(f"{row['id']} 标记为 reconstructed/extracted，但缺少完成的 reconstruction run。")
 
+            for run in connection.execute(
+                """
+                SELECT id, paper_id, depth, extraction_checks_json
+                FROM reading_runs
+                WHERE pass = 'reconstruction' AND completed_at IS NOT NULL
+                ORDER BY id
+                """
+            ):
+                raw_checks = run["extraction_checks_json"]
+                try:
+                    checks = json.loads(raw_checks) if raw_checks else None
+                except json.JSONDecodeError:
+                    checks = None
+                if not isinstance(checks, dict):
+                    checks = {}
+                if checks.get("observation_semantics_checked") is not True:
+                    errors.append(
+                        f"reconstruction run {run['id']} ({run['paper_id']}) 缺少完成的 Observation 语义自审。"
+                    )
+                if run["depth"] == "deep_extraction":
+                    if checks.get("figures_tables_checked") is not True:
+                        errors.append(
+                            f"deep_extraction run {run['id']} ({run['paper_id']}) 未确认 figures/tables 检查。"
+                        )
+                    if checks.get("quantitative_results_checked") is not True:
+                        errors.append(
+                            f"deep_extraction run {run['id']} ({run['paper_id']}) 未确认定量结果检查。"
+                        )
+                    for field in ("supplement_status", "code_data_status"):
+                        if checks.get(field) not in {"checked", "not_applicable", "access_limited"}:
+                            errors.append(
+                                f"deep_extraction run {run['id']} ({run['paper_id']}) 的 {field} 状态不完整。"
+                            )
+                    quantitative_present = checks.get("quantitative_results_present")
+                    if not isinstance(quantitative_present, bool):
+                        errors.append(
+                            f"deep_extraction run {run['id']} ({run['paper_id']}) 未声明 quantitative_results_present。"
+                        )
+                    elif quantitative_present:
+                        count = int(
+                            connection.execute(
+                                """
+                                SELECT COUNT(*) FROM observations
+                                WHERE paper_id = ?
+                                  AND statistics_json IS NOT NULL
+                                  AND trim(statistics_json) NOT IN ('', '{}', 'null')
+                                """,
+                                (run["paper_id"],),
+                            ).fetchone()[0]
+                        )
+                        if count == 0:
+                            errors.append(
+                                f"deep_extraction run {run['id']} ({run['paper_id']}) 声明存在定量结果，"
+                                "但没有 Observation 保存 statistics_json。"
+                            )
+                    elif not checks.get("quantitative_results_reason"):
+                        errors.append(
+                            f"deep_extraction run {run['id']} ({run['paper_id']}) 声明无定量结果，"
+                            "但没有说明 quantitative_results_reason。"
+                        )
+
             critical_without_run = connection.execute(
                 """
                 SELECT p.id FROM papers p
@@ -361,6 +423,20 @@ def validate(project_root: Path) -> dict[str, Any]:
                             errors.append(
                                 f"candidate {candidate_id} PMID 与关联 Paper {row['paper_id']} 不一致。"
                             )
+
+            for field, expression, where in (
+                ("DOI", "lower(doi)", "doi IS NOT NULL AND trim(doi) <> ''"),
+                ("PMID", "pmid", "pmid IS NOT NULL AND trim(pmid) <> ''"),
+            ):
+                duplicates = connection.execute(
+                    f"SELECT {expression} AS identity, GROUP_CONCAT(id) AS ids "
+                    f"FROM candidates WHERE {where} GROUP BY {expression} HAVING COUNT(*) > 1"
+                ).fetchall()
+                for duplicate in duplicates:
+                    errors.append(
+                        f"Candidate 存在重复稳定身份 {field}={duplicate['identity']!r}："
+                        f"{duplicate['ids']}；请使用 merge-candidates 合并。"
+                    )
 
             for row in connection.execute(
                 "SELECT id, kind, path, content_type FROM artifacts ORDER BY id"

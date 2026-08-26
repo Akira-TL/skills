@@ -17,12 +17,14 @@ from research_db_core import (
     validate,
 )
 from research_db_critical import ingest_critical
-from research_db_ops.discovery import (
+from research_db_ops.candidates import (
+    discovery_readiness,
     list_candidates,
-    list_search_runs,
-    record_search_run,
+    merge_candidates,
     update_candidate,
 )
+from research_db_ops.completion import validate_completion
+from research_db_ops.discovery import list_search_runs, record_search_run
 from research_db_ingest import PaperIngestBundle, ingest_paper
 from research_db_ops.query import (
     evidence_packet,
@@ -76,7 +78,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 def cmd_validate(args: argparse.Namespace) -> int:
     project_root = discover_project_root(args.project, for_init=True)
-    payload = validate(project_root)
+    payload = validate_completion(project_root) if getattr(args, "completion", False) else validate(project_root)
     emit(payload)
     return 0 if payload["ok"] else 1
 
@@ -159,6 +161,26 @@ def cmd_update_candidate(args: argparse.Namespace) -> int:
         )
     )
     return 0
+
+
+def cmd_merge_candidates(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(
+        merge_candidates(
+            project_root,
+            args.keep_id,
+            args.merge_id,
+            reason=args.reason,
+        )
+    )
+    return 0
+
+
+def cmd_discovery_status(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    payload = discovery_readiness(project_root)
+    emit(payload)
+    return 0 if payload["ready_for_saturation"] else 1
 
 
 def cmd_relate(args: argparse.Namespace) -> int:
@@ -288,6 +310,12 @@ def build_parser() -> argparse.ArgumentParser:
     ]
     for name, help_text, handler in commands:
         command_parser = subparsers.add_parser(name, help=help_text)
+        if name == "validate":
+            command_parser.add_argument(
+                "--completion",
+                action="store_true",
+                help="额外检查 Discovery 队列闭合与科研项目 Git provenance 完成门禁。",
+            )
         command_parser.set_defaults(handler=handler)
 
     record_search_parser = subparsers.add_parser(
@@ -326,6 +354,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="Candidate update JSON；默认 .research/bundles/candidate-update.json；传 '-' 从 stdin 读取。",
     )
     update_candidate_parser.set_defaults(handler=cmd_update_candidate)
+
+    merge_candidates_parser = subparsers.add_parser(
+        "merge-candidates",
+        help="合并已确认属于同一 scholarly work 的 Candidate，并保留全部 Search Run provenance。",
+    )
+    merge_candidates_parser.add_argument("keep_id", type=int)
+    merge_candidates_parser.add_argument("merge_id", type=int)
+    merge_candidates_parser.add_argument(
+        "--reason", required=True, help="为什么确认两条 Candidate 属于同一 scholarly work。"
+    )
+    merge_candidates_parser.set_defaults(handler=cmd_merge_candidates)
+
+    discovery_status_parser = subparsers.add_parser(
+        "discovery-status",
+        help="检查 Candidate 队列是否足以支持声称 practical conceptual saturation。",
+    )
+    discovery_status_parser.set_defaults(handler=cmd_discovery_status)
 
     search_parser = subparsers.add_parser(
         "search", help="FTS 检索已沉淀的 Paper/Method/Experiment/Observation/Claim/Issue/Lead。"

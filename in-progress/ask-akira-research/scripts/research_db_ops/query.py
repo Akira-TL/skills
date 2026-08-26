@@ -493,7 +493,7 @@ def get_paper(project_root: Path, paper_id: str) -> dict[str, Any]:
             "SELECT * FROM reading_runs WHERE paper_id = ? ORDER BY id", (paper_id,)
         ):
             run = dict(row)
-            for field in ("artifacts_checked", "sections_checked"):
+            for field in ("artifacts_checked", "sections_checked", "extraction_checks_json"):
                 if isinstance(run.get(field), str) and run[field]:
                     try:
                         run[field] = json.loads(run[field])

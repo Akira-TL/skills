@@ -4,7 +4,7 @@
 
 ## Bootstrap
 
-新的科研项目首先确认 Git 仓库；若当前目录尚不是 Git repository，则初始化 Git。Bootstrap 只强制创建 `RESEARCH.md`，其他目录和文件按真实需求出现，不预生成空的 `literature/`、`hypotheses/`、`analysis/` 等目录。
+新的科研项目首先确认 Git 仓库；若当前目录尚不是 Git repository，则初始化 Git。Bootstrap 只强制创建 `RESEARCH.md`，其他目录和文件按真实需求出现，不预生成空的 `literature/`、`hypotheses/`、`analysis/` 等目录。初始化 Git 不等于完成 provenance：最迟在第一个可独立解释的科研状态形成时必须提交一次，不能让整个科研项目长期停留在“有 `.git` 但没有任何 commit”的状态。
 
 最小结构：
 
@@ -54,7 +54,9 @@
 
 一次科研动作结束后，只把仍然影响当前路线的内容写回 `RESEARCH.md`：新的 Active Uncertainty、Current State、Active Work、Open Threads、仍然有效的 Key Decisions，以及必要 pointer。
 
-详细文献知识、检索历史、方法、实验、观察、声明、批判问题和关系进入项目级 SQLite；原始 PDF 与 supplement 保持为独立 artifact。Git 负责保存 `RESEARCH.md` 与数据库的版本演化，因此不额外维护重复的 research log。
+详细文献知识、检索历史、方法、实验、观察、声明、批判问题和关系进入项目级 SQLite；原始 PDF 与 supplement 保持为独立 artifact。Git 负责保存 `RESEARCH.md` 与数据库的版本演化，因此不额外维护重复的 research log。每个可独立解释的科研事件完成后提交本轮 owned changes；用户已有、与本轮无关的工作区修改不触碰、不暂存、不重置。
+
+当 Agent 准备向用户声明“本轮科研项目已完成”时，必须先提交本轮拥有的 canonical research artifacts 和本轮生成的 derived outputs，然后运行 `research-db validate --completion`。普通 `research-db validate` 只证明 SQLite/科研知识库内部一致，不证明 Git provenance 已完成；`--completion` 额外要求科研项目本身是独立 Git repository、已经存在 commit、canonical research artifacts 已被 Git 跟踪且当前没有未提交修改，并在存在 Literature Discovery 时检查 Candidate 队列是否闭合。任何一项失败都不得宣称项目完成。
 
 ## Git 语义
 

@@ -5,13 +5,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
+SCRIPT_DIR = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from research_db_core import init_database, validate  # noqa: E402
 from research_db_critical import ingest_critical  # noqa: E402
 from research_db_ingest import ingest_paper  # noqa: E402
-from research_db_ops.discovery import list_candidates, record_search_run  # noqa: E402
+from research_db_ops.candidates import list_candidates  # noqa: E402
+from research_db_ops.discovery import record_search_run  # noqa: E402
 from research_db_ops.query import evidence_packet  # noqa: E402
 from research_db_ops.relations import add_relation  # noqa: E402
 from research_db_reading import ingest_reading  # noqa: E402
@@ -57,6 +58,7 @@ class LiteratureWorkflowIntegrationTests(unittest.TestCase):
                 "depth": "full_scan",
                 "artifacts_checked": [{"artifact_kind": "main_text"}],
                 "sections_checked": ["Methods", "Results", "Discussion"],
+                "extraction_checks": {"observation_semantics_checked": True},
                 "experiments": [
                     {
                         "ref": "experiment-1",

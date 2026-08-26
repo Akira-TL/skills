@@ -83,6 +83,31 @@ class ResearchDbCliTests(unittest.TestCase):
         )
         self.assertIsNone(relate_args.bundle)
 
+    def test_completion_and_discovery_commands_are_exposed(self) -> None:
+        validate_args = build_parser().parse_args(
+            ["--project", str(self.root), "validate", "--completion"]
+        )
+        self.assertTrue(validate_args.completion)
+
+        discovery_args = build_parser().parse_args(
+            ["--project", str(self.root), "discovery-status"]
+        )
+        self.assertEqual(discovery_args.command, "discovery-status")
+
+        merge_args = build_parser().parse_args(
+            [
+                "--project",
+                str(self.root),
+                "merge-candidates",
+                "1",
+                "2",
+                "--reason",
+                "same DOI",
+            ]
+        )
+        self.assertEqual(merge_args.keep_id, 1)
+        self.assertEqual(merge_args.merge_id, 2)
+
     def test_candidate_queue_filters_are_exposed(self) -> None:
         args = build_parser().parse_args(
             [

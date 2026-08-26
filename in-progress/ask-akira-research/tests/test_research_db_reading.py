@@ -50,6 +50,7 @@ class ResearchDbReadingTests(unittest.TestCase):
             "depth": "full_scan",
             "artifacts_checked": [{"artifact_kind": "main_text"}],
             "sections_checked": ["Introduction", "Methods", "Results", "Discussion"],
+            "extraction_checks": {"observation_semantics_checked": True},
             "methods": [
                 {
                     "ref": "method-1",
@@ -189,6 +190,32 @@ class ResearchDbReadingTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "Observation 必须提供 source_locator"):
             ingest_reading(self.root, bundle)
+
+    def test_reconstruction_requires_observation_semantics_self_audit(self) -> None:
+        bundle = self.reconstruction_bundle()
+        bundle.pop("extraction_checks")
+
+        with self.assertRaisesRegex(RuntimeError, "extraction_checks"):
+            ingest_reading(self.root, bundle)
+
+    def test_deep_extraction_requires_quantitative_evidence_contract(self) -> None:
+        bundle = self.reconstruction_bundle()
+        bundle["depth"] = "deep_extraction"
+        bundle["extraction_checks"] = {
+            "observation_semantics_checked": True,
+            "figures_tables_checked": True,
+            "quantitative_results_checked": True,
+            "supplement_status": "not_applicable",
+            "code_data_status": "not_applicable",
+            "quantitative_results_present": True,
+        }
+
+        with self.assertRaisesRegex(RuntimeError, "至少一个 Observation"):
+            ingest_reading(self.root, bundle)
+
+        bundle["observations"][0]["statistics"] = {"n": 45, "p_value": 0.01}
+        result = ingest_reading(self.root, bundle)
+        self.assertEqual(result["depth"], "deep_extraction")
 
     def test_critical_audit_requires_reconstruction(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "尚未完成 Reconstruction"):

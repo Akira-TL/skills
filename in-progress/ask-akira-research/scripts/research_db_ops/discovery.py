@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -68,6 +69,35 @@ def _year(value: object) -> int | None:
     return year
 
 
+def _title_key(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value).casefold()
+    return " ".join("".join(ch if ch.isalnum() else " " for ch in normalized).split())
+
+
+def _title_match(
+    connection: sqlite3.Connection,
+    *,
+    title: str,
+    year: int | None,
+    unresolved_only: bool,
+) -> sqlite3.Row | None:
+    where = ["((year IS NULL AND ? IS NULL) OR year = ?)"]
+    params: list[Any] = [year, year]
+    if unresolved_only:
+        where.extend(
+            [
+                "(doi IS NULL OR trim(doi) = '')",
+                "(pmid IS NULL OR trim(pmid) = '')",
+            ]
+        )
+    rows = connection.execute(
+        "SELECT * FROM candidates WHERE " + " AND ".join(where) + " ORDER BY id",
+        params,
+    ).fetchall()
+    key = _title_key(title)
+    return next((row for row in rows if _title_key(str(row["title"])) == key), None)
+
+
 def _existing_paper(
     connection: sqlite3.Connection, doi: str | None, pmid: str | None
 ) -> str | None:
@@ -106,29 +136,14 @@ def _find_candidate(
         if row:
             return row
 
-    # Only enrich an unresolved title match; never merge two conflicting stable identities.
+    # Identity resolution often changes punctuation/capitalization in titles. Reuse a
+    # normalized unresolved title match, but never merge two conflicting stable IDs.
     if doi or pmid:
-        return connection.execute(
-            """
-            SELECT * FROM candidates
-            WHERE lower(title) = lower(?)
-              AND ((year IS NULL AND ? IS NULL) OR year = ?)
-              AND (doi IS NULL OR trim(doi) = '')
-              AND (pmid IS NULL OR trim(pmid) = '')
-            ORDER BY id LIMIT 1
-            """,
-            (title, year, year),
-        ).fetchone()
+        return _title_match(
+            connection, title=title, year=year, unresolved_only=True
+        )
 
-    return connection.execute(
-        """
-        SELECT * FROM candidates
-        WHERE lower(title) = lower(?)
-          AND ((year IS NULL AND ? IS NULL) OR year = ?)
-        ORDER BY id LIMIT 1
-        """,
-        (title, year, year),
-    ).fetchone()
+    return _title_match(connection, title=title, year=year, unresolved_only=False)
 
 
 def _record_candidate(
@@ -418,102 +433,6 @@ def record_search_run(project_root: Path, bundle: dict[str, Any]) -> dict[str, A
     }
 
 
-def update_candidate(project_root: Path, candidate_id: int, changes: dict[str, Any]) -> dict[str, Any]:
-    allowed_fields = {
-        "identity_status",
-        "relevance_status",
-        "relevance_reason",
-        "acquisition_status",
-        "reading_priority",
-        "exclusion_reason",
-        "paper_id",
-        "doi",
-        "pmid",
-        "source_url",
-    }
-    unknown = sorted(set(changes) - allowed_fields)
-    if unknown:
-        raise ResearchDbError(f"不支持更新 candidate 字段：{', '.join(unknown)}")
-    if not changes:
-        raise ResearchDbError("没有 candidate 更新内容。")
-
-    normalized = dict(changes)
-    if "identity_status" in normalized:
-        normalized["identity_status"] = _enum(
-            normalized["identity_status"], IDENTITY_STATUSES, default="unresolved", field="identity_status"
-        )
-    if "relevance_status" in normalized:
-        normalized["relevance_status"] = _enum(
-            normalized["relevance_status"], RELEVANCE_STATUSES, default="pending", field="relevance_status"
-        )
-    if "acquisition_status" in normalized:
-        normalized["acquisition_status"] = _enum(
-            normalized["acquisition_status"], ACQUISITION_STATUSES, default="pending", field="acquisition_status"
-        )
-    if "reading_priority" in normalized:
-        normalized["reading_priority"] = _enum(
-            normalized["reading_priority"], READING_PRIORITIES, default="normal", field="reading_priority"
-        )
-    if "doi" in normalized:
-        normalized["doi"] = normalize_doi(normalized["doi"])
-    if "pmid" in normalized:
-        normalized["pmid"] = normalize_identifier(normalized["pmid"])
-    for field in ("relevance_reason", "exclusion_reason", "paper_id", "source_url"):
-        if field in normalized:
-            normalized[field] = _text(normalized[field])
-
-    with connect(_db_path(project_root)) as connection:
-        current = connection.execute(
-            "SELECT * FROM candidates WHERE id = ?", (candidate_id,)
-        ).fetchone()
-        if current is None:
-            raise ResearchDbError(f"Candidate 不存在：{candidate_id}")
-        merged = dict(current)
-        merged.update(normalized)
-        if merged.get("relevance_status") == "excluded" and not merged.get("exclusion_reason"):
-            raise ResearchDbError("excluded candidate 必须提供 exclusion_reason。")
-        if merged.get("acquisition_status") == "acquired" and not merged.get("paper_id"):
-            raise ResearchDbError("acquired candidate 必须关联 paper_id。")
-        if merged.get("paper_id"):
-            paper = connection.execute(
-                "SELECT id FROM papers WHERE id = ?", (merged["paper_id"],)
-            ).fetchone()
-            if paper is None:
-                raise ResearchDbError(f"Paper 不存在：{merged['paper_id']}")
-
-        timestamp = _now()
-        assignments = ", ".join(f"{field} = ?" for field in normalized)
-        params = [normalized[field] for field in normalized]
-        params.extend([timestamp, candidate_id])
-        connection.execute(
-            f"UPDATE candidates SET {assignments}, updated_at = ? WHERE id = ?", params
-        )
-        connection.execute(
-            """
-            INSERT INTO change_log(
-                timestamp, action, entity_type, entity_id, paper_id, reason, summary
-            ) VALUES (?, 'candidate_updated', 'candidate', ?, ?, ?, ?)
-            """,
-            (
-                timestamp,
-                str(candidate_id),
-                merged.get("paper_id"),
-                normalized.get("relevance_reason") or normalized.get("exclusion_reason"),
-                f"Updated candidate fields: {', '.join(sorted(normalized))}",
-            ),
-        )
-        connection.commit()
-        row = dict(
-            connection.execute("SELECT * FROM candidates WHERE id = ?", (candidate_id,)).fetchone()
-        )
-    if isinstance(row.get("authors"), str):
-        try:
-            row["authors"] = json.loads(row["authors"])
-        except json.JSONDecodeError:
-            pass
-    return {"ok": True, "candidate": row}
-
-
 def list_search_runs(project_root: Path, *, limit: int = 50) -> dict[str, Any]:
     if limit < 1 or limit > 100:
         raise ResearchDbError("limit 必须在 1 到 100 之间。")
@@ -533,56 +452,3 @@ def list_search_runs(project_root: Path, *, limit: int = 50) -> dict[str, Any]:
     return {"ok": True, "search_runs": rows}
 
 
-def list_candidates(
-    project_root: Path,
-    *,
-    relevance_status: str | None = None,
-    acquisition_status: str | None = None,
-    reading_priority: str | None = None,
-    limit: int = 50,
-) -> dict[str, Any]:
-    if limit < 1 or limit > 100:
-        raise ResearchDbError("limit 必须在 1 到 100 之间。")
-    where: list[str] = []
-    params: list[Any] = []
-    for field, value, allowed in (
-        ("relevance_status", relevance_status, RELEVANCE_STATUSES),
-        ("acquisition_status", acquisition_status, ACQUISITION_STATUSES),
-        ("reading_priority", reading_priority, READING_PRIORITIES),
-    ):
-        if value is not None:
-            if value not in allowed:
-                raise ResearchDbError(f"{field} 必须是：{', '.join(sorted(allowed))}")
-            where.append(f"c.{field} = ?")
-            params.append(value)
-    sql = "SELECT c.* FROM candidates c"
-    if where:
-        sql += " WHERE " + " AND ".join(where)
-    sql += " ORDER BY CASE c.reading_priority WHEN 'core' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END, c.id LIMIT ?"
-    params.append(limit)
-
-    with connect(_db_path(project_root)) as connection:
-        rows: list[dict[str, Any]] = []
-        for candidate in connection.execute(sql, params):
-            row = dict(candidate)
-            if isinstance(row.get("authors"), str):
-                try:
-                    row["authors"] = json.loads(row["authors"])
-                except json.JSONDecodeError:
-                    pass
-            row["search_runs"] = [
-                dict(link)
-                for link in connection.execute(
-                    """
-                    SELECT src.search_run_id, src.result_rank, src.source_result_id,
-                           src.source_url, sr.source, sr.query, sr.executed_at
-                    FROM search_run_candidates src
-                    JOIN search_runs sr ON sr.id = src.search_run_id
-                    WHERE src.candidate_id = ?
-                    ORDER BY src.search_run_id
-                    """,
-                    (row["id"],),
-                )
-            ]
-            rows.append(row)
-    return {"ok": True, "candidates": rows}

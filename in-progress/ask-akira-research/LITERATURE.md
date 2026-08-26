@@ -23,7 +23,9 @@ Active Uncertainty
 
 搜索停止依据是相对当前 Active Uncertainty 的边际知识增益：连续检索与引用追踪不再产生新的重要方法、观察、解释、矛盾、边界条件、研究设计或基础工作时，可以认为 discovery 达到当前目的的 saturation；不以固定论文数量作为停止条件。
 
-每次真实搜索结束后用 `research-db record-search` 原子持久化 Search Run 与本次保留的 Candidate；同一论文在 seed search、query expansion 与 citation chasing 中重复出现时应复用 Candidate，并保留每个 `search_run_candidates` 发现边。`what_we_learned` 与 `next_decision` 记录这次检索如何改变下一步，而不是事后写成检索日志散文。
+在正式声称 practical conceptual saturation 前必须运行 `research-db discovery-status`。`core + relevant` Candidate 必须已经 `acquired` 或明确 `unavailable`；`high + relevant` Candidate 若仍处于 `pending/queued`，必须保存具体 `defer_reason` 说明为什么它预计不会改变当前 Active Uncertainty / Evidence Boundary；`relevance_status=pending` 不能遗留；稳定 DOI/PMID 重复必须先合并。工具返回 `ready_for_saturation=false` 时不得仅凭主观判断宣布 saturation。
+
+每次真实搜索结束后用 `research-db record-search` 原子持久化 Search Run 与本次保留的 Candidate；同一论文在 seed search、query expansion 与 citation chasing 中重复出现时应复用 Candidate，并保留每个 `search_run_candidates` 发现边。identity resolution 只改变同一 scholarly work 的身份信息，不应通过 `excluded` 制造“重复论文”记录；发现旧 Candidate 与新稳定 DOI/PMID 实际属于同一 scholarly work 时，用 `research-db merge-candidates` 合并，并保留全部 Search Run provenance。`what_we_learned` 与 `next_decision` 记录这次检索如何改变下一步，而不是事后写成检索日志散文。
 
 ## 2. Candidate 默认进入全文队列
 
@@ -43,7 +45,9 @@ Active Uncertainty
 
 相关论文至少执行 `FULL_SCAN`：整篇正文过一遍并识别 research problem、design、methods、experiments、major observations、claims、limitations 与 leads。核心或方法学重要论文执行 `DEEP_EXTRACTION`：继续深入 exact protocol、关键参数、supplement、统计细节、figure/table-level result、代码/数据仓库与关键引用链。
 
-正文引用 Supplementary Methods、Supplementary Tables、protocol 或其他附件且它们影响当前研究时，必须继续检查；主文缺失但 supplement 尚未检查时，不得把信息标记成 `not_reported`。
+`DEEP_EXTRACTION` 不是“读得比较认真”的主观标签。`ingest-reading` 必须持久化 `extraction_checks`：确认 Observation 语义已经逐条自审、figures/tables 已检查、定量结果已检查，并明确记录 supplement 与 code/data 的状态为 `checked | not_applicable | access_limited`。若论文存在会影响当前证据判断的定量结果，所有进入核心 evidence chain 的 n、estimate/effect size、CI、P/FDR 等作者报告统计量必须进入对应 Observation 的 `statistics`；不能只把数字写在人类报告里而让结构化数据库保持空白。若确实没有相关定量结果，必须明确说明原因。
+
+正文引用 Supplementary Methods、Supplementary Tables、protocol 或其他附件且它们影响当前研究时，必须继续检查；主文缺失但 supplement 尚未检查时，不得把信息标记成 `not_reported`。无法合法取得但会影响判断的 supplement 必须记录为 access limitation，不得默认为 `not_applicable`。
 
 ## 4. 两遍阅读协议
 
@@ -62,6 +66,8 @@ Paper 保留稳定 `P000001` 一类 ID；论文内部知识单元由数据库主
 每个进入数据库的 Method、Experiment、Observation、Claim、Lead 都必须定位到具体 artifact，并给出可回到原文的 `source_locator`，优先精确到 section + figure/table/supplement；仅有模糊的“Results”或无来源定位不能视为完成 extraction。
 
 Observation 与 Claim 强制分离。`Observation.statement` 与 `effect` 只承载图表、表格或正文能够直接复述的结果；`effect` 用于直接 contrast / effect size，bundle 的 `statistics` 保存作者报告的 n、estimate、CI、P/FDR 等具体统计量。对结果大小的意义、外部一致性、机制兼容性、缺失数据后果等解释进入 Claim、relation、Issue 或后续 synthesis。不得把 Agent 自己的解释写成作者 Claim。
+
+写入前必须逐条执行 Observation semantic self-audit，并在 `extraction_checks.observation_semantics_checked=true` 后才能 ingest。判断标准是：“删掉论文作者和 Agent 的解释后，这句话是否仍然只是数据/图表/结果段可以直接复述的观察？”Method 操作（如 sample 被 surface sterilized）、作者自述限制（如 authors state direction cannot be determined）、Agent 批判（如 no longitudinal resilience test）以及“因此不能证明/支持/意味着”之类推论都不是 Observation，应分别进入 Method、Claim、Issue 或 relation。不能为了减少知识单元数量把不同语义层级压进一句 Observation。
 
 ### Evidence → Claim 关系必须说明“能支撑到哪一级”
 

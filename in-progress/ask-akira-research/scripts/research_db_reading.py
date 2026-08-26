@@ -21,6 +21,58 @@ from research_db_bundle import (
 from research_db_core import ResearchDbError, connect, database_path
 
 
+DEEP_EXTRACTION_STATUSES = {"checked", "not_applicable", "access_limited"}
+
+
+def _extraction_checks(
+    bundle: dict[str, Any],
+    *,
+    depth: str,
+    observations: list[dict[str, Any]],
+) -> dict[str, Any]:
+    raw = bundle.get("extraction_checks")
+    if not isinstance(raw, dict):
+        raise ResearchDbError("Reconstruction 必须提供 extraction_checks object。")
+    checks = dict(raw)
+    if checks.get("observation_semantics_checked") is not True:
+        raise ResearchDbError(
+            "extraction_checks.observation_semantics_checked 必须为 true；"
+            "写入前逐条确认 Observation 只包含数据直接显示的结果。"
+        )
+    if depth != "deep_extraction":
+        return checks
+
+    for field in ("figures_tables_checked", "quantitative_results_checked"):
+        if checks.get(field) is not True:
+            raise ResearchDbError(f"deep_extraction 要求 extraction_checks.{field}=true。")
+    for field in ("supplement_status", "code_data_status"):
+        value = checks.get(field)
+        if value not in DEEP_EXTRACTION_STATUSES:
+            raise ResearchDbError(
+                f"deep_extraction 要求 extraction_checks.{field} 为："
+                + ", ".join(sorted(DEEP_EXTRACTION_STATUSES))
+            )
+
+    present = checks.get("quantitative_results_present")
+    if not isinstance(present, bool):
+        raise ResearchDbError(
+            "deep_extraction 要求 extraction_checks.quantitative_results_present 为 boolean。"
+        )
+    has_statistics = any(
+        isinstance(item.get("statistics"), dict) and bool(item.get("statistics"))
+        for item in observations
+    )
+    if present and not has_statistics:
+        raise ResearchDbError(
+            "quantitative_results_present=true 时至少一个 Observation 必须保存非空 statistics。"
+        )
+    if not present and not _text(checks.get("quantitative_results_reason")):
+        raise ResearchDbError(
+            "quantitative_results_present=false 时必须说明 quantitative_results_reason。"
+        )
+    return checks
+
+
 def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
     db_path = database_path(project_root)
     if not db_path.exists():
@@ -43,6 +95,11 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
     relations = _array(bundle, "relations")
     if not any((methods, experiments, observations, claims, leads)):
         raise ResearchDbError("Reconstruction bundle 至少需要一个知识单元。")
+    extraction_checks = _extraction_checks(
+        bundle,
+        depth=requested_depth,
+        observations=observations,
+    )
 
     refs: dict[tuple[str, str], str] = {}
     counts = {name: 0 for name in ("methods", "experiments", "observations", "claims", "leads", "relations")}
@@ -65,8 +122,8 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
                 """
                 INSERT INTO reading_runs(
                     paper_id, pass, depth, started_at, completed_at,
-                    artifacts_checked, sections_checked, notes
-                ) VALUES (?, 'reconstruction', ?, ?, ?, ?, ?, ?)
+                    artifacts_checked, sections_checked, notes, extraction_checks_json
+                ) VALUES (?, 'reconstruction', ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     paper_id,
@@ -76,6 +133,7 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
                     json.dumps(checked, ensure_ascii=False),
                     json.dumps(sections, ensure_ascii=False),
                     _text(bundle.get("notes")),
+                    json.dumps(extraction_checks, ensure_ascii=False, sort_keys=True),
                 ),
             )
             run_id = int(run_cursor.lastrowid)

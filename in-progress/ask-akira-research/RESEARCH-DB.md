@@ -151,12 +151,13 @@ relevance_reason
 acquisition_status     -- pending | queued | acquired | unavailable
 reading_priority       -- core | high | normal | low
 exclusion_reason
+defer_reason            -- high-priority relevant Candidate 未立即获取时的明确延期理由
 paper_id
 created_at
 updated_at
 ```
 
-同一 Candidate 可以由多次 Search Run 独立发现；`search_run_candidates` 保存 `search_run_id + candidate_id + result_rank + source_result_id/source_url`，避免把重复发现误当独立论文。DOI/PMID 已解析时优先按稳定身份复用 Candidate；没有稳定身份时只对未解析的 exact title/year 候选做保守合并。论文经 `ingest-paper` 获取后，匹配 Candidate 自动回链 `paper_id` 并更新为 `acquired`。
+同一 Candidate 可以由多次 Search Run 独立发现；`search_run_candidates` 保存 `search_run_id + candidate_id + result_rank + source_result_id/source_url`，避免把重复发现误当独立论文。DOI/PMID 已解析时优先按稳定身份复用 Candidate；没有稳定身份时对规范化后的 title/year 做保守 identity enrichment，以吸收标点、大小写和连字符差异。发现历史上已经存在的重复 Candidate 时使用 `research-db merge-candidates`，把 Search Run provenance 合并到一条 canonical Candidate；不要用 `relevance_status=excluded` 代替 identity reconciliation。论文经 `ingest-paper` 获取后，匹配 Candidate 自动回链 `paper_id` 并更新为 `acquired`。
 
 Candidate ID 主要供数据库内部使用。
 
@@ -174,6 +175,7 @@ completed_at
 artifacts_checked    -- JSON
 sections_checked     -- JSON
 notes
+extraction_checks_json -- Observation 语义自审、定量结果、figures/tables、supplement、code/data 检查状态
 ```
 
 不能只靠手工修改 `papers.critical_status` 冒充完成批判阅读。
@@ -228,7 +230,7 @@ artifact_id
 source_locator
 ```
 
-Observation 只记录数据直接显示的内容，不混入作者解释。
+Observation 只记录数据直接显示的内容，不混入 Method 操作、作者限制、Agent 批判或证据解释。`ingest-reading` 要求 `extraction_checks.observation_semantics_checked=true`；`deep_extraction` 还要求显式完成 figures/tables、quantitative results、supplement 与 code/data 检查。若 `quantitative_results_present=true`，至少一个 Observation 必须保存非空 `statistics_json`；真正影响核心 evidence chain 的作者报告定量结果不能只存在于 derived report。
 
 ### `claims`
 
@@ -381,7 +383,7 @@ uv run scripts/research_db.py ingest-reading
 
 默认读取 `.research/bundles/reconstruction.json`。bundle 是内部事务载荷，不是用户需要维护或阅读的科研文档。
 
-bundle 至少包含 `paper_id`、`artifacts_checked`、`sections_checked`，以及至少一种知识单元：
+bundle 至少包含 `paper_id`、`artifacts_checked`、`sections_checked`、`extraction_checks`，以及至少一种知识单元：
 
 ```text
 methods[]
@@ -393,6 +395,8 @@ relations[]
 ```
 
 每个新知识单元提供当前 bundle 内唯一的 `ref`。relation 使用 `subject_type + subject_ref/id` 与 `object_type + object_ref/id`，脚本在事务内把临时 ref 解析为数据库主键；Observation 也可通过 `experiment_ref` 连接当前 bundle 的 Experiment。每个 Method / Experiment / Observation / Claim / Lead 都必须定位到具体 artifact，并保存能够回到原文的 section / page / figure/table 等 `source_locator`；来源过于模糊时不应视为完成 extraction。
+
+所有 Reconstruction 都必须在 `extraction_checks` 中确认 `observation_semantics_checked=true`。`depth=deep_extraction` 额外要求 `figures_tables_checked=true`、`quantitative_results_checked=true`、`supplement_status` 与 `code_data_status`（`checked | not_applicable | access_limited`），并明确 `quantitative_results_present`。存在相关定量结果时至少一个 Observation 保存非空 `statistics`；若声明不存在，则必须写 `quantitative_results_reason`。这些检查状态写入 `reading_runs.extraction_checks_json`，使 `validate` 能识别只标了 deep_extraction、实际没有完成定量/附件审计的记录。
 
 证据关系不能把“方向一致”一律写成 `SUPPORTS`。科研层优先使用 `DIRECTLY_SUPPORTS | INDIRECTLY_SUPPORTS | QUALIFIES | CONTRADICTS | DOES_NOT_TEST`；其中 `INDIRECTLY_SUPPORTS`、`QUALIFIES`、`DOES_NOT_TEST` 必须通过 relation `note` 说明 inference gap 或边界。脚本只校验结构，主模型负责判断证据是否真的达到目标 Claim 的 descriptive / association / causal / mechanistic 层级。
 
@@ -434,6 +438,8 @@ uv run scripts/research_db.py record-search
 uv run scripts/research_db.py search-runs
 uv run scripts/research_db.py candidates
 uv run scripts/research_db.py update-candidate <candidate-id>
+uv run scripts/research_db.py merge-candidates <keep-id> <merge-id> --reason "..."
+uv run scripts/research_db.py discovery-status
 uv run scripts/research_db.py ingest-paper
 uv run scripts/research_db.py ingest-reading
 uv run scripts/research_db.py ingest-critical
@@ -441,6 +447,7 @@ uv run scripts/research_db.py relate
 uv run scripts/research_db.py evidence <query>
 uv run scripts/research_db.py status
 uv run scripts/research_db.py validate
+uv run scripts/research_db.py validate --completion
 ```
 
 默认从当前目录向上定位 `RESEARCH.md` 或 `.research/research.sqlite`；也可用全局 `--project <path>` 显式指定科研项目根目录。`init` 同时创建 `.research/bundles/`；`record-search` 默认读取 `search.json`，`update-candidate` 默认读取 `candidate-update.json`，三个 ingest 命令分别读取 `paper.json`、`reconstruction.json`、`critical.json`；都可显式传其他 JSON 路径或 `-` 从 stdin 读取。命令输出结构化 JSON。
@@ -495,16 +502,21 @@ research-db paper-context P000001 --for-sidecar
 `research-db validate` 相当于科研知识库的 integrity check。至少检查：
 
 - duplicate DOI / PMID / canonical identity，以及 DOI/PMID 与 canonical identity 不一致；
-- Candidate 的 identity/relevance/acquisition 状态自洽：`excluded` 有 exclusion reason，`acquired` 已关联 Paper，已关联 Paper 的 DOI/PMID 与 Candidate 不冲突；
+- Candidate 的 identity/relevance/acquisition 状态自洽：`excluded` 有 exclusion reason，`acquired` 已关联 Paper，已关联 Paper 的 DOI/PMID 与 Candidate 不冲突，同一稳定 DOI/PMID 不存在多个 Candidate；
 - canonical `main_text` artifact 缺少文件扩展名；
 - dangling relation / nonexistent target；
 - observation 指向不存在的 experiment；
 - issue target 不存在；
 - artifact path 缺失；
-- reconstructed 状态缺少已完成 reconstruction run；
+- reconstructed 状态缺少已完成 reconstruction run，或 Reconstruction 缺少 Observation 语义自审；
+- `deep_extraction` 缺少 figures/tables、quantitative results、supplement、code/data 检查状态，或声明存在定量结果却未保存 `statistics_json`；
 - critically reviewed 状态缺少已完成 critical audit run；
 - `not_reported` issue 缺少足够 artifact / source inspection 记录；
 - schema version / migration 状态异常；
 - sidecar pointer 指向不存在文件时给出明确错误或 warning。
 
 对“critically reviewed 但没有 Issue”这类可能合法的情况给 warning，而不是为了满足 schema 强迫 Agent 编造批判。
+
+`research-db discovery-status` 是 Literature Discovery 的 closure gate：存在 `relevance_status=pending`、未闭合的 `core + relevant` Candidate、没有 `defer_reason` 的 `high + relevant + queued/pending` Candidate 或重复稳定身份时返回 `ready_for_saturation=false`。
+
+`research-db validate --completion` 是“本轮科研项目已完成”的最终门禁。它先执行普通数据库校验，再检查 Discovery closure，并要求项目根目录本身是 Git repository top-level、已经存在至少一个 commit、`RESEARCH.md`、`.research/research.sqlite`、canonical paper artifacts 与 sidecar 已被 Git 跟踪且没有未提交修改。普通 `validate` 通过不能替代这个 completion gate。
