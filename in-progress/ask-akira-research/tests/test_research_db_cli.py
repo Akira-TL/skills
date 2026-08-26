@@ -78,6 +78,11 @@ class ResearchDbCliTests(unittest.TestCase):
         )
         self.assertEqual(related_args.paper_id, "P000001")
 
+        relate_args = build_parser().parse_args(
+            ["--project", str(self.root), "relate"]
+        )
+        self.assertIsNone(relate_args.bundle)
+
     def test_candidate_queue_filters_are_exposed(self) -> None:
         args = build_parser().parse_args(
             [

@@ -11,7 +11,7 @@ SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from research_db_core import database_path, init_database  # noqa: E402
-from research_db_query import (  # noqa: E402
+from research_db_ops.query import (  # noqa: E402
     evidence_packet,
     get_paper,
     list_entities,

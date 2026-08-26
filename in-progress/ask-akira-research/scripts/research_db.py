@@ -17,14 +17,14 @@ from research_db_core import (
     validate,
 )
 from research_db_critical import ingest_critical
-from research_db_discovery import (
+from research_db_ops.discovery import (
     list_candidates,
     list_search_runs,
     record_search_run,
     update_candidate,
 )
 from research_db_ingest import PaperIngestBundle, ingest_paper
-from research_db_query import (
+from research_db_ops.query import (
     evidence_packet,
     get_paper,
     list_entities,
@@ -33,11 +33,13 @@ from research_db_query import (
     search_knowledge,
 )
 from research_db_reading import ingest_reading
+from research_db_ops.relations import add_relation
 
 
 BUNDLE_DEFAULTS = {
     "record-search": "search.json",
     "update-candidate": "candidate-update.json",
+    "relate": "relation.json",
     "ingest-paper": "paper.json",
     "ingest-reading": "reconstruction.json",
     "ingest-critical": "critical.json",
@@ -154,6 +156,17 @@ def cmd_update_candidate(args: argparse.Namespace) -> int:
             project_root,
             args.candidate_id,
             _load_json_object(project_root, "update-candidate", args.bundle),
+        )
+    )
+    return 0
+
+
+def cmd_relate(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(
+        add_relation(
+            project_root,
+            _load_json_object(project_root, "relate", args.bundle),
         )
     )
     return 0
@@ -353,6 +366,17 @@ def build_parser() -> argparse.ArgumentParser:
     history_parser.add_argument("paper_id")
     history_parser.add_argument("--limit", type=int, default=100)
     history_parser.set_defaults(handler=cmd_history)
+
+    relate_parser = subparsers.add_parser(
+        "relate",
+        help="写入主模型已核验的跨实体/跨论文 relation；脚本不自动推断科研关系。",
+    )
+    relate_parser.add_argument(
+        "bundle",
+        nargs="?",
+        help="Relation JSON；默认 .research/bundles/relation.json；传 '-' 从 stdin 读取。",
+    )
+    relate_parser.set_defaults(handler=cmd_relate)
 
     evidence_parser = subparsers.add_parser(
         "evidence",

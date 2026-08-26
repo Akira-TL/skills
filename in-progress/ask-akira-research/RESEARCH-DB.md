@@ -318,14 +318,20 @@ created_at
 ```text
 USES
 PRODUCES
-SUPPORTS
+DIRECTLY_SUPPORTS
+INDIRECTLY_SUPPORTS
+QUALIFIES
 CONTRADICTS
+DOES_NOT_TEST
+LIMITS
 CHALLENGES
 WEAKENS
 SHARES_SAMPLES_WITH
 SHARES_DATA_WITH
 CITES
 ```
+
+跨论文或跨知识单元关系通过 `research-db relate` 写入；调用方必须提供明确 `note` 说明核验依据。脚本只校验实体存在性、predicate 与重复关系，不自动推断“共享数据”“支持”“冲突”等科研语义；模糊 `SUPPORTS` 继续拒绝。
 
 共享 cohort / sample / dataset 的 evidence family 第一版通过关系图 connected component 动态计算，不额外维护重复 source of truth。
 
@@ -431,6 +437,7 @@ uv run scripts/research_db.py update-candidate <candidate-id>
 uv run scripts/research_db.py ingest-paper
 uv run scripts/research_db.py ingest-reading
 uv run scripts/research_db.py ingest-critical
+uv run scripts/research_db.py relate
 uv run scripts/research_db.py evidence <query>
 uv run scripts/research_db.py status
 uv run scripts/research_db.py validate
