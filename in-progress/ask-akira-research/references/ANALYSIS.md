@@ -115,7 +115,7 @@ Exploration 可以用于发现：
 
 ## 9. 完成条件
 
-Analysis 可以进入 Interpretation 时，至少满足：
+Analysis 可以按 [`INTERPRETATION.md`](INTERPRETATION.md) 进入 Interpretation 时，至少满足：
 
 1. primary contrast 已按 Design 或明确 amendment 执行；
 2. effect、uncertainty、independent `n` 与 multiplicity 边界可解释；
