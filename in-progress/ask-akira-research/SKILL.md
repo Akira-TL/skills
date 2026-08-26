@@ -18,7 +18,7 @@ disable-model-invocation: true
 
 `Current Loop` 只表示研究当前主要位于哪里，不规定下一步。允许的定位词为：`EXPLORE`、`QUESTION`、`HYPOTHESIS`、`DESIGN`、`DATA`、`ANALYSIS`、`INTERPRETATION`、`COMMUNICATION`。
 
-每轮先判断当前最阻塞研究的不确定性，再选择信息增益最高且成本合理的下一动作。当前问题混有多个子问题、已有 competing explanations、或需要决定什么 evidence 最能改变当前判断时，读取 [`ACTIVE-UNCERTAINTY.md`](ACTIVE-UNCERTAINTY.md)。需要文献发现、全文获取、论文阅读、批判审阅或跨论文证据综合时，读取 [`LITERATURE.md`](LITERATURE.md)。需要持久化、检索、校验或生成证据视图时，读取 [`RESEARCH-DB.md`](RESEARCH-DB.md)。
+每轮先判断当前最阻塞研究的不确定性，再选择信息增益最高且成本合理的下一动作。当前问题混有多个子问题、已有 competing explanations、或需要决定什么 evidence 最能改变当前判断时，读取 [`ACTIVE-UNCERTAINTY.md`](ACTIVE-UNCERTAINTY.md)；需要把 competing explanations 变成可判别预测时继续读取 [`HYPOTHESIS.md`](HYPOTHESIS.md)。需要文献发现、全文获取、论文阅读、批判审阅或跨论文证据综合时，读取 [`LITERATURE.md`](LITERATURE.md)。需要持久化、检索、校验或生成证据视图时，读取 [`RESEARCH-DB.md`](RESEARCH-DB.md)。
 
 不要把科研过程强制推进成单向流水线；文献、假设、实验设计、数据分析和解释可以反复回到彼此。
 
