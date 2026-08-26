@@ -112,7 +112,7 @@ QC 至少考虑当前 assay 的关键失败模式；例如 sequencing 的 read q
 
 ## 10. 完成条件
 
-进入 `ANALYSIS` 前至少满足：
+按 [`ANALYSIS.md`](ANALYSIS.md) 进入 `ANALYSIS` 前至少满足：
 
 1. 当前分析输入的数据身份、来源和版本可确认；
 2. raw / curated / derived 边界清楚，raw 未被静默覆盖；
