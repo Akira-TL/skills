@@ -13,6 +13,7 @@ REQUIRED_TABLES = {
     "artifacts",
     "search_runs",
     "candidates",
+    "search_run_candidates",
     "reading_runs",
     "methods",
     "experiments",

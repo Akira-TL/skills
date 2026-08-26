@@ -144,13 +144,19 @@ pmid
 authors
 year
 discovery_source
-identity_status
-relevance_status
+source_url
+identity_status        -- unresolved | resolved
+relevance_status       -- pending | relevant | excluded
 relevance_reason
+acquisition_status     -- pending | queued | acquired | unavailable
+reading_priority       -- core | high | normal | low
+exclusion_reason
 paper_id
 created_at
 updated_at
 ```
+
+同一 Candidate 可以由多次 Search Run 独立发现；`search_run_candidates` 保存 `search_run_id + candidate_id + result_rank + source_result_id/source_url`，避免把重复发现误当独立论文。DOI/PMID 已解析时优先按稳定身份复用 Candidate；没有稳定身份时只对未解析的 exact title/year 候选做保守合并。论文经 `ingest-paper` 获取后，匹配 Candidate 自动回链 `paper_id` 并更新为 `acquired`。
 
 Candidate ID 主要供数据库内部使用。
 
@@ -418,14 +424,19 @@ sidecar_path          -- 可选
 ```bash
 uv run scripts/research_db.py init
 uv run scripts/research_db.py migrate
+uv run scripts/research_db.py record-search
+uv run scripts/research_db.py search-runs
+uv run scripts/research_db.py candidates
+uv run scripts/research_db.py update-candidate <candidate-id>
 uv run scripts/research_db.py ingest-paper
 uv run scripts/research_db.py ingest-reading
 uv run scripts/research_db.py ingest-critical
+uv run scripts/research_db.py evidence <query>
 uv run scripts/research_db.py status
 uv run scripts/research_db.py validate
 ```
 
-默认从当前目录向上定位 `RESEARCH.md` 或 `.research/research.sqlite`；也可用全局 `--project <path>` 显式指定科研项目根目录。`init` 同时创建 `.research/bundles/`；三个 ingest 命令省略 bundle 参数时分别读取 `paper.json`、`reconstruction.json`、`critical.json`。命令输出结构化 JSON。
+默认从当前目录向上定位 `RESEARCH.md` 或 `.research/research.sqlite`；也可用全局 `--project <path>` 显式指定科研项目根目录。`init` 同时创建 `.research/bundles/`；`record-search` 默认读取 `search.json`，`update-candidate` 默认读取 `candidate-update.json`，三个 ingest 命令分别读取 `paper.json`、`reconstruction.json`、`critical.json`；都可显式传其他 JSON 路径或 `-` 从 stdin 读取。命令输出结构化 JSON。
 
 后续接口目标：
 

@@ -212,6 +212,51 @@ def _duplicate_identity(
     return None
 
 
+def _link_discovery_candidates(
+    connection: sqlite3.Connection,
+    *,
+    paper_id: str,
+    title: str,
+    doi: str | None,
+    pmid: str | None,
+    year: int | None,
+    timestamp: str,
+) -> list[int]:
+    predicates: list[str] = []
+    params: list[Any] = []
+    if doi:
+        predicates.append("lower(doi) = lower(?)")
+        params.append(doi)
+    if pmid:
+        predicates.append("pmid = ?")
+        params.append(pmid)
+    if doi or pmid:
+        predicates.append(
+            "(lower(title) = lower(?) AND ((year IS NULL AND ? IS NULL) OR year = ?) "
+            "AND (doi IS NULL OR trim(doi) = '') AND (pmid IS NULL OR trim(pmid) = ''))"
+        )
+        params.extend([title, year, year])
+    if not predicates:
+        return []
+
+    rows = connection.execute(
+        "SELECT id FROM candidates WHERE " + " OR ".join(predicates), params
+    ).fetchall()
+    candidate_ids = [int(row["id"]) for row in rows]
+    for candidate_id in candidate_ids:
+        connection.execute(
+            """
+            UPDATE candidates
+            SET paper_id = ?, identity_status = 'resolved',
+                acquisition_status = 'acquired', doi = COALESCE(NULLIF(doi, ''), ?),
+                pmid = COALESCE(NULLIF(pmid, ''), ?), updated_at = ?
+            WHERE id = ?
+            """,
+            (paper_id, doi, pmid, timestamp, candidate_id),
+        )
+    return candidate_ids
+
+
 def ingest_paper(project_root: Path, bundle: PaperIngestBundle) -> dict[str, Any]:
     db_path = database_path(project_root)
     if not db_path.exists():
@@ -305,6 +350,30 @@ def ingest_paper(project_root: Path, bundle: PaperIngestBundle) -> dict[str, Any
                     f"Registered acquired paper: {title}",
                 ),
             )
+            linked_candidate_ids = _link_discovery_candidates(
+                connection,
+                paper_id=paper_id,
+                title=title,
+                doi=doi,
+                pmid=pmid,
+                year=year,
+                timestamp=timestamp,
+            )
+            for candidate_id in linked_candidate_ids:
+                connection.execute(
+                    """
+                    INSERT INTO change_log(
+                        timestamp, action, entity_type, entity_id, paper_id, reason, summary
+                    ) VALUES (?, 'candidate_acquired', 'candidate', ?, ?, ?, ?)
+                    """,
+                    (
+                        timestamp,
+                        str(candidate_id),
+                        paper_id,
+                        reason,
+                        f"Linked discovery candidate to acquired paper {paper_id}.",
+                    ),
+                )
 
             artifact_rows: list[dict[str, Any]] = []
             for artifact in artifacts:
@@ -373,4 +442,5 @@ def ingest_paper(project_root: Path, bundle: PaperIngestBundle) -> dict[str, Any
         "status": "acquired",
         "paper_dir": str(paper_dir.relative_to(project_root)) if paper_dir else None,
         "artifacts": artifact_rows,
+        "linked_candidate_ids": linked_candidate_ids,
     }

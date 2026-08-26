@@ -48,6 +48,29 @@ class ResearchDbCliTests(unittest.TestCase):
         )
         self.assertIsNone(args.bundle)
 
+        search_args = build_parser().parse_args(
+            ["--project", str(self.root), "record-search"]
+        )
+        self.assertIsNone(search_args.bundle)
+
+    def test_candidate_queue_filters_are_exposed(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "--project",
+                str(self.root),
+                "candidates",
+                "--relevance",
+                "relevant",
+                "--acquisition",
+                "queued",
+                "--priority",
+                "core",
+            ]
+        )
+        self.assertEqual(args.relevance, "relevant")
+        self.assertEqual(args.acquisition, "queued")
+        self.assertEqual(args.priority, "core")
+
 
 if __name__ == "__main__":
     unittest.main()
