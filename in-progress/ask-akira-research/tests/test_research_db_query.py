@@ -150,13 +150,48 @@ class ResearchDbQueryTests(unittest.TestCase):
             "Methods > Metagenomic sequencing",
         )
 
-    def test_evidence_packet_returns_units_and_relations_without_judging_strength(self) -> None:
+    def test_evidence_packet_expands_linked_units_without_judging_strength(self) -> None:
         result = evidence_packet(self.root, "Blautia altitude", limit=10)
 
         self.assertTrue(result["ok"])
-        self.assertGreaterEqual(len(result["evidence_units"]), 1)
+        entity_types = {item["entity_type"] for item in result["evidence_units"]}
+        self.assertIn("claim", entity_types)
+        self.assertIn("issue", entity_types)
         self.assertEqual(result["relations"][0]["predicate"], "QUALIFIES")
+        self.assertEqual(result["papers"][0]["id"], "P000001")
+        self.assertTrue(any(item.get("retrieval_seed") for item in result["evidence_units"]))
         self.assertIn("不代表科研结论强度判断", result["note"])
+
+    def test_evidence_packet_marks_shared_data_as_one_evidence_family(self) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with sqlite3.connect(database_path(self.root)) as connection:
+            connection.execute(
+                """
+                INSERT INTO papers(
+                    id, title, doi, canonical_identity, created_at, updated_at
+                ) VALUES ('P000002', 'Companion analysis', '10.1234/companion',
+                          'doi:10.1234/companion', ?, ?)
+                """,
+                (now, now),
+            )
+            connection.execute(
+                """
+                INSERT INTO relations(
+                    subject_type, subject_id, predicate, object_type, object_id,
+                    confidence, note, created_at
+                ) VALUES ('paper', 'P000001', 'SHARES_DATA_WITH', 'paper', 'P000002',
+                          'high', 'Same cohort and accession.', ?)
+                """,
+                (now,),
+            )
+
+        result = evidence_packet(self.root, "Blautia altitude", limit=10)
+
+        self.assertEqual(len(result["evidence_families"]), 1)
+        self.assertEqual(
+            result["evidence_families"][0]["paper_ids"], ["P000001", "P000002"]
+        )
+        self.assertEqual({paper["id"] for paper in result["papers"]}, {"P000001", "P000002"})
 
     def test_related_papers_returns_cross_paper_relation(self) -> None:
         now = datetime.now(timezone.utc).isoformat()

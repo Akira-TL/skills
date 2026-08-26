@@ -172,6 +172,77 @@ def search_knowledge(
     }
 
 
+def _relations_touching(
+    connection: sqlite3.Connection, entity_keys: set[tuple[str, str]]
+) -> list[dict[str, Any]]:
+    if not entity_keys:
+        return []
+    predicates: list[str] = []
+    params: list[str] = []
+    for entity_type, entity_id in sorted(entity_keys):
+        predicates.append("(subject_type = ? AND subject_id = ?)")
+        predicates.append("(object_type = ? AND object_id = ?)")
+        params.extend([entity_type, entity_id, entity_type, entity_id])
+    sql = "SELECT * FROM relations WHERE " + " OR ".join(predicates) + " ORDER BY id"
+    return [dict(row) for row in connection.execute(sql, params)]
+
+
+def _shared_evidence_families(
+    connection: sqlite3.Connection, seed_paper_ids: set[str]
+) -> tuple[list[dict[str, Any]], set[str], list[dict[str, Any]]]:
+    rows = [
+        dict(row)
+        for row in connection.execute(
+            """
+            SELECT * FROM relations
+            WHERE subject_type = 'paper' AND object_type = 'paper'
+              AND predicate IN ('SHARES_DATA_WITH', 'SHARES_SAMPLES_WITH')
+            ORDER BY id
+            """
+        )
+    ]
+    adjacency: dict[str, set[str]] = {}
+    for row in rows:
+        subject = str(row["subject_id"])
+        object_id = str(row["object_id"])
+        adjacency.setdefault(subject, set()).add(object_id)
+        adjacency.setdefault(object_id, set()).add(subject)
+
+    families: list[dict[str, Any]] = []
+    family_papers: set[str] = set(seed_paper_ids)
+    family_relations: list[dict[str, Any]] = []
+    visited: set[str] = set()
+    for seed in sorted(seed_paper_ids):
+        if seed in visited or seed not in adjacency:
+            continue
+        component: set[str] = set()
+        frontier = [seed]
+        while frontier:
+            current = frontier.pop()
+            if current in component:
+                continue
+            component.add(current)
+            frontier.extend(sorted(adjacency.get(current, set()) - component))
+        visited.update(component)
+        if len(component) < 2:
+            continue
+        component_relations = [
+            row
+            for row in rows
+            if str(row["subject_id"]) in component
+            and str(row["object_id"]) in component
+        ]
+        family_papers.update(component)
+        family_relations.extend(component_relations)
+        families.append(
+            {
+                "paper_ids": sorted(component),
+                "relations": component_relations,
+            }
+        )
+    return families, family_papers, family_relations
+
+
 def evidence_packet(
     project_root: Path,
     query: str,
@@ -185,30 +256,88 @@ def evidence_packet(
         entity_types=["claim", "observation", "issue"],
         limit=limit,
     )
-    entity_keys = {
-        (item["entity_type"], item["entity_id"])
-        for item in matches["results"]
+    seed_units = matches["results"]
+    seed_keys = {
+        (str(item["entity_type"]), str(item["entity_id"])) for item in seed_units
     }
 
     with connect(_db_path(project_root)) as connection:
-        relations: list[dict[str, Any]] = []
-        if entity_keys:
-            predicates: list[str] = []
-            params: list[str] = []
-            for entity_type, entity_id in entity_keys:
-                predicates.append("(subject_type = ? AND subject_id = ?)")
-                predicates.append("(object_type = ? AND object_id = ?)")
-                params.extend([entity_type, entity_id, entity_type, entity_id])
-            sql = "SELECT * FROM relations WHERE " + " OR ".join(predicates) + " ORDER BY id"
-            for row in connection.execute(sql, params):
-                relations.append(dict(row))
+        seen_keys = set(seed_keys)
+        frontier = set(seed_keys)
+        relation_by_id: dict[int, dict[str, Any]] = {}
+        # Two hops are enough to recover common Observation -> Claim -> Issue chains
+        # without turning one keyword hit into an unbounded graph traversal.
+        for _ in range(2):
+            if not frontier:
+                break
+            next_frontier: set[tuple[str, str]] = set()
+            for relation in _relations_touching(connection, frontier):
+                relation_by_id[int(relation["id"])] = relation
+                for prefix in ("subject", "object"):
+                    key = (
+                        str(relation[f"{prefix}_type"]),
+                        str(relation[f"{prefix}_id"]),
+                    )
+                    if key not in seen_keys and key[0] in SEARCH_ENTITY_TYPES:
+                        seen_keys.add(key)
+                        next_frontier.add(key)
+            frontier = next_frontier
 
+        records: dict[tuple[str, str], dict[str, Any]] = {}
+        for entity_type, entity_id in sorted(seen_keys):
+            record = _entity_record(connection, entity_type, entity_id)
+            if record is not None:
+                records[(entity_type, entity_id)] = record
+
+        # Preserve retrieval metadata on seed matches after graph expansion.
+        for seed in seed_units:
+            key = (str(seed["entity_type"]), str(seed["entity_id"]))
+            if key in records:
+                records[key].update(
+                    {
+                        "retrieval_rank": seed.get("retrieval_rank"),
+                        "snippet": seed.get("snippet"),
+                        "retrieval_seed": True,
+                    }
+                )
+
+        paper_ids = {
+            str(record["paper_id"])
+            for record in records.values()
+            if record.get("paper_id")
+        }
+        paper_ids.update(
+            entity_id
+            for (entity_type, entity_id) in records
+            if entity_type == "paper"
+        )
+        families, family_paper_ids, family_relations = _shared_evidence_families(
+            connection, paper_ids
+        )
+        paper_ids.update(family_paper_ids)
+        for relation in family_relations:
+            relation_by_id[int(relation["id"])] = relation
+
+        papers = [
+            paper
+            for paper_id in sorted(paper_ids)
+            if (paper := _entity_record(connection, "paper", paper_id)) is not None
+        ]
+
+    evidence_units = [
+        record
+        for key, record in records.items()
+        if key[0] != "paper"
+    ]
     return {
         "ok": True,
         "query": query,
-        "evidence_units": matches["results"],
-        "relations": relations,
-        "note": "该结果仅检索证据单元与关系，不代表科研结论强度判断。",
+        "seed_units": seed_units,
+        "evidence_units": evidence_units,
+        "relations": [relation_by_id[key] for key in sorted(relation_by_id)],
+        "papers": papers,
+        "evidence_families": families,
+        "note": "该结果仅检索并展开证据单元、关系与共享数据家族，不代表科研结论强度判断。",
     }
 
 

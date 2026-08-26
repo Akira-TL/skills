@@ -7,7 +7,7 @@
 Synthesis 必须接收：
 
 - research question / target claim；
-- evidence packet；
+- evidence packet，包括展开后的 evidence units、relations、Paper identities 与 evidence families；
 - 必要时回查原始 paper artifact。
 
 不得只根据检索 snippet 生成结论。
@@ -22,7 +22,7 @@ Synthesis 必须接收：
 - `contradicted`：存在可信反证或不一致结果。
 - `unresolved`：当前证据不足以区分解释。
 
-禁止输出没有对应 evidence unit 的新事实。
+禁止输出没有对应 evidence unit 的新事实。共享 cohort/sample/dataset 的 Paper 必须按 evidence family 视为相关证据来源，不能按论文篇数当作独立 replication 投票。
 
 ## 必须回答
 

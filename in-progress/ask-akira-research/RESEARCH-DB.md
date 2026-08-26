@@ -478,7 +478,7 @@ lead title
 
 Agent 根据用户问题生成关键词、同义词或结构过滤条件；SQLite 返回候选 knowledge units，Agent 再读取候选和必要原文完成解释。`paper` 返回 identity/artifact/reading-run/counts，`methods`/`claims`/`issues` 支持 Paper 与文本/问题过滤，`history` 返回语义 change log，`related` 根据跨 Paper relation 动态聚合关联论文。数据库负责记忆与定位，原始论文负责最终核验。
 
-`research-db evidence <query>` 先检索相关 Claim / Observation / Issue，再沿 `relations` 展开支持、冲突、批判、共享数据与来源 Paper，输出 machine-readable evidence packet。脚本负责检索图，不负责用硬编码评分替代科研判断。
+`research-db evidence <query>` 先检索相关 Claim / Observation / Issue，再做有界关系展开，补回相邻 Observation / Claim / Issue 与来源 Paper；随后沿 `SHARES_DATA_WITH` / `SHARES_SAMPLES_WITH` 计算与命中论文相连的 evidence family。packet 同时返回 `seed_units`、展开后的 `evidence_units`、`relations`、`papers` 与 `evidence_families`。共享数据家族用于避免把同一 cohort/sample/dataset 的多篇论文当成独立 replication；脚本负责检索图，不负责用硬编码评分替代科研判断。
 
 ## 8. Sidecar
 
