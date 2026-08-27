@@ -15,4 +15,4 @@ Resolution search 不是“搜到一个结果就结束”。对已有 DOI 的正
 
 搜索结果必须回到 canonical target 做身份核验。不要从主题关键词扩展候选论文，也不要在这里执行综述检索、筛选或研究问题发现。
 
-找到公开候选时进入 `open-copy.md`；只找到需要登录的 publisher / institution 入口时进入 `authenticated.md`。只有当前环境可用的 publisher、开放解析、repository/preprint 等合法路径均已形成真实 Acquisition Attempt，且没有尚未跟进的正向全文线索时，才可返回 `MANUAL_ACQUISITION_REQUIRED`。
+找到公开候选时进入 `open-copy.md`；只找到需要登录的出版社（publisher）或机构（institution）入口时进入 `authenticated.md`。机器侧可用的出版社、开放解析、机构知识库/预印本（repository/preprint）等合法路径均已形成真实获取尝试（Acquisition Attempt），且没有尚未跟进的正向全文线索时，可以返回 `MANUAL_ACQUISITION_REQUIRED`，但必须立即转为用户协同：请求用户在可见浏览器中完成其已有权限的登录，或提供其合法取得的全文文件。用户尚未完成或拒绝该协同时，目标不得闭合为“不可得”。

@@ -17,8 +17,10 @@ description: 用于需要真正取得论文原文而不是只读取标题或摘�
 - 浏览器发现、Profile、登录和人机协作由浏览器能力负责，本 Skill 不复制这些规则。
 - 浏览器不承担文件落盘。解析出最终资源请求后，优先由 Agent 直接、内联地传输文件。
 - 只使用公开可得版本或用户已有合法权限能够访问的版本。
-- **单一 endpoint 失败不等于全文不可得。** PDF 返回 403/challenge/HTML 错页时，必须回到 article page 检查 HTML full text、真实下载请求及附件入口，并继续 exact-work resolution search；一个 URL 的失败不能直接升级为 `MANUAL_ACQUISITION_REQUIRED`。
-- DOI/PMID/页面元数据若明确暴露 PMCID、Europe PMC、repository、accepted manuscript、preprint 或其他合法 full-text location，这是必须继续跟进的正向线索，不能在未访问该线索时宣称获取失败。
+- **单一资源入口失败不等于全文不可得。** PDF 返回 403、访问挑战页或 HTML 错页时，必须回到论文页面检查网页全文、真实下载请求及附件入口，并继续围绕目标论文进行精确解析检索（exact-work resolution search）；一个 URL 的失败不能直接升级为 `MANUAL_ACQUISITION_REQUIRED`。
+- DOI、PMID 或页面元数据若明确暴露 PMCID、Europe PMC、机构知识库（repository）、作者接受稿（accepted manuscript）、预印本（preprint）或其他合法全文位置，这是必须继续跟进的正向线索，不能在未访问该线索时宣称获取失败。
+- **需要用户权限或用户文件时必须进入人机协同，而不是放弃。** 如果公开路径没有拿到全文，但出版社、机构或数据库存在登录后可访问的可能性，必须路由到用户授权浏览器访问；优先复用可见、持久的专用浏览器配置（browser profile），由用户亲自完成密码、验证码、机构登录或二次认证，随后继续解析和获取正文。若用户可以从自己有权使用的其他渠道取得论文，也可以请求用户直接提供文件，再执行身份和完整性核验。
+- 只要仍在等待用户登录、授权或提供文件，就不能把目标描述为“不可得”，也不能让上层科研项目以该论文已闭合为理由通过完成门禁。
 
 ## 按需加载
 
@@ -39,7 +41,7 @@ description: 用于需要真正取得论文原文而不是只读取标题或摘�
 - `FULL_TEXT_READY`：全文 artifact 已下载并通过验收。
 - `MANUAL_ACQUISITION_REQUIRED`：当前环境无法自行取得全文，需要用户提供文件。
 
-只有 `FULL_TEXT_READY` 才算成功完成。`MANUAL_ACQUISITION_REQUIRED` 是**已穷尽当前可用合法获取路径后的终态**，不是一次请求失败后的默认状态。
+只有 `FULL_TEXT_READY` 才算成功完成。`MANUAL_ACQUISITION_REQUIRED` 表示**机器侧路径已暂时走完、下一步必须由用户协同**，不是“论文不可得”的终态。此状态必须明确请求用户登录、完成授权或提供其合法取得的全文文件；用户尚未回应时，上层研究保持未闭合。
 
 ## 失败闭合与 Acquisition Attempt
 

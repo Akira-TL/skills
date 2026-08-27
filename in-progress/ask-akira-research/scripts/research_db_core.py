@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -49,6 +50,54 @@ class Migration:
 
 class ResearchDbError(RuntimeError):
     pass
+
+
+def main_text_exposes_code_data_locator(
+    project_root: Path, connection: sqlite3.Connection, paper_id: str
+) -> bool:
+    """Detect a narrow, explicit data/code locator in machine-readable main text."""
+    rows = connection.execute(
+        "SELECT path FROM artifacts WHERE paper_id = ? AND kind = 'main_text' ORDER BY id",
+        (paper_id,),
+    ).fetchall()
+    heading_patterns = (
+        "availability of data and materials",
+        "data availability",
+        "code availability",
+        "availability of data",
+    )
+    for row in rows:
+        path = Path(str(row["path"]))
+        if not path.is_absolute():
+            path = project_root / path
+        if path.suffix.casefold() not in {".xml", ".html", ".htm", ".md", ".txt"}:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        lowered = text[:6_000_000].casefold()
+        for heading in heading_patterns:
+            for match in re.finditer(re.escape(heading), lowered):
+                window = lowered[match.start() : match.start() + 5000]
+                has_locator = bool(
+                    re.search(r"https?://|href\s*=|doi:\s*10\.|accession|repository", window)
+                )
+                has_availability_signal = any(
+                    phrase in window
+                    for phrase in (
+                        "available at",
+                        "available from",
+                        "publicly available",
+                        "freely available",
+                        "deposited",
+                        "repository",
+                        "accession",
+                    )
+                )
+                if has_locator and has_availability_signal:
+                    return True
+    return False
 
 
 def _source_locator_is_specific(value: object) -> bool:
@@ -283,7 +332,10 @@ def validate(project_root: Path) -> dict[str, Any]:
             errors.append(f"缺少数据表：{', '.join(missing_tables)}")
 
         if not errors:
-            from research_db_ops.acquisition import supplement_access_blockers
+            from research_db_ops.acquisition import (
+                code_data_access_blockers,
+                supplement_access_blockers,
+            )
 
             reconstructed_without_run = connection.execute(
                 """
@@ -422,6 +474,59 @@ def validate(project_root: Path) -> dict[str, Any]:
                                 errors.append(
                                     f"deep_extraction run {run['id']} ({run['paper_id']}) "
                                     f"supplement access provenance 不完整：{blocker}。"
+                                )
+
+                    code_data_presence = checks.get("code_data_presence")
+                    if code_data_presence not in {"present", "none_found", "unclear"}:
+                        errors.append(
+                            f"deep_extraction run {run['id']} ({run['paper_id']}) 缺少有效 code_data_presence。"
+                        )
+                    code_data_status = checks.get("code_data_status")
+                    if (
+                        code_data_presence == "none_found"
+                        and main_text_exposes_code_data_locator(
+                            project_root, connection, str(run["paper_id"])
+                        )
+                    ):
+                        errors.append(
+                            f"deep_extraction run {run['id']} ({run['paper_id']}) 的主文明确暴露代码/数据获取位置，"
+                            "code_data_presence 不能为 none_found。"
+                        )
+                    if code_data_status == "not_applicable" and code_data_presence != "none_found":
+                        errors.append(
+                            f"deep_extraction run {run['id']} ({run['paper_id']}) "
+                            "code_data_status=not_applicable 但 code_data_presence 不是 none_found。"
+                        )
+                    if code_data_status == "checked" and code_data_presence != "present":
+                        errors.append(
+                            f"deep_extraction run {run['id']} ({run['paper_id']}) "
+                            "code_data_status=checked 但 code_data_presence 不是 present。"
+                        )
+                    if code_data_status == "access_limited" and code_data_presence not in {"present", "unclear"}:
+                        errors.append(
+                            f"deep_extraction run {run['id']} ({run['paper_id']}) "
+                            "code_data_status=access_limited 但 code_data_presence 不是 present/unclear。"
+                        )
+                    if code_data_status in {"checked", "access_limited"}:
+                        raw_attempt_ids = checks.get("code_data_attempt_ids")
+                        if not isinstance(raw_attempt_ids, list) or not raw_attempt_ids or not all(
+                            isinstance(value, int) and value > 0 for value in raw_attempt_ids
+                        ):
+                            errors.append(
+                                f"deep_extraction run {run['id']} ({run['paper_id']}) "
+                                f"code_data_status={code_data_status} 缺少有效 code_data_attempt_ids。"
+                            )
+                        else:
+                            blockers = code_data_access_blockers(
+                                connection,
+                                str(run["paper_id"]),
+                                raw_attempt_ids,
+                                status=str(code_data_status),
+                            )
+                            for blocker in blockers:
+                                errors.append(
+                                    f"deep_extraction run {run['id']} ({run['paper_id']}) "
+                                    f"code/data access provenance 不完整：{blocker}。"
                                 )
 
                     quantitative_present = checks.get("quantitative_results_present")
@@ -574,7 +679,8 @@ def validate(project_root: Path) -> dict[str, Any]:
             for row in connection.execute(
                 """
                 SELECT id, identity_status, relevance_status, exclusion_reason,
-                       acquisition_status, paper_id, doi, pmid
+                       acquisition_status, reading_priority, paper_id, doi, pmid,
+                       user_access_status, user_access_reason
                 FROM candidates ORDER BY id
                 """
             ):
@@ -586,6 +692,13 @@ def validate(project_root: Path) -> dict[str, Any]:
                 ):
                     errors.append(
                         f"candidate {candidate_id} 标记为 excluded，但缺少 exclusion_reason。"
+                    )
+                if row["user_access_status"] != "not_required" and not (
+                    row["user_access_reason"] and str(row["user_access_reason"]).strip()
+                ):
+                    errors.append(
+                        f"candidate {candidate_id} 的 user_access_status={row['user_access_status']}，"
+                        "但缺少 user_access_reason。"
                     )
                 if row["acquisition_status"] == "unavailable":
                     for blocker in unavailable_candidate_blockers(connection, row):

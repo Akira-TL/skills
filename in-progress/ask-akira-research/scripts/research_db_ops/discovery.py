@@ -15,6 +15,13 @@ SEARCH_MODES = {"DISCOVERY", "SYSTEMATIC"}
 IDENTITY_STATUSES = {"unresolved", "resolved"}
 RELEVANCE_STATUSES = {"pending", "relevant", "excluded"}
 ACQUISITION_STATUSES = {"pending", "queued", "acquired", "unavailable"}
+USER_ACCESS_STATUSES = {
+    "not_required",
+    "required",
+    "completed",
+    "declined",
+    "unavailable_to_user",
+}
 READING_PRIORITIES = {"core", "high", "normal", "low"}
 DISCOVERY_METHODS = {
     "seed_search",

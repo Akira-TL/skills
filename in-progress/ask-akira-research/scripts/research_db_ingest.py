@@ -249,7 +249,12 @@ def _link_discovery_candidates(
             UPDATE candidates
             SET paper_id = ?, identity_status = 'resolved',
                 acquisition_status = 'acquired', doi = COALESCE(NULLIF(doi, ''), ?),
-                pmid = COALESCE(NULLIF(pmid, ''), ?), updated_at = ?
+                pmid = COALESCE(NULLIF(pmid, ''), ?),
+                user_access_status = CASE
+                    WHEN user_access_status = 'not_required' THEN 'not_required'
+                    ELSE 'completed'
+                END,
+                updated_at = ?
             WHERE id = ?
             """,
             (paper_id, doi, pmid, timestamp, candidate_id),

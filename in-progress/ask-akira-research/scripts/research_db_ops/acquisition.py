@@ -75,15 +75,19 @@ def record_acquisition_attempt(project_root: Path, bundle: dict[str, Any]) -> di
 
     if target_kind != "main_text" and paper_id is None:
         raise ResearchDbError(f"target_kind={target_kind} 的 Acquisition Attempt 必须关联 paper_id。")
-    if target_kind == "supplement" and target_label is None:
-        raise ResearchDbError("supplement Acquisition Attempt 必须提供 target_label。")
+    if target_kind in {"supplement", "code_data"} and target_label is None:
+        raise ResearchDbError(
+            f"{target_kind} Acquisition Attempt 必须提供 target_label，明确具体附件、数据集或代码资源。"
+        )
 
     with connect(_db_path(project_root)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         try:
             if candidate_id is not None:
                 candidate = connection.execute(
-                    "SELECT id, paper_id FROM candidates WHERE id = ?", (candidate_id,)
+                    "SELECT id, paper_id, user_access_status, user_access_reason "
+                    "FROM candidates WHERE id = ?",
+                    (candidate_id,),
                 ).fetchone()
                 if candidate is None:
                     raise ResearchDbError(f"Candidate 不存在：{candidate_id}")
@@ -140,6 +144,21 @@ def record_acquisition_attempt(project_root: Path, bundle: dict[str, Any]) -> di
                 ),
             )
             attempt_id = int(cursor.lastrowid)
+            if (
+                candidate_id is not None
+                and target_kind == "main_text"
+                and outcome == "auth_required"
+            ):
+                connection.execute(
+                    """
+                    UPDATE candidates
+                    SET user_access_status = 'required',
+                        user_access_reason = ?,
+                        updated_at = ?
+                    WHERE id = ? AND acquisition_status <> 'acquired'
+                    """,
+                    (detail, attempted_at, candidate_id),
+                )
             if superseded_rows:
                 connection.executemany(
                     """
@@ -264,6 +283,45 @@ def supplement_access_blockers(connection, paper_id: str, attempt_ids: list[int]
     return blockers
 
 
+def code_data_access_blockers(
+    connection,
+    paper_id: str,
+    attempt_ids: list[int],
+    *,
+    status: str,
+) -> list[str]:
+    if not attempt_ids:
+        return ["code_data_attempt_ids_missing"]
+    unique_ids = list(dict.fromkeys(attempt_ids))
+    placeholders = ",".join("?" for _ in unique_ids)
+    rows = connection.execute(
+        f"SELECT id, route_family, resource_kind, source_url, outcome, validity_status "
+        f"FROM acquisition_attempts WHERE id IN ({placeholders}) "
+        "AND paper_id = ? AND target_kind = 'code_data' ORDER BY id",
+        (*unique_ids, paper_id),
+    ).fetchall()
+    if len(rows) != len(unique_ids):
+        return ["code_data_attempt_reference_invalid"]
+    blockers: list[str] = []
+    if any(row["validity_status"] != "active" for row in rows):
+        blockers.append("code_data_attempt_refs_include_superseded")
+    active = [row for row in rows if row["validity_status"] == "active"]
+    if status == "checked":
+        if not any(row["outcome"] == "acquired" for row in active):
+            blockers.append("code_data_checked_without_acquired_attempt")
+        return blockers
+
+    failed = [row for row in active if row["outcome"] in FAILURE_OUTCOMES]
+    if len(failed) < 2:
+        blockers.append("code_data_attempts_insufficient")
+        return blockers
+    families = {str(row["route_family"]) for row in failed}
+    resource_kinds = {str(row["resource_kind"]) for row in failed}
+    if len(families) < 2 and len(resource_kinds) < 2:
+        blockers.append("code_data_alternate_route_missing")
+    return blockers
+
+
 def unavailable_candidate_blockers(connection, candidate) -> list[dict[str, Any]]:
     if candidate["acquisition_status"] != "unavailable":
         return []
@@ -278,8 +336,50 @@ def unavailable_candidate_blockers(connection, candidate) -> list[dict[str, Any]
         (candidate_id,),
     ).fetchall()
     blockers: list[dict[str, Any]] = []
+    user_access_status = str(candidate["user_access_status"] or "not_required")
+    user_access_reason = candidate["user_access_reason"]
+    if user_access_status == "required":
+        blockers.append(
+            {
+                "candidate_id": candidate_id,
+                "reason": "unavailable_waiting_for_user_access",
+            }
+        )
+    if (
+        str(candidate["reading_priority"]) in {"core", "high"}
+        and user_access_status == "not_required"
+    ):
+        blockers.append(
+            {
+                "candidate_id": candidate_id,
+                "reason": "priority_candidate_user_assistance_not_attempted",
+            }
+        )
+    if user_access_status != "not_required" and not (
+        user_access_reason and str(user_access_reason).strip()
+    ):
+        blockers.append(
+            {
+                "candidate_id": candidate_id,
+                "reason": "user_access_reason_missing",
+            }
+        )
+
     active = [row for row in attempts if row["validity_status"] == "active"]
     active_acquired = [row for row in active if row["outcome"] == "acquired"]
+    active_auth_required = [row for row in active if row["outcome"] == "auth_required"]
+    if active_auth_required and user_access_status not in {
+        "completed",
+        "declined",
+        "unavailable_to_user",
+    }:
+        blockers.append(
+            {
+                "candidate_id": candidate_id,
+                "reason": "authenticated_route_requires_user_resolution",
+                "attempt_ids": [int(row["id"]) for row in active_auth_required],
+            }
+        )
     if active_acquired:
         blockers.append(
             {

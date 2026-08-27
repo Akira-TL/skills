@@ -224,6 +224,7 @@ class ResearchDbReadingTests(unittest.TestCase):
             "supplement_status": "checked",
             "supplement_presence": "present",
             "code_data_status": "not_applicable",
+            "code_data_presence": "none_found",
             "code_data_reason": "No code or data repository is part of this synthetic test paper.",
             "quantitative_results_present": True,
         }
@@ -247,6 +248,7 @@ class ResearchDbReadingTests(unittest.TestCase):
             "supplement_status": "not_applicable",
             "supplement_presence": "none_found",
             "code_data_status": "not_applicable",
+            "code_data_presence": "none_found",
             "code_data_reason": "No code/data repository is reported in this synthetic paper.",
             "quantitative_results_present": True,
         }
@@ -266,6 +268,7 @@ class ResearchDbReadingTests(unittest.TestCase):
             "supplement_presence": "none_found",
             "supplement_reason": "The supplement looks unrelated.",
             "code_data_status": "not_applicable",
+            "code_data_presence": "none_found",
             "code_data_reason": "No code/data repository is reported in this synthetic paper.",
             "quantitative_results_present": True,
         }
@@ -284,6 +287,7 @@ class ResearchDbReadingTests(unittest.TestCase):
             "supplement_status": "checked",
             "supplement_presence": "present",
             "code_data_status": "not_applicable",
+            "code_data_presence": "none_found",
             "code_data_reason": "No code/data repository is reported in this synthetic paper.",
             "quantitative_results_present": True,
         }
@@ -308,6 +312,7 @@ class ResearchDbReadingTests(unittest.TestCase):
             "supplement_presence": "present",
             "supplement_reason": "An additional referenced supplement could not yet be retrieved.",
             "code_data_status": "not_applicable",
+            "code_data_presence": "none_found",
             "code_data_reason": "No code/data repository is reported in this synthetic paper.",
             "quantitative_results_present": True,
             "supplement_attempt_ids": [999],
@@ -340,6 +345,80 @@ class ResearchDbReadingTests(unittest.TestCase):
         ):
             attempts.append(record_acquisition_attempt(self.root, payload)["attempt"]["id"])
         bundle["extraction_checks"]["supplement_attempt_ids"] = attempts
+        result = ingest_reading(self.root, bundle)
+        self.assertEqual(result["depth"], "deep_extraction")
+
+    def test_deep_extraction_rejects_none_found_when_main_text_exposes_public_data(self) -> None:
+        xml_path = self.root / "literature" / "papers" / "P000001" / "data-availability.xml"
+        xml_path.write_text(
+            "<article><sec><title>Availability of data and materials</title>"
+            "<p>The data are publicly available at "
+            "<ext-link href='https://repository.example/data.xlsx'>repository</ext-link>."
+            "</p></sec></article>",
+            encoding="utf-8",
+        )
+        with sqlite3.connect(database_path(self.root)) as connection:
+            connection.execute(
+                """
+                UPDATE artifacts
+                SET path = ?, content_type = 'application/xml',
+                    source_url = 'https://publisher.example/data.xml'
+                WHERE paper_id = 'P000001' AND kind = 'main_text'
+                """,
+                (str(xml_path.relative_to(self.root)),),
+            )
+
+        bundle = self.reconstruction_bundle()
+        bundle["depth"] = "deep_extraction"
+        bundle["observations"][0]["statistics"] = {"n": 45}
+        bundle["artifacts_checked"].append({"artifact_kind": "supplementary_material"})
+        bundle["extraction_checks"] = {
+            "observation_semantics_checked": True,
+            "figures_tables_checked": True,
+            "quantitative_results_checked": True,
+            "supplement_status": "checked",
+            "supplement_presence": "present",
+            "code_data_status": "not_applicable",
+            "code_data_presence": "none_found",
+            "code_data_reason": "No code or data was noticed during reading.",
+            "quantitative_results_present": True,
+        }
+        with self.assertRaisesRegex(RuntimeError, "主文明确暴露代码/数据获取位置"):
+            ingest_reading(self.root, bundle)
+
+    def test_deep_extraction_checked_code_data_requires_acquired_attempt(self) -> None:
+        bundle = self.reconstruction_bundle()
+        bundle["depth"] = "deep_extraction"
+        bundle["observations"][0]["statistics"] = {"n": 45}
+        bundle["artifacts_checked"].append({"artifact_kind": "supplementary_material"})
+        bundle["extraction_checks"] = {
+            "observation_semantics_checked": True,
+            "figures_tables_checked": True,
+            "quantitative_results_checked": True,
+            "supplement_status": "checked",
+            "supplement_presence": "present",
+            "code_data_status": "checked",
+            "code_data_presence": "present",
+            "code_data_attempt_ids": [999],
+            "quantitative_results_present": True,
+        }
+        with self.assertRaisesRegex(RuntimeError, "code_data.*provenance"):
+            ingest_reading(self.root, bundle)
+
+        attempt_id = record_acquisition_attempt(
+            self.root,
+            {
+                "paper_id": "P000001",
+                "target_kind": "code_data",
+                "target_label": "Public analysis dataset",
+                "route_family": "repository",
+                "resource_kind": "repository_record",
+                "source_url": "https://repository.example/data.xlsx",
+                "outcome": "acquired",
+                "detail": "The public dataset was retrieved and inspected for the deep extraction.",
+            },
+        )["attempt"]["id"]
+        bundle["extraction_checks"]["code_data_attempt_ids"] = [attempt_id]
         result = ingest_reading(self.root, bundle)
         self.assertEqual(result["depth"], "deep_extraction")
 

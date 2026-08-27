@@ -13,6 +13,7 @@ from research_db_ops.discovery import (
     IDENTITY_STATUSES,
     READING_PRIORITIES,
     RELEVANCE_STATUSES,
+    USER_ACCESS_STATUSES,
     _db_path,
     _enum,
     _now,
@@ -29,6 +30,8 @@ def update_candidate(project_root: Path, candidate_id: int, changes: dict[str, A
         "reading_priority",
         "exclusion_reason",
         "defer_reason",
+        "user_access_status",
+        "user_access_reason",
         "paper_id",
         "doi",
         "pmid",
@@ -57,6 +60,13 @@ def update_candidate(project_root: Path, candidate_id: int, changes: dict[str, A
         normalized["reading_priority"] = _enum(
             normalized["reading_priority"], READING_PRIORITIES, default="normal", field="reading_priority"
         )
+    if "user_access_status" in normalized:
+        normalized["user_access_status"] = _enum(
+            normalized["user_access_status"],
+            USER_ACCESS_STATUSES,
+            default="not_required",
+            field="user_access_status",
+        )
     if "doi" in normalized:
         normalized["doi"] = normalize_doi(normalized["doi"])
     if "pmid" in normalized:
@@ -65,6 +75,7 @@ def update_candidate(project_root: Path, candidate_id: int, changes: dict[str, A
         "relevance_reason",
         "exclusion_reason",
         "defer_reason",
+        "user_access_reason",
         "paper_id",
         "source_url",
     ):
@@ -83,6 +94,13 @@ def update_candidate(project_root: Path, candidate_id: int, changes: dict[str, A
             raise ResearchDbError("excluded candidate 必须提供 exclusion_reason。")
         if merged.get("acquisition_status") == "acquired" and not merged.get("paper_id"):
             raise ResearchDbError("acquired candidate 必须关联 paper_id。")
+        user_access_status = merged.get("user_access_status", "not_required")
+        if user_access_status != "not_required" and not merged.get("user_access_reason"):
+            raise ResearchDbError(
+                "user_access_status 不是 not_required 时必须提供 user_access_reason。"
+            )
+        if user_access_status == "required" and merged.get("acquisition_status") == "unavailable":
+            raise ResearchDbError("仍在等待用户协同访问的 Candidate 不能标记 unavailable。")
         if merged.get("paper_id"):
             paper = connection.execute(
                 "SELECT id FROM papers WHERE id = ?", (merged["paper_id"],)
@@ -195,6 +213,17 @@ def merge_candidates(
                 (str(keep["reading_priority"]), str(source["reading_priority"])),
                 key=priority_rank.__getitem__,
             )
+            user_states = {str(keep["user_access_status"]), str(source["user_access_status"])}
+            if acquisition_status == "acquired" and user_states != {"not_required"}:
+                user_access_status = "completed"
+            elif "required" in user_states:
+                user_access_status = "required"
+            else:
+                user_access_status = next(
+                    (state for state in user_states if state != "not_required"),
+                    "not_required",
+                )
+            user_access_reason = keep["user_access_reason"] or source["user_access_reason"]
             timestamp = _now()
 
             connection.execute(
@@ -217,6 +246,8 @@ def merge_candidates(
                         WHEN ? = 'excluded' THEN COALESCE(exclusion_reason, ?)
                         ELSE NULL END,
                     defer_reason = COALESCE(defer_reason, ?),
+                    user_access_status = ?,
+                    user_access_reason = COALESCE(user_access_reason, ?),
                     updated_at = ?
                 WHERE id = ?
                 """,
@@ -235,6 +266,8 @@ def merge_candidates(
                     relevance_status,
                     source["exclusion_reason"],
                     source["defer_reason"],
+                    user_access_status,
+                    user_access_reason,
                     timestamp,
                     keep_id,
                 ),
@@ -309,7 +342,8 @@ def discovery_readiness(project_root: Path) -> dict[str, Any]:
         search_count = int(connection.execute("SELECT COUNT(*) FROM search_runs").fetchone()[0])
         candidates = connection.execute(
             "SELECT id, title, doi, pmid, relevance_status, acquisition_status, "
-            "reading_priority, defer_reason FROM candidates ORDER BY id"
+            "reading_priority, defer_reason, user_access_status, user_access_reason "
+            "FROM candidates ORDER BY id"
         ).fetchall()
 
         for row in candidates:
@@ -328,26 +362,27 @@ def discovery_readiness(project_root: Path) -> dict[str, Any]:
             if row["acquisition_status"] == "unavailable":
                 blockers.extend(unavailable_candidate_blockers(connection, row))
 
-            if row["reading_priority"] == "core" and row["acquisition_status"] not in {
+            if row["user_access_status"] == "required":
+                blockers.append(
+                    {
+                        "candidate_id": int(row["id"]),
+                        "reason": "user_access_action_required",
+                        "title": row["title"],
+                    }
+                )
+
+            if row["reading_priority"] in {"core", "high"} and row["acquisition_status"] not in {
                 "acquired",
                 "unavailable",
             }:
                 blockers.append(
                     {
                         "candidate_id": int(row["id"]),
-                        "reason": "core_candidate_not_closed",
-                        "title": row["title"],
-                    }
-                )
-            elif (
-                row["reading_priority"] == "high"
-                and row["acquisition_status"] in {"pending", "queued"}
-                and not _text(row["defer_reason"])
-            ):
-                blockers.append(
-                    {
-                        "candidate_id": int(row["id"]),
-                        "reason": "high_priority_candidate_missing_defer_reason",
+                        "reason": (
+                            "core_candidate_not_closed"
+                            if row["reading_priority"] == "core"
+                            else "high_priority_candidate_not_closed"
+                        ),
                         "title": row["title"],
                     }
                 )

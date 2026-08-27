@@ -156,6 +156,14 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
                     "detail": "Open-access resolver found no alternate full-text location.",
                 },
             )
+            update_candidate(
+                self.root,
+                candidate_id,
+                {
+                    "user_access_status": "unavailable_to_user",
+                    "user_access_reason": "User-assisted access was attempted but no authorized copy was available.",
+                },
+            )
             update_candidate(self.root, candidate_id, {"acquisition_status": "unavailable"})
 
         readiness = discovery_readiness(self.root)
@@ -284,6 +292,65 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
         self.assertEqual(candidate["paper_id"], ingested["paper_id"])
         self.assertEqual(candidate["acquisition_status"], "acquired")
 
+    def test_user_assisted_access_is_completed_when_full_text_is_ingested(self) -> None:
+        recorded = record_search_run(
+            self.root,
+            {
+                "purpose": "Known subscription paper",
+                "discovery_method": "exact_work",
+                "source": "Crossref",
+                "query": "10.1234/user-assisted",
+                "candidates": [
+                    {
+                        "title": "User assisted paper",
+                        "doi": "10.1234/user-assisted",
+                        "relevance_status": "relevant",
+                        "reading_priority": "core",
+                    }
+                ],
+            },
+        )
+        candidate_id = recorded["persisted_candidates"][0]["id"]
+        record_acquisition_attempt(
+            self.root,
+            {
+                "candidate_id": candidate_id,
+                "target_kind": "main_text",
+                "route_family": "authenticated",
+                "resource_kind": "article_page",
+                "source_url": "https://publisher.example/subscription-paper",
+                "outcome": "auth_required",
+                "detail": "The full text requires the user's authorized institutional login.",
+            },
+        )
+        waiting = list_candidates(self.root)["candidates"][0]
+        self.assertEqual(waiting["user_access_status"], "required")
+        self.assertIn(
+            "user_access_action_required",
+            {item["reason"] for item in discovery_readiness(self.root)["blockers"]},
+        )
+
+        source = self.root / "authorized-paper.html"
+        source.write_text("<html><body>authorized full text</body></html>", encoding="utf-8")
+        ingest_paper(
+            self.root,
+            {
+                "title": "User assisted paper",
+                "doi": "10.1234/user-assisted",
+                "artifacts": [
+                    {
+                        "kind": "main_text",
+                        "path": str(source),
+                        "content_type": "text/html",
+                        "source": "publisher_authenticated",
+                    }
+                ],
+            },
+        )
+        acquired = list_candidates(self.root)["candidates"][0]
+        self.assertEqual(acquired["acquisition_status"], "acquired")
+        self.assertEqual(acquired["user_access_status"], "completed")
+
     def test_identity_resolution_reuses_title_match_despite_punctuation(self) -> None:
         first = record_search_run(
             self.root,
@@ -367,7 +434,7 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
         self.assertEqual(candidates[0]["reading_priority"], "core")
         self.assertEqual(len(candidates[0]["search_runs"]), 2)
 
-    def test_discovery_readiness_requires_core_closure_and_high_defer_reason(self) -> None:
+    def test_discovery_readiness_requires_core_and_high_priority_closure(self) -> None:
         result = record_search_run(
             self.root,
             {
@@ -396,7 +463,7 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
         self.assertFalse(first["ready_for_saturation"])
         reasons = {item["reason"] for item in first["blockers"]}
         self.assertIn("core_candidate_not_closed", reasons)
-        self.assertIn("high_priority_candidate_missing_defer_reason", reasons)
+        self.assertIn("high_priority_candidate_not_closed", reasons)
         self.assertIn("citation_chasing_missing", reasons)
         self.assertIn("discovery_strategy_diversity_insufficient", reasons)
 
@@ -421,14 +488,58 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
             },
         ):
             record_acquisition_attempt(self.root, payload)
+        update_candidate(
+            self.root,
+            core_id,
+            {
+                "user_access_status": "unavailable_to_user",
+                "user_access_reason": "User-assisted access was attempted but no authorized copy was available.",
+            },
+        )
         update_candidate(self.root, core_id, {"acquisition_status": "unavailable"})
         update_candidate(
             self.root,
             high_id,
             {
-                "defer_reason": "Additional reading is unlikely to change the current uncertainty boundary.",
+                "defer_reason": "A defer reason no longer closes high-priority evidence.",
             },
         )
+        still_open = discovery_readiness(self.root)
+        self.assertFalse(still_open["ready_for_saturation"])
+        self.assertIn(
+            "high_priority_candidate_not_closed",
+            {item["reason"] for item in still_open["blockers"]},
+        )
+        for payload in (
+            {
+                "candidate_id": high_id,
+                "target_kind": "main_text",
+                "route_family": "publisher",
+                "resource_kind": "article_page",
+                "source_url": "https://publisher.example/high-paper",
+                "outcome": "access_denied",
+                "detail": "Publisher route did not expose accessible full text.",
+            },
+            {
+                "candidate_id": high_id,
+                "target_kind": "main_text",
+                "route_family": "repository",
+                "resource_kind": "repository_record",
+                "source_url": "https://repository.example/high-paper",
+                "outcome": "not_found",
+                "detail": "Independent repository search found no retrievable full text.",
+            },
+        ):
+            record_acquisition_attempt(self.root, payload)
+        update_candidate(
+            self.root,
+            high_id,
+            {
+                "user_access_status": "declined",
+                "user_access_reason": "User chose not to provide or authenticate access for this test candidate.",
+            },
+        )
+        update_candidate(self.root, high_id, {"acquisition_status": "unavailable"})
         record_search_run(
             self.root,
             {
@@ -507,7 +618,20 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
                 "resource_kind": "article_page",
                 "source_url": "https://publisher.example/article",
                 "outcome": "auth_required",
-                "detail": "Publisher article page was checked separately and exposed only authenticated full-text access.",
+                "detail": "Publisher article page requires the user's existing subscription or institutional login.",
+            },
+        )
+        candidate = list_candidates(self.root)["candidates"][0]
+        self.assertEqual(candidate["user_access_status"], "required")
+        with self.assertRaisesRegex(ResearchDbError, "等待用户协同"):
+            update_candidate(self.root, candidate_id, {"acquisition_status": "unavailable"})
+
+        update_candidate(
+            self.root,
+            candidate_id,
+            {
+                "user_access_status": "unavailable_to_user",
+                "user_access_reason": "User confirmed they do not have authorized access and cannot provide a lawful copy.",
             },
         )
         updated = update_candidate(
@@ -576,6 +700,14 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
                 "supersession_reason": "The original acquired classification was false after full-text boundary verification.",
             },
         )["attempt"]
+        update_candidate(
+            self.root,
+            candidate_id,
+            {
+                "user_access_status": "unavailable_to_user",
+                "user_access_reason": "User-assisted access was attempted after the false positive was corrected, but no authorized full text was available.",
+            },
+        )
         updated = update_candidate(
             self.root, candidate_id, {"acquisition_status": "unavailable"}
         )

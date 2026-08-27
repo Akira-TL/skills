@@ -153,7 +153,9 @@ relevance_reason
 acquisition_status     -- pending | queued | acquired | unavailable
 reading_priority       -- core | high | normal | low
 exclusion_reason
-defer_reason            -- high-priority relevant Candidate 未立即获取时的明确延期理由
+defer_reason            -- normal/low Candidate 的延期说明；不能用于 core/high 闭合
+user_access_status      -- not_required | required | completed | declined | unavailable_to_user
+user_access_reason      -- 为什么需要/结束用户协同访问
 paper_id
 created_at
 updated_at
@@ -184,7 +186,7 @@ superseded_by_attempt_id
 supersession_reason
 ```
 
-Candidate 不允许在 Search Run 中直接创建为 `unavailable`。正文获取失败后先 `record-access-attempt`，再由 `update-candidate` 执行闭合：有 DOI 时必须留下 publisher attempt，同时必须有独立开放解析路径；单一被拒绝的 publisher PDF 还必须检查 publisher article page/HTML。这样 `unavailable` 表示可审计的当前访问结论，而不是一次 HTTP 失败。
+Candidate 不允许在检索运行（Search Run）中直接创建为 `unavailable`。正文获取失败后先 `record-access-attempt`，再由 `update-candidate` 执行闭合：有 DOI 时必须留下出版社（publisher）获取尝试，同时必须有独立开放解析路径；单一被拒绝的出版社 PDF 还必须检查出版社论文页面/网页全文。核心或高优先级相关论文在机器侧路径失败后必须继续请求用户协同：`user_access_status=required` 表示等待用户在持久可见浏览器中完成已有权限的登录/认证，或等待用户提供其合法取得的全文文件。该状态不能转成 `unavailable`，也不能通过文献发现闭合门禁。只有用户协同已经完成仍无可用全文、用户确认自己没有可用权限，或用户明确选择不继续协同，并且机器侧来源也闭合，才允许把核心/高优先级论文记录为当前 `unavailable`。
 
 Attempt 历史不可覆盖。后续核验若发现某条旧 attempt 的 `outcome` 判断错误，新 attempt 使用 `supersedes_attempt_ids` 和强制 `supersession_reason` 把旧记录标记为 `superseded`；旧记录仍保留，但不再参与当前 access closure。`unavailable` Candidate 不允许存在仍为 `active` 的 `outcome=acquired` attempt。
 
@@ -424,7 +426,7 @@ relations[]
 
 每个新知识单元提供当前 bundle 内唯一的 `ref`。relation 使用 `subject_type + subject_ref/id` 与 `object_type + object_ref/id`，脚本在事务内把临时 ref 解析为数据库主键；Observation 也可通过 `experiment_ref` 连接当前 bundle 的 Experiment。每个 Method / Experiment / Observation / Claim / Lead 都必须定位到具体 artifact，并保存能够回到原文的 subsection / page / figure/table / supplement item 等 `source_locator`；仅写 `Methods`、`Results`、`Discussion`、`Abstract` 等顶层 section 会被 ingest/validate 直接拒绝。
 
-所有 Reconstruction 都必须在 `extraction_checks` 中确认 `observation_semantics_checked=true`。`depth=deep_extraction` 额外要求 `figures_tables_checked=true`、`quantitative_results_checked=true`、`supplement_status` 与 `code_data_status`（`checked | not_applicable | access_limited`）、`supplement_presence`（`present | none_found | unclear`），并明确 `quantitative_results_present`。`not_applicable`/`access_limited` 必须分别给出 `supplement_reason`/`code_data_reason`；`supplement_status=not_applicable` 只允许 `supplement_presence=none_found`，`checked` 只允许 `present`。数据库一旦已登记 supplement artifact，`artifacts_checked` 必须覆盖全部已登记 supplement artifacts，无论最终状态是 `checked` 还是因其他缺失附件而 `access_limited`。`access_limited` 还必须提供 `supplement_attempt_ids`，引用至少两次真实失败/受限尝试，并证明存在替代 representation 或独立 route。存在相关定量结果时至少一个 Observation 保存非空 `statistics`；若声明不存在，则必须写 `quantitative_results_reason`。这些检查状态写入 `reading_runs.extraction_checks_json`，使 `validate` 能识别只标了 deep_extraction、实际没有完成定量/附件审计的记录。
+所有论文重建（Reconstruction）都必须在 `extraction_checks` 中确认 `observation_semantics_checked=true`。深度抽取（deep_extraction）额外要求图表、定量结果、补充材料和代码/数据均形成显式检查状态。补充材料使用 `supplement_presence = present | none_found | unclear`，代码/数据对称使用 `code_data_presence = present | none_found | unclear`；对应状态为 `checked | not_applicable | access_limited`。只有存在性确认为 `none_found` 时才允许 `not_applicable`。正文或机器可读取论文页面如果明确暴露数据可用性声明以及具体下载/仓储位置，validator 会拒绝 `code_data_presence=none_found`。代码/数据标记 `checked` 必须引用至少一个成功的 `code_data` 获取尝试；标记 `access_limited` 必须引用真实失败尝试并完成替代路径审计。数据库一旦已登记补充材料，`artifacts_checked` 仍必须覆盖全部已取得附件。存在相关定量结果时至少一个观察结果（Observation）保存非空统计信息；若确实没有相关定量结果，则必须明确说明原因。
 
 证据关系不能把“方向一致”一律写成 `SUPPORTS`。科研层优先使用 `DIRECTLY_SUPPORTS | INDIRECTLY_SUPPORTS | QUALIFIES | CONTRADICTS | DOES_NOT_TEST`；其中 `INDIRECTLY_SUPPORTS`、`QUALIFIES`、`DOES_NOT_TEST` 必须通过 relation `note` 说明 inference gap 或边界。脚本只校验结构，主模型负责判断证据是否真的达到目标 Claim 的 descriptive / association / causal / mechanistic 层级。
 
@@ -549,6 +551,6 @@ research-db paper-context P000001 --for-sidecar
 
 对“critically reviewed 但没有 Issue”这类可能合法的情况给 warning，而不是为了满足 schema 强迫 Agent 编造批判。
 
-`research-db discovery-status` 是 Literature Discovery 的 closure gate：存在 `relevance_status=pending`、未闭合的 `core + relevant` Candidate、没有 `defer_reason` 的 `high + relevant + queued/pending` Candidate 或重复稳定身份时返回 `ready_for_saturation=false`。主题型 Discovery 若已有至少 2 个 relevant Candidate，且轨迹包含 query search 或 related-work 扩展，还必须有显式 `discovery_method` provenance、至少一次 `backward_citation`/`forward_citation`，并覆盖至少两个 discovery family；否则即使 Candidate 队列已清空也不能宣称 practical conceptual saturation。纯 `exact_work` 定向阅读不被误判为 saturation workflow。
+`research-db discovery-status` 是文献发现（Literature Discovery）的闭合门禁：存在 `relevance_status=pending`、未闭合的 `core + relevant` 或 `high + relevant` Candidate、仍处于 `user_access_status=required` 的用户协同任务，或重复稳定身份时返回 `ready_for_saturation=false`。高优先级 Candidate 的 `defer_reason` 不再构成闭合依据。主题型文献发现若已有至少 2 个相关 Candidate，还必须保留检索策略来源、至少一次后向/前向引用追踪，并覆盖至少两个发现策略家族；否则即使 Candidate 队列表面清空也不能宣称实践性概念饱和（practical conceptual saturation）。
 
 `research-db validate --completion` 是“本轮科研项目已完成”的最终门禁。它先执行普通数据库校验，再检查 Discovery closure 与 Literature semantic completion：所有 `relevant + acquired` Candidate 必须完成 Reconstruction + Critical Audit；所有 `core + acquired` 必须有真实 `DEEP_EXTRACTION` Reconstruction；主题型 Discovery 已有至少两篇完成审阅的论文时，必须存在至少一条连接不同 Paper 的 scientific relation，`SHARES_*`/`CITES` 不计作该门禁。随后还要求项目根目录本身是 Git repository top-level、已经存在至少一个 commit、`RESEARCH.md`、`.research/research.sqlite`、canonical paper artifacts 与 sidecar 已被 Git 跟踪且没有未提交修改。普通 `validate` 通过不能替代这个 completion gate。

@@ -18,12 +18,18 @@ from research_db_bundle import (
     _text,
     _write_change,
 )
-from research_db_core import ResearchDbError, connect, database_path
-from research_db_ops.acquisition import supplement_access_blockers
+from research_db_core import (
+    ResearchDbError,
+    connect,
+    database_path,
+    main_text_exposes_code_data_locator,
+)
+from research_db_ops.acquisition import code_data_access_blockers, supplement_access_blockers
 
 
 DEEP_EXTRACTION_STATUSES = {"checked", "not_applicable", "access_limited"}
 SUPPLEMENT_PRESENCE = {"present", "none_found", "unclear"}
+CODE_DATA_PRESENCE = {"present", "none_found", "unclear"}
 SUPPLEMENT_ARTIFACT_PREFIXES = ("supplement", "supplementary")
 
 
@@ -90,6 +96,34 @@ def _extraction_checks(
                 "supplement_status=access_limited 必须提供非空整数数组 supplement_attempt_ids。"
             )
 
+    code_data_presence = checks.get("code_data_presence")
+    if code_data_presence not in CODE_DATA_PRESENCE:
+        raise ResearchDbError(
+            "deep_extraction 要求 extraction_checks.code_data_presence 为："
+            + ", ".join(sorted(CODE_DATA_PRESENCE))
+        )
+    code_data_status = checks.get("code_data_status")
+    if code_data_status == "not_applicable" and code_data_presence != "none_found":
+        raise ResearchDbError(
+            "code_data_status=not_applicable 只允许 code_data_presence=none_found。"
+        )
+    if code_data_status == "checked" and code_data_presence != "present":
+        raise ResearchDbError(
+            "code_data_status=checked 要求 code_data_presence=present。"
+        )
+    if code_data_status == "access_limited" and code_data_presence not in {"present", "unclear"}:
+        raise ResearchDbError(
+            "code_data_status=access_limited 要求 code_data_presence 为 present 或 unclear。"
+        )
+    if code_data_status in {"checked", "access_limited"}:
+        attempt_ids = checks.get("code_data_attempt_ids")
+        if not isinstance(attempt_ids, list) or not attempt_ids or not all(
+            isinstance(value, int) and value > 0 for value in attempt_ids
+        ):
+            raise ResearchDbError(
+                f"code_data_status={code_data_status} 必须提供非空整数数组 code_data_attempt_ids。"
+            )
+
     present = checks.get("quantitative_results_present")
     if not isinstance(present, bool):
         raise ResearchDbError(
@@ -111,6 +145,7 @@ def _extraction_checks(
 
 
 def _validate_deep_artifact_checks(
+    project_root: Path,
     connection: Any,
     paper_id: str,
     checked: list[dict[str, Any]],
@@ -157,6 +192,26 @@ def _validate_deep_artifact_checks(
         if blockers:
             raise ResearchDbError(
                 "supplement_status=access_limited 的 Acquisition Attempt provenance 未闭合："
+                + ", ".join(blockers)
+            )
+
+    code_data_status = checks.get("code_data_status")
+    code_data_presence = checks.get("code_data_presence")
+    if (
+        code_data_presence == "none_found"
+        and main_text_exposes_code_data_locator(project_root, connection, paper_id)
+    ):
+        raise ResearchDbError(
+            "deep_extraction 的主文明确暴露代码/数据获取位置，code_data_presence 不能为 none_found。"
+        )
+    if code_data_status in {"checked", "access_limited"}:
+        attempt_ids = list(dict.fromkeys(checks.get("code_data_attempt_ids", [])))
+        blockers = code_data_access_blockers(
+            connection, paper_id, attempt_ids, status=str(code_data_status)
+        )
+        if blockers:
+            raise ResearchDbError(
+                f"code_data_status={code_data_status} 的 Acquisition Attempt provenance 未闭合："
                 + ", ".join(blockers)
             )
 
@@ -208,7 +263,7 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
             checked = _checked_artifacts(connection, paper_id, bundle.get("artifacts_checked"))
             if requested_depth == "deep_extraction":
                 _validate_deep_artifact_checks(
-                    connection, paper_id, checked, extraction_checks
+                    project_root, connection, paper_id, checked, extraction_checks
                 )
             run_cursor = connection.execute(
                 """
