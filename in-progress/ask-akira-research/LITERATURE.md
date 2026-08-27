@@ -39,13 +39,15 @@ Active Uncertainty
 
 研究启动、问题发现、方法学习与证据综合阶段，不以“摘要看起来足够”作为结束条件。Candidate 的 `relevance_status`、`acquisition_status` 与 `reading_priority` 分开维护：相关性决定是否属于问题空间，获取状态说明全文是否已拿到，优先级只决定阅读顺序；`excluded` 必须留下明确 exclusion reason。相关 Candidate 默认进入 `queued` 全文获取队列，成功 `ingest-paper` 后自动回链正式 Paper。
 
-`unavailable` 不是自由文本结论。每次正文获取尝试必须用 `research-db record-access-attempt` 持久化 `route_family + resource_kind + source_url + outcome + detail + attempted_at`。Search Run 不允许直接创建 `unavailable` Candidate；必须先 `queued`，实际调用 `literature-access`，记录失败/受限路径后再 `update-candidate`。有 DOI 时至少检查 publisher route；同时至少有一个独立 open resolution route（open index / repository / preprint）。单一 PDF 403/challenge 不能闭合全文获取：必须继续检查 publisher article page/HTML 以及 resolver 暴露的 PMCID/repository/full-text location。`research-db discovery-status` 与 `validate` 会拒绝 provenance 不足的 `unavailable`。
+`unavailable` 不是自由文本结论。每次正文获取尝试必须用 `research-db record-access-attempt` 持久化 `route_family + resource_kind + source_url + outcome + detail + attempted_at`。Search Run 不允许直接创建 `unavailable` Candidate；必须先 `queued`，实际调用 `literature-access`，记录失败/受限路径后再 `update-candidate`。有 DOI 时至少检查 publisher route；同时至少有一个独立 open resolution route（open index / repository / preprint）。单一 PDF 403/challenge 不能闭合全文获取：必须继续检查 publisher article page/HTML 以及 resolver 暴露的 PMCID/repository/full-text location。
+
+Acquisition Attempt 是不可覆盖的历史记录，但历史判断可以被**显式 supersede**。例如一开始把 subscription preview 误判成 `acquired`，后续完整边界核验发现并非全文时，新 attempt 必须通过 `supersedes_attempt_ids + supersession_reason` 结构化撤销旧判断；不得让一个仍为 active 的 `acquired` attempt 与 Candidate 的 `unavailable` 状态并存。`research-db discovery-status` 与 `validate` 会拒绝 provenance 不足或当前有效状态自相矛盾的 `unavailable`。
 
 ## 3. 全文获取与阅读深度
 
 已知论文交给 `literature-access` 获取正文；浏览器只在需要登录、动态页面或真实资源请求解析时参与。正文、supplement、代码和数据仓库仍是独立 artifact，SQLite 记录论文身份、路径、版本、来源与获取时间。
 
-相关论文至少执行 `FULL_SCAN`：整篇正文过一遍并识别 research problem、design、methods、experiments、major observations、claims、limitations 与 leads。核心或方法学重要论文执行 `DEEP_EXTRACTION`：继续深入 exact protocol、关键参数、supplement、统计细节、figure/table-level result、代码/数据仓库与关键引用链。
+相关论文至少执行 `FULL_SCAN`：整篇正文过一遍并识别 research problem、design、methods、experiments、major observations、claims、limitations 与 leads。`reading_priority=core` 且已成功获取的论文必须执行 `DEEP_EXTRACTION`；其他方法学上决定当前 Active Uncertainty 的论文即使未标 core，也应提升到 `DEEP_EXTRACTION`。深读继续覆盖 exact protocol、关键参数、supplement、统计细节、figure/table-level result、代码/数据仓库与关键引用链。`validate --completion` 会机械拒绝 `core + acquired` 仍停留在 `FULL_SCAN` 的状态。
 
 `DEEP_EXTRACTION` 不是“读得比较认真”的主观标签。`ingest-reading` 必须持久化 `extraction_checks`：确认 Observation 语义已经逐条自审、figures/tables 已检查、定量结果已检查，并明确记录 supplement 与 code/data 的状态为 `checked | not_applicable | access_limited`。Supplement 还必须记录 `supplement_presence = present | none_found | unclear`：只有经过正文/article metadata 检查确认没有附件线索时才允许 `none_found + not_applicable`；已发现附件必须是 `present`，不能用 `not_applicable` 跳过。`not_applicable` 与 `access_limited` 都必须分别填写 `supplement_reason` / `code_data_reason`。
 
@@ -168,3 +170,5 @@ Evidence Map 不再人工维护为大量 Markdown，而是由 SQLite 中的 Obse
 - Research Gap 优先来自 unresolved contradiction、untested alternative、missing control、missing population / temporal scale、measurement limitation 或 unvalidated mechanism，而不是简单“研究较少”。
 
 证据视图由脚本检索和展开关系，主模型负责科学解释；脚本不得用硬编码评分替代 evidence-to-claim 判断。
+
+主题型 Literature Discovery 在形成项目级综合时，关键的跨论文判断也必须进入 canonical relation graph，而不能只存在 derived synthesis Markdown。至少把真正改变项目判断的跨论文 `INDIRECTLY_SUPPORTS / QUALIFIES / CONTRADICTS / DOES_NOT_TEST / LIMITS / CHALLENGES / WEAKENS` 等关系落库，并在 `note` 中说明 inference gap 或限定。`SHARES_SAMPLES_WITH`、`SHARES_DATA_WITH` 与 `CITES` 只描述来源关系，不能替代跨论文 Evidence Synthesis。已有至少两篇完成 Critical Audit 的论文、且执行了主题型 Discovery 时，`validate --completion` 要求至少存在一条跨不同 Paper 的 scientific relation。

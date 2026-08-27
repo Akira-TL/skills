@@ -179,9 +179,14 @@ source_url
 outcome               -- acquired | not_found | access_denied | auth_required | challenge | invalid_artifact | network_error | other_failure
 detail
 attempted_at
+validity_status        -- active | superseded
+superseded_by_attempt_id
+supersession_reason
 ```
 
 Candidate 不允许在 Search Run 中直接创建为 `unavailable`。正文获取失败后先 `record-access-attempt`，再由 `update-candidate` 执行闭合：有 DOI 时必须留下 publisher attempt，同时必须有独立开放解析路径；单一被拒绝的 publisher PDF 还必须检查 publisher article page/HTML。这样 `unavailable` 表示可审计的当前访问结论，而不是一次 HTTP 失败。
+
+Attempt 历史不可覆盖。后续核验若发现某条旧 attempt 的 `outcome` 判断错误，新 attempt 使用 `supersedes_attempt_ids` 和强制 `supersession_reason` 把旧记录标记为 `superseded`；旧记录仍保留，但不再参与当前 access closure。`unavailable` Candidate 不允许存在仍为 `active` 的 `outcome=acquired` attempt。
 
 ### `reading_runs`
 
@@ -527,7 +532,7 @@ research-db paper-context P000001 --for-sidecar
 `research-db validate` 相当于科研知识库的 integrity check。至少检查：
 
 - duplicate DOI / PMID / canonical identity，以及 DOI/PMID 与 canonical identity 不一致；
-- Candidate 的 identity/relevance/acquisition 状态自洽：`excluded` 有 exclusion reason，`acquired` 已关联 Paper，已关联 Paper 的 DOI/PMID 与 Candidate 不冲突，同一稳定 DOI/PMID 不存在多个 Candidate；`unavailable` 必须有足够的 Acquisition Attempt provenance、publisher/open-resolution 路径覆盖，且不能只记录一个失败 publisher PDF；
+- Candidate 的 identity/relevance/acquisition 状态自洽：`excluded` 有 exclusion reason，`acquired` 已关联 Paper，已关联 Paper 的 DOI/PMID 与 Candidate 不冲突，同一稳定 DOI/PMID 不存在多个 Candidate；`unavailable` 必须有足够的 Acquisition Attempt provenance、publisher/open-resolution 路径覆盖，且不能只记录一个失败 publisher PDF，也不能与仍为 active 的 `acquired` attempt 并存；superseded attempt 必须有有效 replacement 与 supersession reason；
 - canonical `main_text` artifact 缺少文件扩展名；
 - dangling relation / nonexistent target；
 - observation 指向不存在的 experiment；
@@ -546,4 +551,4 @@ research-db paper-context P000001 --for-sidecar
 
 `research-db discovery-status` 是 Literature Discovery 的 closure gate：存在 `relevance_status=pending`、未闭合的 `core + relevant` Candidate、没有 `defer_reason` 的 `high + relevant + queued/pending` Candidate 或重复稳定身份时返回 `ready_for_saturation=false`。主题型 Discovery 若已有至少 2 个 relevant Candidate，且轨迹包含 query search 或 related-work 扩展，还必须有显式 `discovery_method` provenance、至少一次 `backward_citation`/`forward_citation`，并覆盖至少两个 discovery family；否则即使 Candidate 队列已清空也不能宣称 practical conceptual saturation。纯 `exact_work` 定向阅读不被误判为 saturation workflow。
 
-`research-db validate --completion` 是“本轮科研项目已完成”的最终门禁。它先执行普通数据库校验，再检查 Discovery closure，并要求项目根目录本身是 Git repository top-level、已经存在至少一个 commit、`RESEARCH.md`、`.research/research.sqlite`、canonical paper artifacts 与 sidecar 已被 Git 跟踪且没有未提交修改。普通 `validate` 通过不能替代这个 completion gate。
+`research-db validate --completion` 是“本轮科研项目已完成”的最终门禁。它先执行普通数据库校验，再检查 Discovery closure 与 Literature semantic completion：所有 `relevant + acquired` Candidate 必须完成 Reconstruction + Critical Audit；所有 `core + acquired` 必须有真实 `DEEP_EXTRACTION` Reconstruction；主题型 Discovery 已有至少两篇完成审阅的论文时，必须存在至少一条连接不同 Paper 的 scientific relation，`SHARES_*`/`CITES` 不计作该门禁。随后还要求项目根目录本身是 Git repository top-level、已经存在至少一个 commit、`RESEARCH.md`、`.research/research.sqlite`、canonical paper artifacts 与 sidecar 已被 Git 跟踪且没有未提交修改。普通 `validate` 通过不能替代这个 completion gate。

@@ -35,6 +35,20 @@ def _optional_int(value: object, *, field: str) -> int | None:
     return result
 
 
+def _int_list(value: object, *, field: str) -> list[int]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ResearchDbError(f"{field} 必须是整数数组。")
+    result: list[int] = []
+    for item in value:
+        parsed = _optional_int(item, field=field)
+        assert parsed is not None
+        if parsed not in result:
+            result.append(parsed)
+    return result
+
+
 def record_acquisition_attempt(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
     candidate_id = _optional_int(bundle.get("candidate_id"), field="candidate_id")
     paper_id = _text(bundle.get("paper_id"))
@@ -49,6 +63,14 @@ def record_acquisition_attempt(project_root: Path, bundle: dict[str, Any]) -> di
     source_url = _text(bundle.get("source_url"), required=True, field="source_url")
     detail = _text(bundle.get("detail"), required=True, field="detail")
     attempted_at = _text(bundle.get("attempted_at")) or _now()
+    supersedes_attempt_ids = _int_list(
+        bundle.get("supersedes_attempt_ids"), field="supersedes_attempt_ids"
+    )
+    supersession_reason = _text(bundle.get("supersession_reason"))
+    if supersedes_attempt_ids and not supersession_reason:
+        raise ResearchDbError(
+            "supersedes_attempt_ids 非空时必须提供 supersession_reason，说明为什么旧 attempt 判断失效。"
+        )
     assert source_url is not None and detail is not None
 
     if target_kind != "main_text" and paper_id is None:
@@ -57,57 +79,100 @@ def record_acquisition_attempt(project_root: Path, bundle: dict[str, Any]) -> di
         raise ResearchDbError("supplement Acquisition Attempt 必须提供 target_label。")
 
     with connect(_db_path(project_root)) as connection:
-        if candidate_id is not None:
-            candidate = connection.execute(
-                "SELECT id, paper_id FROM candidates WHERE id = ?", (candidate_id,)
-            ).fetchone()
-            if candidate is None:
-                raise ResearchDbError(f"Candidate 不存在：{candidate_id}")
-            if paper_id is not None and candidate["paper_id"] not in {None, paper_id}:
-                raise ResearchDbError(
-                    f"Candidate {candidate_id} 已关联 {candidate['paper_id']}，与 attempt.paper_id={paper_id} 不一致。"
-                )
-        if paper_id is not None:
-            paper = connection.execute("SELECT id FROM papers WHERE id = ?", (paper_id,)).fetchone()
-            if paper is None:
-                raise ResearchDbError(f"Paper 不存在：{paper_id}")
+        connection.execute("BEGIN IMMEDIATE")
+        try:
+            if candidate_id is not None:
+                candidate = connection.execute(
+                    "SELECT id, paper_id FROM candidates WHERE id = ?", (candidate_id,)
+                ).fetchone()
+                if candidate is None:
+                    raise ResearchDbError(f"Candidate 不存在：{candidate_id}")
+                if paper_id is not None and candidate["paper_id"] not in {None, paper_id}:
+                    raise ResearchDbError(
+                        f"Candidate {candidate_id} 已关联 {candidate['paper_id']}，与 attempt.paper_id={paper_id} 不一致。"
+                    )
+            if paper_id is not None:
+                paper = connection.execute("SELECT id FROM papers WHERE id = ?", (paper_id,)).fetchone()
+                if paper is None:
+                    raise ResearchDbError(f"Paper 不存在：{paper_id}")
 
-        cursor = connection.execute(
-            """
-            INSERT INTO acquisition_attempts(
-                candidate_id, paper_id, target_kind, target_label, route_family,
-                resource_kind, source_url, outcome, detail, attempted_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                candidate_id,
-                paper_id,
-                target_kind,
-                target_label,
-                route_family,
-                resource_kind,
-                source_url,
-                outcome,
-                detail,
-                attempted_at,
-            ),
-        )
-        attempt_id = int(cursor.lastrowid)
-        connection.execute(
-            """
-            INSERT INTO change_log(
-                timestamp, action, entity_type, entity_id, paper_id, reason, summary
-            ) VALUES (?, 'acquisition_attempted', 'acquisition_attempt', ?, ?, ?, ?)
-            """,
-            (
-                attempted_at,
-                str(attempt_id),
-                paper_id,
-                detail,
-                f"{target_kind} via {route_family}/{resource_kind}: {outcome}",
-            ),
-        )
-        connection.commit()
+            superseded_rows = []
+            for old_id in supersedes_attempt_ids:
+                old = connection.execute(
+                    "SELECT * FROM acquisition_attempts WHERE id = ?", (old_id,)
+                ).fetchone()
+                if old is None:
+                    raise ResearchDbError(f"被 supersede 的 Acquisition Attempt 不存在：{old_id}")
+                if old["validity_status"] != "active":
+                    raise ResearchDbError(f"Acquisition Attempt {old_id} 已非 active，不能重复 supersede。")
+                if old["target_kind"] != target_kind:
+                    raise ResearchDbError(
+                        f"Acquisition Attempt {old_id} 的 target_kind 与新 attempt 不一致。"
+                    )
+                if candidate_id is not None and old["candidate_id"] != candidate_id:
+                    raise ResearchDbError(
+                        f"Acquisition Attempt {old_id} 不属于 Candidate {candidate_id}。"
+                    )
+                if paper_id is not None and old["paper_id"] != paper_id:
+                    raise ResearchDbError(
+                        f"Acquisition Attempt {old_id} 不属于 Paper {paper_id}。"
+                    )
+                superseded_rows.append(old)
+
+            cursor = connection.execute(
+                """
+                INSERT INTO acquisition_attempts(
+                    candidate_id, paper_id, target_kind, target_label, route_family,
+                    resource_kind, source_url, outcome, detail, attempted_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    candidate_id,
+                    paper_id,
+                    target_kind,
+                    target_label,
+                    route_family,
+                    resource_kind,
+                    source_url,
+                    outcome,
+                    detail,
+                    attempted_at,
+                ),
+            )
+            attempt_id = int(cursor.lastrowid)
+            if superseded_rows:
+                connection.executemany(
+                    """
+                    UPDATE acquisition_attempts
+                    SET validity_status = 'superseded',
+                        superseded_by_attempt_id = ?,
+                        supersession_reason = ?
+                    WHERE id = ?
+                    """,
+                    [
+                        (attempt_id, supersession_reason, int(row["id"]))
+                        for row in superseded_rows
+                    ],
+                )
+            connection.execute(
+                """
+                INSERT INTO change_log(
+                    timestamp, action, entity_type, entity_id, paper_id, reason, summary
+                ) VALUES (?, 'acquisition_attempted', 'acquisition_attempt', ?, ?, ?, ?)
+                """,
+                (
+                    attempted_at,
+                    str(attempt_id),
+                    paper_id,
+                    supersession_reason or detail,
+                    f"{target_kind} via {route_family}/{resource_kind}: {outcome}; "
+                    f"supersedes={supersedes_attempt_ids or 'none'}",
+                ),
+            )
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
 
     return {
         "ok": True,
@@ -123,6 +188,9 @@ def record_acquisition_attempt(project_root: Path, bundle: dict[str, Any]) -> di
             "outcome": outcome,
             "detail": detail,
             "attempted_at": attempted_at,
+            "validity_status": "active",
+            "supersedes_attempt_ids": supersedes_attempt_ids,
+            "supersession_reason": supersession_reason,
         },
     }
 
@@ -166,7 +234,7 @@ def supplement_access_blockers(connection, paper_id: str, attempt_ids: list[int]
     unique_ids = list(dict.fromkeys(attempt_ids))
     placeholders = ",".join("?" for _ in unique_ids)
     rows = connection.execute(
-        f"SELECT id, route_family, resource_kind, source_url, outcome "
+        f"SELECT id, route_family, resource_kind, source_url, outcome, validity_status "
         f"FROM acquisition_attempts WHERE id IN ({placeholders}) "
         "AND paper_id = ? AND target_kind = 'supplement' ORDER BY id",
         (*unique_ids, paper_id),
@@ -174,9 +242,14 @@ def supplement_access_blockers(connection, paper_id: str, attempt_ids: list[int]
     blockers: list[str] = []
     if len(rows) != len(unique_ids):
         return ["supplement_attempt_reference_invalid"]
+    if any(row["validity_status"] != "active" for row in rows):
+        blockers.append("supplement_attempt_refs_include_superseded")
     if any(row["outcome"] == "acquired" for row in rows):
         blockers.append("supplement_attempt_refs_include_acquired")
-    failed = [row for row in rows if row["outcome"] in FAILURE_OUTCOMES]
+    failed = [
+        row for row in rows
+        if row["validity_status"] == "active" and row["outcome"] in FAILURE_OUTCOMES
+    ]
     if len(failed) < 2:
         blockers.append("supplement_attempts_insufficient")
         return blockers
@@ -197,7 +270,7 @@ def unavailable_candidate_blockers(connection, candidate) -> list[dict[str, Any]
     candidate_id = int(candidate["id"])
     attempts = connection.execute(
         """
-        SELECT id, route_family, resource_kind, source_url, outcome
+        SELECT id, route_family, resource_kind, source_url, outcome, validity_status
         FROM acquisition_attempts
         WHERE candidate_id = ? AND target_kind = 'main_text'
         ORDER BY id
@@ -205,7 +278,17 @@ def unavailable_candidate_blockers(connection, candidate) -> list[dict[str, Any]
         (candidate_id,),
     ).fetchall()
     blockers: list[dict[str, Any]] = []
-    failed = [row for row in attempts if row["outcome"] in FAILURE_OUTCOMES]
+    active = [row for row in attempts if row["validity_status"] == "active"]
+    active_acquired = [row for row in active if row["outcome"] == "acquired"]
+    if active_acquired:
+        blockers.append(
+            {
+                "candidate_id": candidate_id,
+                "reason": "unavailable_has_active_acquired_attempt",
+                "attempt_ids": [int(row["id"]) for row in active_acquired],
+            }
+        )
+    failed = [row for row in active if row["outcome"] in FAILURE_OUTCOMES]
     if len(failed) < 2:
         blockers.append(
             {

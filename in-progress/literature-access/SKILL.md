@@ -60,6 +60,8 @@ attempted_at
 
 对 Supplementary Information 宣称 `access_limited` 时同样不能只凭一个附件 URL 失败；需要尝试替代 representation 或独立 route，并把失败 attempt 返回给上层科研项目持久化。
 
+若后续完整性核验推翻了先前的 access 判断（例如一个看似完整的 publisher HTML 实际只是 subscription preview），必须明确返回“旧成功判断已失效”的 correction，而不是让先前 `acquired` 与新的失败结论同时保持有效。上层科研项目应把该 correction 作为新的 Acquisition Attempt，并结构化 supersede 被推翻的旧 attempt。
+
 ## Artifact Request
 
 浏览器或网页解析层若需要把下载交给本 Skill，应尽量返回以下临时请求上下文：

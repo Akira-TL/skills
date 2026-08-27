@@ -10,8 +10,11 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from research_db_core import ResearchDbError, database_path, init_database  # noqa: E402
-from research_db_ops.acquisition import record_acquisition_attempt  # noqa: E402
+from research_db_core import ResearchDbError, database_path, init_database, validate  # noqa: E402
+from research_db_ops.acquisition import (  # noqa: E402
+    list_acquisition_attempts,
+    record_acquisition_attempt,
+)
 from research_db_ops.candidates import (  # noqa: E402
     discovery_readiness,
     list_candidates,
@@ -511,6 +514,136 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
             self.root, candidate_id, {"acquisition_status": "unavailable"}
         )
         self.assertEqual(updated["candidate"]["acquisition_status"], "unavailable")
+
+    def test_acquisition_attempt_correction_must_supersede_false_acquired_result(self) -> None:
+        result = record_search_run(
+            self.root,
+            {
+                "purpose": "Known paper",
+                "discovery_method": "exact_work",
+                "source": "Crossref",
+                "query": "10.1234/correction-test",
+                "candidates": [
+                    {
+                        "title": "Correction test paper",
+                        "doi": "10.1234/correction-test",
+                        "relevance_status": "relevant",
+                        "reading_priority": "core",
+                    }
+                ],
+            },
+        )
+        candidate_id = result["persisted_candidates"][0]["id"]
+        acquired = record_acquisition_attempt(
+            self.root,
+            {
+                "candidate_id": candidate_id,
+                "target_kind": "main_text",
+                "route_family": "publisher",
+                "resource_kind": "full_text_html",
+                "source_url": "https://publisher.example/article",
+                "outcome": "acquired",
+                "detail": "Initial inspection incorrectly classified a subscription preview as full text.",
+            },
+        )["attempt"]
+        record_acquisition_attempt(
+            self.root,
+            {
+                "candidate_id": candidate_id,
+                "target_kind": "main_text",
+                "route_family": "open_index",
+                "resource_kind": "repository_record",
+                "source_url": "https://open-index.example/correction-test",
+                "outcome": "not_found",
+                "detail": "Independent open resolver found no full-text copy.",
+            },
+        )
+
+        with self.assertRaisesRegex(ResearchDbError, "unavailable_has_active_acquired_attempt"):
+            update_candidate(self.root, candidate_id, {"acquisition_status": "unavailable"})
+
+        correction = record_acquisition_attempt(
+            self.root,
+            {
+                "candidate_id": candidate_id,
+                "target_kind": "main_text",
+                "route_family": "publisher",
+                "resource_kind": "article_page",
+                "source_url": "https://publisher.example/article",
+                "outcome": "invalid_artifact",
+                "detail": "Reinspection confirmed that the page is only a subscription preview and lacks the full Methods/Results body.",
+                "supersedes_attempt_ids": [acquired["id"]],
+                "supersession_reason": "The original acquired classification was false after full-text boundary verification.",
+            },
+        )["attempt"]
+        updated = update_candidate(
+            self.root, candidate_id, {"acquisition_status": "unavailable"}
+        )
+        self.assertEqual(updated["candidate"]["acquisition_status"], "unavailable")
+
+        attempts = list_acquisition_attempts(self.root, candidate_id=candidate_id)["attempts"]
+        original = next(item for item in attempts if item["id"] == acquired["id"])
+        self.assertEqual(original["validity_status"], "superseded")
+        self.assertEqual(original["superseded_by_attempt_id"], correction["id"])
+        self.assertIn("false", original["supersession_reason"])
+
+        final_correction = record_acquisition_attempt(
+            self.root,
+            {
+                "candidate_id": candidate_id,
+                "target_kind": "main_text",
+                "route_family": "publisher",
+                "resource_kind": "article_page",
+                "source_url": "https://publisher.example/article?verified=1",
+                "outcome": "invalid_artifact",
+                "detail": "A later verification refines the correction while preserving the same final access conclusion.",
+                "supersedes_attempt_ids": [correction["id"]],
+                "supersession_reason": "Later verification supersedes the intermediate correction record.",
+            },
+        )["attempt"]
+        self.assertGreater(final_correction["id"], correction["id"])
+        self.assertTrue(validate(self.root)["ok"])
+
+    def test_acquisition_attempt_correction_requires_same_target(self) -> None:
+        first = record_search_run(
+            self.root,
+            {
+                "purpose": "Known papers",
+                "discovery_method": "exact_work",
+                "source": "Crossref",
+                "query": "two papers",
+                "candidates": [
+                    {"title": "Paper A", "doi": "10.1234/a"},
+                    {"title": "Paper B", "doi": "10.1234/b"},
+                ],
+            },
+        )
+        a_id, b_id = [item["id"] for item in first["persisted_candidates"]]
+        attempt_id = record_acquisition_attempt(
+            self.root,
+            {
+                "candidate_id": a_id,
+                "route_family": "publisher",
+                "resource_kind": "article_page",
+                "source_url": "https://publisher.example/a",
+                "outcome": "acquired",
+                "detail": "Initial result.",
+            },
+        )["attempt"]["id"]
+        with self.assertRaisesRegex(ResearchDbError, "不属于 Candidate"):
+            record_acquisition_attempt(
+                self.root,
+                {
+                    "candidate_id": b_id,
+                    "route_family": "publisher",
+                    "resource_kind": "article_page",
+                    "source_url": "https://publisher.example/b",
+                    "outcome": "invalid_artifact",
+                    "detail": "Correction for another candidate should be rejected.",
+                    "supersedes_attempt_ids": [attempt_id],
+                    "supersession_reason": "Wrong target.",
+                },
+            )
 
     def test_search_run_cannot_create_unavailable_without_attempt_provenance(self) -> None:
         with self.assertRaisesRegex(ResearchDbError, "不能直接创建.*unavailable"):

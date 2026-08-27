@@ -517,6 +517,60 @@ def validate(project_root: Path) -> dict[str, Any]:
 
             from research_db_ops.acquisition import unavailable_candidate_blockers
 
+            for attempt in connection.execute(
+                """
+                SELECT id, candidate_id, paper_id, target_kind, validity_status,
+                       superseded_by_attempt_id, supersession_reason
+                FROM acquisition_attempts ORDER BY id
+                """
+            ):
+                attempt_id = int(attempt["id"])
+                validity = attempt["validity_status"]
+                superseded_by = attempt["superseded_by_attempt_id"]
+                reason = attempt["supersession_reason"]
+                if validity == "active" and (superseded_by is not None or reason):
+                    errors.append(
+                        f"acquisition attempt {attempt_id} 仍为 active，但携带 supersession metadata。"
+                    )
+                if validity == "superseded":
+                    if superseded_by is None or not (reason and str(reason).strip()):
+                        errors.append(
+                            f"acquisition attempt {attempt_id} 标记 superseded，但缺少 superseded_by_attempt_id/supersession_reason。"
+                        )
+                        continue
+                    replacement = connection.execute(
+                        """
+                        SELECT id, candidate_id, paper_id, target_kind, validity_status
+                        FROM acquisition_attempts WHERE id = ?
+                        """,
+                        (superseded_by,),
+                    ).fetchone()
+                    if replacement is None:
+                        errors.append(
+                            f"acquisition attempt {attempt_id} 指向不存在的 superseding attempt {superseded_by}。"
+                        )
+                    else:
+                        if int(replacement["id"]) == attempt_id:
+                            errors.append(
+                                f"acquisition attempt {attempt_id} 不能 supersede 自身。"
+                            )
+                        if int(replacement["id"]) <= attempt_id:
+                            errors.append(
+                                f"acquisition attempt {attempt_id} 的 superseding attempt {superseded_by} 必须是后续新记录。"
+                            )
+                        if replacement["target_kind"] != attempt["target_kind"]:
+                            errors.append(
+                                f"acquisition attempt {attempt_id} 与 superseding attempt {superseded_by} target_kind 不一致。"
+                            )
+                        if attempt["candidate_id"] is not None and replacement["candidate_id"] != attempt["candidate_id"]:
+                            errors.append(
+                                f"acquisition attempt {attempt_id} 与 superseding attempt {superseded_by} Candidate 不一致。"
+                            )
+                        if attempt["paper_id"] is not None and replacement["paper_id"] != attempt["paper_id"]:
+                            errors.append(
+                                f"acquisition attempt {attempt_id} 与 superseding attempt {superseded_by} Paper 不一致。"
+                            )
+
             for row in connection.execute(
                 """
                 SELECT id, identity_status, relevance_status, exclusion_reason,
