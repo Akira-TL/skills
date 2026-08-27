@@ -24,6 +24,7 @@ papers
 artifacts
 search_runs
 candidates
+acquisition_attempts
 reading_runs
 methods
 experiments
@@ -162,6 +163,26 @@ updated_at
 
 Candidate ID 主要供数据库内部使用。
 
+### `acquisition_attempts`
+
+保存正文、Supplementary Information 与 code/data 的真实获取尝试，用来区分“某个 URL 请求失败”与“当前合法获取路径已经合理穷尽”：
+
+```text
+id
+candidate_id          -- 正文 Candidate 获取时使用
+paper_id              -- 已入库论文的 supplement/code-data 获取时使用
+target_kind           -- main_text | supplement | code_data
+target_label          -- attachment target 的具体名称/编号
+route_family          -- publisher | open_index | repository | preprint | authenticated | other
+resource_kind         -- article_page | full_text_html | pdf | xml | repository_record | supplement | other
+source_url
+outcome               -- acquired | not_found | access_denied | auth_required | challenge | invalid_artifact | network_error | other_failure
+detail
+attempted_at
+```
+
+Candidate 不允许在 Search Run 中直接创建为 `unavailable`。正文获取失败后先 `record-access-attempt`，再由 `update-candidate` 执行闭合：有 DOI 时必须留下 publisher attempt，同时必须有独立开放解析路径；单一被拒绝的 publisher PDF 还必须检查 publisher article page/HTML。这样 `unavailable` 表示可审计的当前访问结论，而不是一次 HTTP 失败。
+
 ### `reading_runs`
 
 证明 Reconstruction 与 Critical Audit 实际执行过：
@@ -231,7 +252,7 @@ artifact_id
 source_locator
 ```
 
-Observation 只记录数据直接显示的内容，不混入 Method 操作、作者限制、Agent 批判或证据解释。`ingest-reading` 要求 `extraction_checks.observation_semantics_checked=true`；`deep_extraction` 还要求显式完成 figures/tables、quantitative results、supplement 与 code/data 检查。若 `quantitative_results_present=true`，至少一个 Observation 必须保存非空 `statistics_json`；真正影响核心 evidence chain 的作者报告定量结果不能只存在于 derived report。
+Observation 只记录数据直接显示的内容，不混入 Method 操作、作者限制、Agent 批判或证据解释。`ingest-reading` 要求 `extraction_checks.observation_semantics_checked=true`；`deep_extraction` 还要求显式完成 figures/tables、quantitative results、supplement 与 code/data 检查。Supplement 必须另外记录 `supplement_presence=present|none_found|unclear`；`access_limited` 必须引用已持久化的失败 Acquisition Attempt，且不能由一个失败 endpoint 构成。若 `quantitative_results_present=true`，至少一个 Observation 必须保存非空 `statistics_json`；真正影响核心 evidence chain 的作者报告定量结果不能只存在于 derived report。
 
 ### `claims`
 
@@ -398,7 +419,7 @@ relations[]
 
 每个新知识单元提供当前 bundle 内唯一的 `ref`。relation 使用 `subject_type + subject_ref/id` 与 `object_type + object_ref/id`，脚本在事务内把临时 ref 解析为数据库主键；Observation 也可通过 `experiment_ref` 连接当前 bundle 的 Experiment。每个 Method / Experiment / Observation / Claim / Lead 都必须定位到具体 artifact，并保存能够回到原文的 subsection / page / figure/table / supplement item 等 `source_locator`；仅写 `Methods`、`Results`、`Discussion`、`Abstract` 等顶层 section 会被 ingest/validate 直接拒绝。
 
-所有 Reconstruction 都必须在 `extraction_checks` 中确认 `observation_semantics_checked=true`。`depth=deep_extraction` 额外要求 `figures_tables_checked=true`、`quantitative_results_checked=true`、`supplement_status` 与 `code_data_status`（`checked | not_applicable | access_limited`），并明确 `quantitative_results_present`。`not_applicable`/`access_limited` 必须分别给出 `supplement_reason`/`code_data_reason`；数据库一旦已登记 supplement artifact，`supplement_status` 不得再为 `not_applicable`；若声明已 `checked`，`artifacts_checked` 必须覆盖全部已登记 supplement artifacts。存在相关定量结果时至少一个 Observation 保存非空 `statistics`；若声明不存在，则必须写 `quantitative_results_reason`。这些检查状态写入 `reading_runs.extraction_checks_json`，使 `validate` 能识别只标了 deep_extraction、实际没有完成定量/附件审计的记录。
+所有 Reconstruction 都必须在 `extraction_checks` 中确认 `observation_semantics_checked=true`。`depth=deep_extraction` 额外要求 `figures_tables_checked=true`、`quantitative_results_checked=true`、`supplement_status` 与 `code_data_status`（`checked | not_applicable | access_limited`）、`supplement_presence`（`present | none_found | unclear`），并明确 `quantitative_results_present`。`not_applicable`/`access_limited` 必须分别给出 `supplement_reason`/`code_data_reason`；`supplement_status=not_applicable` 只允许 `supplement_presence=none_found`，`checked` 只允许 `present`。数据库一旦已登记 supplement artifact，`artifacts_checked` 必须覆盖全部已登记 supplement artifacts，无论最终状态是 `checked` 还是因其他缺失附件而 `access_limited`。`access_limited` 还必须提供 `supplement_attempt_ids`，引用至少两次真实失败/受限尝试，并证明存在替代 representation 或独立 route。存在相关定量结果时至少一个 Observation 保存非空 `statistics`；若声明不存在，则必须写 `quantitative_results_reason`。这些检查状态写入 `reading_runs.extraction_checks_json`，使 `validate` 能识别只标了 deep_extraction、实际没有完成定量/附件审计的记录。
 
 证据关系不能把“方向一致”一律写成 `SUPPORTS`。科研层优先使用 `DIRECTLY_SUPPORTS | INDIRECTLY_SUPPORTS | QUALIFIES | CONTRADICTS | DOES_NOT_TEST`；其中 `INDIRECTLY_SUPPORTS`、`QUALIFIES`、`DOES_NOT_TEST` 必须通过 relation `note` 说明 inference gap 或边界。脚本只校验结构，主模型负责判断证据是否真的达到目标 Claim 的 descriptive / association / causal / mechanistic 层级。
 
@@ -437,6 +458,8 @@ sidecar_path          -- 可选
 uv run scripts/research_db.py init
 uv run scripts/research_db.py migrate
 uv run scripts/research_db.py record-search
+uv run scripts/research_db.py record-access-attempt
+uv run scripts/research_db.py access-attempts
 uv run scripts/research_db.py search-runs
 uv run scripts/research_db.py candidates
 uv run scripts/research_db.py update-candidate <candidate-id>
@@ -452,7 +475,7 @@ uv run scripts/research_db.py validate
 uv run scripts/research_db.py validate --completion
 ```
 
-默认从当前目录向上定位 `RESEARCH.md` 或 `.research/research.sqlite`；也可用全局 `--project <path>` 显式指定科研项目根目录。`init` 同时创建 `.research/bundles/`；`record-search` 默认读取 `search.json`，`update-candidate` 默认读取 `candidate-update.json`，三个 ingest 命令分别读取 `paper.json`、`reconstruction.json`、`critical.json`；都可显式传其他 JSON 路径或 `-` 从 stdin 读取。命令输出结构化 JSON。
+默认从当前目录向上定位 `RESEARCH.md` 或 `.research/research.sqlite`；也可用全局 `--project <path>` 显式指定科研项目根目录。`init` 同时创建 `.research/bundles/`；`record-search` 默认读取 `search.json`，`record-access-attempt` 默认读取 `access-attempt.json`，`update-candidate` 默认读取 `candidate-update.json`，三个 ingest 命令分别读取 `paper.json`、`reconstruction.json`、`critical.json`；都可显式传其他 JSON 路径或 `-` 从 stdin 读取。命令输出结构化 JSON。
 
 知识读取接口当前可用：
 
@@ -504,14 +527,14 @@ research-db paper-context P000001 --for-sidecar
 `research-db validate` 相当于科研知识库的 integrity check。至少检查：
 
 - duplicate DOI / PMID / canonical identity，以及 DOI/PMID 与 canonical identity 不一致；
-- Candidate 的 identity/relevance/acquisition 状态自洽：`excluded` 有 exclusion reason，`acquired` 已关联 Paper，已关联 Paper 的 DOI/PMID 与 Candidate 不冲突，同一稳定 DOI/PMID 不存在多个 Candidate；
+- Candidate 的 identity/relevance/acquisition 状态自洽：`excluded` 有 exclusion reason，`acquired` 已关联 Paper，已关联 Paper 的 DOI/PMID 与 Candidate 不冲突，同一稳定 DOI/PMID 不存在多个 Candidate；`unavailable` 必须有足够的 Acquisition Attempt provenance、publisher/open-resolution 路径覆盖，且不能只记录一个失败 publisher PDF；
 - canonical `main_text` artifact 缺少文件扩展名；
 - dangling relation / nonexistent target；
 - observation 指向不存在的 experiment；
 - issue target 不存在；
 - artifact path 缺失；
 - reconstructed 状态缺少已完成 reconstruction run，或 Reconstruction 缺少 Observation 语义自审；
-- `deep_extraction` 缺少 figures/tables、quantitative results、supplement、code/data 检查状态；`not_applicable/access_limited` 没有理由；声明 supplement 已检查却未在 `artifacts_checked` 中留下附件证据；或声明存在定量结果却未保存 `statistics_json`；
+- `deep_extraction` 缺少 figures/tables、quantitative results、supplement、code/data 检查状态；Supplement presence/status 自相矛盾；`not_applicable/access_limited` 没有理由；`access_limited` 缺少可核验 Acquisition Attempt；已取得 supplement 未全部进入 `artifacts_checked`；或声明存在定量结果却未保存 `statistics_json`；
 - Critical Audit 将 `full_scan` Reconstruction 越级标成 `deep_extraction`；
 - critically reviewed 状态缺少已完成 critical audit run；
 - Issue 缺少 `basis_rationale`，或 `not_reported` issue 缺少足够 artifact / source inspection 记录；

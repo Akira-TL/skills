@@ -11,6 +11,7 @@ SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from research_db_core import ResearchDbError, database_path, init_database  # noqa: E402
+from research_db_ops.acquisition import record_acquisition_attempt  # noqa: E402
 from research_db_ops.candidates import (  # noqa: E402
     discovery_readiness,
     list_candidates,
@@ -127,7 +128,32 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
             },
         )
         for item in result["persisted_candidates"]:
-            update_candidate(self.root, item["id"], {"acquisition_status": "unavailable"})
+            candidate_id = item["id"]
+            record_acquisition_attempt(
+                self.root,
+                {
+                    "candidate_id": candidate_id,
+                    "target_kind": "main_text",
+                    "route_family": "publisher",
+                    "resource_kind": "article_page",
+                    "source_url": f"https://publisher.example/{candidate_id}",
+                    "outcome": "access_denied",
+                    "detail": "Publisher route did not expose retrievable full text.",
+                },
+            )
+            record_acquisition_attempt(
+                self.root,
+                {
+                    "candidate_id": candidate_id,
+                    "target_kind": "main_text",
+                    "route_family": "open_index",
+                    "resource_kind": "repository_record",
+                    "source_url": f"https://open-index.example/{candidate_id}",
+                    "outcome": "not_found",
+                    "detail": "Open-access resolver found no alternate full-text location.",
+                },
+            )
+            update_candidate(self.root, candidate_id, {"acquisition_status": "unavailable"})
 
         readiness = discovery_readiness(self.root)
         self.assertTrue(readiness["ready_for_saturation"])
@@ -371,6 +397,27 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
         self.assertIn("citation_chasing_missing", reasons)
         self.assertIn("discovery_strategy_diversity_insufficient", reasons)
 
+        for payload in (
+            {
+                "candidate_id": core_id,
+                "target_kind": "main_text",
+                "route_family": "publisher",
+                "resource_kind": "article_page",
+                "source_url": "https://publisher.example/core-paper",
+                "outcome": "access_denied",
+                "detail": "Publisher article page did not expose accessible full text.",
+            },
+            {
+                "candidate_id": core_id,
+                "target_kind": "main_text",
+                "route_family": "open_index",
+                "resource_kind": "repository_record",
+                "source_url": "https://open-index.example/core-paper",
+                "outcome": "not_found",
+                "detail": "Open-access resolver found no retrievable full-text location.",
+            },
+        ):
+            record_acquisition_attempt(self.root, payload)
         update_candidate(self.root, core_id, {"acquisition_status": "unavailable"})
         update_candidate(
             self.root,
@@ -397,6 +444,93 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
         self.assertTrue(readiness["ready_for_saturation"])
         self.assertEqual(readiness["citation_chasing_count"], 1)
         self.assertEqual(readiness["discovery_families"], ["citation_chasing", "query_search"])
+
+    def test_unavailable_requires_auditable_access_attempts(self) -> None:
+        result = record_search_run(
+            self.root,
+            {
+                "purpose": "Known core paper",
+                "discovery_method": "exact_work",
+                "source": "Crossref",
+                "query": "10.1234/unavailable-test",
+                "candidates": [
+                    {
+                        "title": "Unavailable test paper",
+                        "doi": "10.1234/unavailable-test",
+                        "relevance_status": "relevant",
+                        "reading_priority": "core",
+                    }
+                ],
+            },
+        )
+        candidate_id = result["persisted_candidates"][0]["id"]
+
+        with self.assertRaisesRegex(ResearchDbError, "Acquisition Attempt provenance"):
+            update_candidate(self.root, candidate_id, {"acquisition_status": "unavailable"})
+
+        record_acquisition_attempt(
+            self.root,
+            {
+                "candidate_id": candidate_id,
+                "target_kind": "main_text",
+                "route_family": "publisher",
+                "resource_kind": "pdf",
+                "source_url": "https://publisher.example/paper.pdf",
+                "outcome": "access_denied",
+                "detail": "Direct PDF returned access denial.",
+            },
+        )
+        record_acquisition_attempt(
+            self.root,
+            {
+                "candidate_id": candidate_id,
+                "target_kind": "main_text",
+                "route_family": "open_index",
+                "resource_kind": "repository_record",
+                "source_url": "https://open-index.example/10.1234/unavailable-test",
+                "outcome": "not_found",
+                "detail": "Open-access resolver did not identify a retrievable copy.",
+            },
+        )
+        with self.assertRaisesRegex(ResearchDbError, "publisher_pdf_failure_without_article_page_resolution"):
+            update_candidate(self.root, candidate_id, {"acquisition_status": "unavailable"})
+
+        record_acquisition_attempt(
+            self.root,
+            {
+                "candidate_id": candidate_id,
+                "target_kind": "main_text",
+                "route_family": "publisher",
+                "resource_kind": "article_page",
+                "source_url": "https://publisher.example/article",
+                "outcome": "auth_required",
+                "detail": "Publisher article page was checked separately and exposed only authenticated full-text access.",
+            },
+        )
+        updated = update_candidate(
+            self.root, candidate_id, {"acquisition_status": "unavailable"}
+        )
+        self.assertEqual(updated["candidate"]["acquisition_status"], "unavailable")
+
+    def test_search_run_cannot_create_unavailable_without_attempt_provenance(self) -> None:
+        with self.assertRaisesRegex(ResearchDbError, "不能直接创建.*unavailable"):
+            record_search_run(
+                self.root,
+                {
+                    "purpose": "Known paper",
+                    "discovery_method": "exact_work",
+                    "source": "Crossref",
+                    "query": "10.1234/no-shortcut",
+                    "candidates": [
+                        {
+                            "title": "No shortcut paper",
+                            "doi": "10.1234/no-shortcut",
+                            "relevance_status": "relevant",
+                            "acquisition_status": "unavailable",
+                        }
+                    ],
+                },
+            )
 
     def test_record_search_rejects_missing_parent_run(self) -> None:
         with self.assertRaises(ResearchDbError):

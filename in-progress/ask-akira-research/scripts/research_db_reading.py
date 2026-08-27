@@ -19,9 +19,11 @@ from research_db_bundle import (
     _write_change,
 )
 from research_db_core import ResearchDbError, connect, database_path
+from research_db_ops.acquisition import supplement_access_blockers
 
 
 DEEP_EXTRACTION_STATUSES = {"checked", "not_applicable", "access_limited"}
+SUPPLEMENT_PRESENCE = {"present", "none_found", "unclear"}
 SUPPLEMENT_ARTIFACT_PREFIXES = ("supplement", "supplementary")
 
 
@@ -60,6 +62,34 @@ def _extraction_checks(
                     f"deep_extraction 的 {field}={value} 时必须说明 extraction_checks.{reason_field}。"
                 )
 
+    supplement_presence = checks.get("supplement_presence")
+    if supplement_presence not in SUPPLEMENT_PRESENCE:
+        raise ResearchDbError(
+            "deep_extraction 要求 extraction_checks.supplement_presence 为："
+            + ", ".join(sorted(SUPPLEMENT_PRESENCE))
+        )
+    supplement_status = checks.get("supplement_status")
+    if supplement_status == "not_applicable" and supplement_presence != "none_found":
+        raise ResearchDbError(
+            "supplement_status=not_applicable 只允许 supplement_presence=none_found。"
+        )
+    if supplement_status == "checked" and supplement_presence != "present":
+        raise ResearchDbError(
+            "supplement_status=checked 要求 supplement_presence=present。"
+        )
+    if supplement_status == "access_limited" and supplement_presence not in {"present", "unclear"}:
+        raise ResearchDbError(
+            "supplement_status=access_limited 要求 supplement_presence 为 present 或 unclear。"
+        )
+    if supplement_status == "access_limited":
+        attempt_ids = checks.get("supplement_attempt_ids")
+        if not isinstance(attempt_ids, list) or not attempt_ids or not all(
+            isinstance(value, int) and value > 0 for value in attempt_ids
+        ):
+            raise ResearchDbError(
+                "supplement_status=access_limited 必须提供非空整数数组 supplement_attempt_ids。"
+            )
+
     present = checks.get("quantitative_results_present")
     if not isinstance(present, bool):
         raise ResearchDbError(
@@ -96,19 +126,38 @@ def _validate_deep_artifact_checks(
         if str(row["kind"]).casefold().startswith(SUPPLEMENT_ARTIFACT_PREFIXES)
         or str(row["kind"]).casefold() == "reporting_summary"
     }
-    if supplement_ids and checks.get("supplement_status") == "not_applicable":
+    supplement_status = checks.get("supplement_status")
+    supplement_presence = checks.get("supplement_presence")
+    if supplement_ids and supplement_presence != "present":
+        raise ResearchDbError(
+            "deep_extraction 已登记 supplement artifact，supplement_presence 必须为 present。"
+        )
+    if supplement_ids and supplement_status == "not_applicable":
         raise ResearchDbError(
             "deep_extraction 已登记 supplement artifact，supplement_status 不能为 not_applicable；"
             "至少检查已取得附件并标记 checked，或明确记录真实的 access_limited 情形。"
         )
-    if supplement_ids and checks.get("supplement_status") == "checked":
+    if supplement_status == "checked" and not supplement_ids:
+        raise ResearchDbError(
+            "deep_extraction 声明 supplement_status=checked，但没有登记任何 supplement artifact。"
+        )
+    if supplement_ids and supplement_status in {"checked", "access_limited"}:
         checked_ids = {int(item["id"]) for item in checked}
         missing_ids = sorted(supplement_ids - checked_ids)
         if missing_ids:
             raise ResearchDbError(
-                "deep_extraction 声明 supplement_status=checked，"
+                f"deep_extraction 声明 supplement_status={supplement_status}，"
                 "但 artifacts_checked 未覆盖全部已登记 supplement artifact："
                 + ", ".join(str(value) for value in missing_ids)
+            )
+
+    if supplement_status == "access_limited":
+        attempt_ids = list(dict.fromkeys(checks.get("supplement_attempt_ids", [])))
+        blockers = supplement_access_blockers(connection, paper_id, attempt_ids)
+        if blockers:
+            raise ResearchDbError(
+                "supplement_status=access_limited 的 Acquisition Attempt provenance 未闭合："
+                + ", ".join(blockers)
             )
 
 

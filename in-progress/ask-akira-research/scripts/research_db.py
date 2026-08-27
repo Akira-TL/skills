@@ -17,6 +17,7 @@ from research_db_core import (
     validate,
 )
 from research_db_critical import ingest_critical
+from research_db_ops.acquisition import list_acquisition_attempts, record_acquisition_attempt
 from research_db_ops.candidates import (
     discovery_readiness,
     list_candidates,
@@ -40,6 +41,7 @@ from research_db_ops.relations import add_relation
 
 BUNDLE_DEFAULTS = {
     "record-search": "search.json",
+    "record-access-attempt": "access-attempt.json",
     "update-candidate": "candidate-update.json",
     "relate": "relation.json",
     "ingest-paper": "paper.json",
@@ -126,6 +128,31 @@ def cmd_record_search(args: argparse.Namespace) -> int:
         record_search_run(
             project_root,
             _load_json_object(project_root, "record-search", args.bundle),
+        )
+    )
+    return 0
+
+
+def cmd_record_access_attempt(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(
+        record_acquisition_attempt(
+            project_root,
+            _load_json_object(project_root, "record-access-attempt", args.bundle),
+        )
+    )
+    return 0
+
+
+def cmd_access_attempts(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(
+        list_acquisition_attempts(
+            project_root,
+            candidate_id=args.candidate,
+            paper_id=args.paper,
+            target_kind=args.target_kind,
+            limit=args.limit,
         )
     )
     return 0
@@ -328,6 +355,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="Search Run JSON bundle；默认 .research/bundles/search.json；传 '-' 从 stdin 读取。",
     )
     record_search_parser.set_defaults(handler=cmd_record_search)
+
+    access_attempt_parser = subparsers.add_parser(
+        "record-access-attempt",
+        help="记录一次正文/附件/代码数据获取尝试及其真实结果。",
+    )
+    access_attempt_parser.add_argument(
+        "bundle",
+        nargs="?",
+        help="Access Attempt JSON；默认 .research/bundles/access-attempt.json；传 '-' 从 stdin 读取。",
+    )
+    access_attempt_parser.set_defaults(handler=cmd_record_access_attempt)
+
+    access_attempts_parser = subparsers.add_parser(
+        "access-attempts", help="列出已记录的 acquisition attempts。"
+    )
+    access_attempts_parser.add_argument("--candidate", type=int)
+    access_attempts_parser.add_argument("--paper")
+    access_attempts_parser.add_argument("--target-kind")
+    access_attempts_parser.add_argument("--limit", type=int, default=100)
+    access_attempts_parser.set_defaults(handler=cmd_access_attempts)
 
     search_runs_parser = subparsers.add_parser(
         "search-runs", help="列出已记录的文献检索运行。"

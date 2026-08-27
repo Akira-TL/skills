@@ -24,6 +24,7 @@ REQUIRED_TABLES = {
     "leads",
     "relations",
     "change_log",
+    "acquisition_attempts",
 }
 ENTITY_TABLES = {
     "paper": "papers",
@@ -282,6 +283,8 @@ def validate(project_root: Path) -> dict[str, Any]:
             errors.append(f"缺少数据表：{', '.join(missing_tables)}")
 
         if not errors:
+            from research_db_ops.acquisition import supplement_access_blockers
+
             reconstructed_without_run = connection.execute(
                 """
                 SELECT p.id FROM papers p
@@ -339,6 +342,28 @@ def validate(project_root: Path) -> dict[str, Any]:
                                     f"{field}={value} 缺少 {reason_field}。"
                                 )
 
+                    supplement_presence = checks.get("supplement_presence")
+                    if supplement_presence not in {"present", "none_found", "unclear"}:
+                        errors.append(
+                            f"deep_extraction run {run['id']} ({run['paper_id']}) 缺少有效 supplement_presence。"
+                        )
+                    supplement_status = checks.get("supplement_status")
+                    if supplement_status == "not_applicable" and supplement_presence != "none_found":
+                        errors.append(
+                            f"deep_extraction run {run['id']} ({run['paper_id']}) "
+                            "supplement_status=not_applicable 但 supplement_presence 不是 none_found。"
+                        )
+                    if supplement_status == "checked" and supplement_presence != "present":
+                        errors.append(
+                            f"deep_extraction run {run['id']} ({run['paper_id']}) "
+                            "supplement_status=checked 但 supplement_presence 不是 present。"
+                        )
+                    if supplement_status == "access_limited" and supplement_presence not in {"present", "unclear"}:
+                        errors.append(
+                            f"deep_extraction run {run['id']} ({run['paper_id']}) "
+                            "supplement_status=access_limited 但 supplement_presence 不是 present/unclear。"
+                        )
+
                     supplement_ids = {
                         int(row["id"])
                         for row in connection.execute(
@@ -348,12 +373,22 @@ def validate(project_root: Path) -> dict[str, Any]:
                         if str(row["kind"]).casefold().startswith(("supplement", "supplementary"))
                         or str(row["kind"]).casefold() == "reporting_summary"
                     }
-                    if supplement_ids and checks.get("supplement_status") == "not_applicable":
+                    if supplement_ids and supplement_presence != "present":
+                        errors.append(
+                            f"deep_extraction run {run['id']} ({run['paper_id']}) 已登记 supplement artifact，"
+                            "supplement_presence 必须为 present。"
+                        )
+                    if supplement_ids and supplement_status == "not_applicable":
                         errors.append(
                             f"deep_extraction run {run['id']} ({run['paper_id']}) 已登记 supplement artifact，"
                             "supplement_status 不能为 not_applicable。"
                         )
-                    if supplement_ids and checks.get("supplement_status") == "checked":
+                    if supplement_status == "checked" and not supplement_ids:
+                        errors.append(
+                            f"deep_extraction run {run['id']} ({run['paper_id']}) 声明 supplement_status=checked，"
+                            "但没有登记 supplement artifact。"
+                        )
+                    if supplement_ids and supplement_status in {"checked", "access_limited"}:
                         try:
                             checked_artifacts = json.loads(run["artifacts_checked"] or "[]")
                         except json.JSONDecodeError:
@@ -367,9 +402,27 @@ def validate(project_root: Path) -> dict[str, Any]:
                         if missing_ids:
                             errors.append(
                                 f"deep_extraction run {run['id']} ({run['paper_id']}) "
-                                "声明 supplement_status=checked，但 artifacts_checked 未覆盖全部已登记 supplement artifact："
+                                f"声明 supplement_status={supplement_status}，但 artifacts_checked 未覆盖全部已登记 supplement artifact："
                                 + ", ".join(str(value) for value in missing_ids)
                             )
+                    if supplement_status == "access_limited":
+                        raw_attempt_ids = checks.get("supplement_attempt_ids")
+                        if not isinstance(raw_attempt_ids, list) or not raw_attempt_ids or not all(
+                            isinstance(value, int) and value > 0 for value in raw_attempt_ids
+                        ):
+                            errors.append(
+                                f"deep_extraction run {run['id']} ({run['paper_id']}) access_limited "
+                                "缺少有效 supplement_attempt_ids。"
+                            )
+                        else:
+                            blockers = supplement_access_blockers(
+                                connection, str(run["paper_id"]), raw_attempt_ids
+                            )
+                            for blocker in blockers:
+                                errors.append(
+                                    f"deep_extraction run {run['id']} ({run['paper_id']}) "
+                                    f"supplement access provenance 不完整：{blocker}。"
+                                )
 
                     quantitative_present = checks.get("quantitative_results_present")
                     if not isinstance(quantitative_present, bool):
@@ -462,6 +515,8 @@ def validate(project_root: Path) -> dict[str, Any]:
                         f"与稳定论文身份 {expected_identity!r} 不一致。"
                     )
 
+            from research_db_ops.acquisition import unavailable_candidate_blockers
+
             for row in connection.execute(
                 """
                 SELECT id, identity_status, relevance_status, exclusion_reason,
@@ -478,6 +533,11 @@ def validate(project_root: Path) -> dict[str, Any]:
                     errors.append(
                         f"candidate {candidate_id} 标记为 excluded，但缺少 exclusion_reason。"
                     )
+                if row["acquisition_status"] == "unavailable":
+                    for blocker in unavailable_candidate_blockers(connection, row):
+                        errors.append(
+                            f"candidate {candidate_id} unavailable provenance 不完整：{blocker['reason']}。"
+                        )
                 if row["acquisition_status"] == "acquired" and not row["paper_id"]:
                     errors.append(
                         f"candidate {candidate_id} 标记为 acquired，但没有关联 Paper。"

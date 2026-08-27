@@ -10,13 +10,15 @@ description: 用于需要真正取得论文原文而不是只读取标题或摘�
 
 ## 核心边界
 
-- 本 Skill 只处理 **access**：从 citation / DOI / PMID / PMCID / URL 到全文 artifact。
+- 本 Skill 只处理 **access**：从 citation / DOI / PMID / PMCID / URL 到全文 artifact；已确定论文的 Supplementary Information、Reporting Summary、Source Data、protocol、代码/数据附件也可作为同一论文下的明确 access target。
 - 允许为了取得一篇**已经确定身份的目标论文**执行 exact-work resolution search，例如用 DOI、PMID、完整标题或作者 + 年份寻找 publisher、repository、开放副本或全文入口。
 - 不负责从研究主题发现候选论文，也不负责筛选、证据抽取、研究笔记、论文关系图或研究项目管理；这些属于上层科研 Skill。
 - 优先使用当前环境已有的 WebFetch / HTTP / web search 能力完成直接获取和 resolution search；需要动态页面、用户授权或会话解析时，再把浏览器部分交给当前环境可用的浏览器访问能力。
 - 浏览器发现、Profile、登录和人机协作由浏览器能力负责，本 Skill 不复制这些规则。
 - 浏览器不承担文件落盘。解析出最终资源请求后，优先由 Agent 直接、内联地传输文件。
 - 只使用公开可得版本或用户已有合法权限能够访问的版本。
+- **单一 endpoint 失败不等于全文不可得。** PDF 返回 403/challenge/HTML 错页时，必须回到 article page 检查 HTML full text、真实下载请求及附件入口，并继续 exact-work resolution search；一个 URL 的失败不能直接升级为 `MANUAL_ACQUISITION_REQUIRED`。
+- DOI/PMID/页面元数据若明确暴露 PMCID、Europe PMC、repository、accepted manuscript、preprint 或其他合法 full-text location，这是必须继续跟进的正向线索，不能在未访问该线索时宣称获取失败。
 
 ## 按需加载
 
@@ -37,7 +39,26 @@ description: 用于需要真正取得论文原文而不是只读取标题或摘�
 - `FULL_TEXT_READY`：全文 artifact 已下载并通过验收。
 - `MANUAL_ACQUISITION_REQUIRED`：当前环境无法自行取得全文，需要用户提供文件。
 
-只有 `FULL_TEXT_READY` 才算完成。
+只有 `FULL_TEXT_READY` 才算成功完成。`MANUAL_ACQUISITION_REQUIRED` 是**已穷尽当前可用合法获取路径后的终态**，不是一次请求失败后的默认状态。
+
+## 失败闭合与 Acquisition Attempt
+
+每一次真实获取/解析尝试都应形成可审计的 Acquisition Attempt，至少包含：
+
+```text
+target_kind       -- main_text | supplement | code_data
+target_label      -- supplement/code-data target 时标明具体附件
+route_family      -- publisher | open_index | repository | preprint | authenticated | other
+resource_kind     -- article_page | full_text_html | pdf | xml | repository_record | supplement | other
+source_url
+outcome           -- acquired | not_found | access_denied | auth_required | challenge | invalid_artifact | network_error | other_failure
+detail
+attempted_at
+```
+
+对正文宣称“不可得”前，至少必须完成 **publisher 路径 + 一个独立开放解析路径**（open index / repository / preprint）；有 DOI 时 publisher 路径不可跳过。若 publisher PDF 被拒绝或返回 challenge，还必须另查 publisher article page / HTML full text，而不能把 PDF endpoint 当作整个 publisher route。发现新的 repository/PMCID/full-text URL 后必须实际访问，不能只把它写进失败理由。
+
+对 Supplementary Information 宣称 `access_limited` 时同样不能只凭一个附件 URL 失败；需要尝试替代 representation 或独立 route，并把失败 attempt 返回给上层科研项目持久化。
 
 ## Artifact Request
 
@@ -72,4 +93,4 @@ content_type
 access_route: open / authenticated
 ```
 
-如果失败，返回停在哪个 Access State、已经尝试过哪些合法路径，以及下一步需要什么；不要把摘要伪装成全文。
+如果失败，返回停在哪个 Access State、结构化 `attempts[]`、仍未闭合的正向线索，以及下一步需要什么；不要把摘要伪装成全文。只要仍存在尚未跟进的 PMCID/repository/publisher HTML/附件链接，就不得把结果描述为路径已经穷尽。

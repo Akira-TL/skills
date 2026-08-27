@@ -190,6 +190,11 @@ def _record_candidate(
         default="queued" if relevance_status == "relevant" else "pending",
         field="acquisition_status",
     )
+    if acquisition_status == "unavailable":
+        raise ResearchDbError(
+            "Search Run 不能直接创建 acquisition_status=unavailable 的 Candidate；"
+            "先保留为 queued，记录 Acquisition Attempt provenance 后再 update-candidate。"
+        )
     reading_priority = _enum(
         raw.get("reading_priority"),
         READING_PRIORITIES,

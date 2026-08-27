@@ -32,15 +32,15 @@ class ResearchDbTests(unittest.TestCase):
     def test_init_creates_current_schema(self) -> None:
         result = init_database(self.root)
 
-        self.assertEqual(result["schema_version"], 8)
+        self.assertEqual(result["schema_version"], 9)
         self.assertEqual(
             Path(result["bundle_directory"]), self.root / ".research" / "bundles"
         )
         self.assertTrue((self.root / ".research" / "bundles").is_dir())
         db_status = status(self.root)
         self.assertTrue(db_status["exists"])
-        self.assertEqual(db_status["schema_version"], 8)
-        self.assertEqual(db_status["meta_schema_version"], 8)
+        self.assertEqual(db_status["schema_version"], 9)
+        self.assertEqual(db_status["meta_schema_version"], 9)
         self.assertEqual(db_status["tables"]["papers"], 0)
         self.assertTrue(validate(self.root)["ok"])
 
@@ -91,7 +91,7 @@ class ResearchDbTests(unittest.TestCase):
                 ("P000001", now),
             )
 
-        self.assertEqual(apply_migrations(db_path), [2, 3, 4, 5, 6, 7, 8])
+        self.assertEqual(apply_migrations(db_path), [2, 3, 4, 5, 6, 7, 8, 9])
         with sqlite3.connect(db_path) as connection:
             connection.row_factory = sqlite3.Row
             artifact_columns = {
@@ -144,7 +144,7 @@ class ResearchDbTests(unittest.TestCase):
                 (now, now),
             )
 
-        self.assertEqual(apply_migrations(db_path), [5, 6, 7, 8])
+        self.assertEqual(apply_migrations(db_path), [5, 6, 7, 8, 9])
         with sqlite3.connect(db_path) as connection:
             row = connection.execute(
                 "SELECT acquisition_status, identity_status FROM candidates"

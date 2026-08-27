@@ -39,13 +39,17 @@ Active Uncertainty
 
 研究启动、问题发现、方法学习与证据综合阶段，不以“摘要看起来足够”作为结束条件。Candidate 的 `relevance_status`、`acquisition_status` 与 `reading_priority` 分开维护：相关性决定是否属于问题空间，获取状态说明全文是否已拿到，优先级只决定阅读顺序；`excluded` 必须留下明确 exclusion reason。相关 Candidate 默认进入 `queued` 全文获取队列，成功 `ingest-paper` 后自动回链正式 Paper。
 
+`unavailable` 不是自由文本结论。每次正文获取尝试必须用 `research-db record-access-attempt` 持久化 `route_family + resource_kind + source_url + outcome + detail + attempted_at`。Search Run 不允许直接创建 `unavailable` Candidate；必须先 `queued`，实际调用 `literature-access`，记录失败/受限路径后再 `update-candidate`。有 DOI 时至少检查 publisher route；同时至少有一个独立 open resolution route（open index / repository / preprint）。单一 PDF 403/challenge 不能闭合全文获取：必须继续检查 publisher article page/HTML 以及 resolver 暴露的 PMCID/repository/full-text location。`research-db discovery-status` 与 `validate` 会拒绝 provenance 不足的 `unavailable`。
+
 ## 3. 全文获取与阅读深度
 
 已知论文交给 `literature-access` 获取正文；浏览器只在需要登录、动态页面或真实资源请求解析时参与。正文、supplement、代码和数据仓库仍是独立 artifact，SQLite 记录论文身份、路径、版本、来源与获取时间。
 
 相关论文至少执行 `FULL_SCAN`：整篇正文过一遍并识别 research problem、design、methods、experiments、major observations、claims、limitations 与 leads。核心或方法学重要论文执行 `DEEP_EXTRACTION`：继续深入 exact protocol、关键参数、supplement、统计细节、figure/table-level result、代码/数据仓库与关键引用链。
 
-`DEEP_EXTRACTION` 不是“读得比较认真”的主观标签。`ingest-reading` 必须持久化 `extraction_checks`：确认 Observation 语义已经逐条自审、figures/tables 已检查、定量结果已检查，并明确记录 supplement 与 code/data 的状态为 `checked | not_applicable | access_limited`。`not_applicable` 与 `access_limited` 都必须分别填写 `supplement_reason` / `code_data_reason`；不能只用枚举值跳过附件审计。只要数据库已经登记 supplement artifact，`supplement_status` 就不能再写 `not_applicable`：应检查全部已取得并登记的 supplement artifacts 并标记 `checked`，此时 `artifacts_checked` 必须覆盖这些附件；确有无法取得的其他关键附件时才使用 `access_limited` 并说明原因。Critical Audit 不能把仅完成 `FULL_SCAN` 的 Reconstruction 升级成 `DEEP_EXTRACTION`。若论文存在会影响当前证据判断的定量结果，所有进入核心 evidence chain 的 n、estimate/effect size、CI、P/FDR 等作者报告统计量必须进入对应 Observation 的 `statistics`；不能只把数字写在人类报告里而让结构化数据库保持空白。若确实没有相关定量结果，必须明确说明原因。
+`DEEP_EXTRACTION` 不是“读得比较认真”的主观标签。`ingest-reading` 必须持久化 `extraction_checks`：确认 Observation 语义已经逐条自审、figures/tables 已检查、定量结果已检查，并明确记录 supplement 与 code/data 的状态为 `checked | not_applicable | access_limited`。Supplement 还必须记录 `supplement_presence = present | none_found | unclear`：只有经过正文/article metadata 检查确认没有附件线索时才允许 `none_found + not_applicable`；已发现附件必须是 `present`，不能用 `not_applicable` 跳过。`not_applicable` 与 `access_limited` 都必须分别填写 `supplement_reason` / `code_data_reason`。
+
+只要数据库已经登记 supplement artifact，`artifacts_checked` 必须覆盖全部已取得附件，无论最终 `supplement_status` 是 `checked` 还是因其他缺失附件而 `access_limited`。`access_limited` 必须引用 `supplement_attempt_ids`，这些 ID 指向用 `research-db record-access-attempt` 保存的真实附件获取尝试；单一失败 endpoint 不足以构成 access limitation，必须继续替代 representation 或独立 route。若论文正文、PMC/Europe PMC、publisher article page 或其他已核验来源明确暴露 Supplementary Information / Source Data 的可访问链接，必须实际跟进，不能因尚未 ingest artifact 就把它写成 `access_limited`。Critical Audit 不能把仅完成 `FULL_SCAN` 的 Reconstruction 升级成 `DEEP_EXTRACTION`。若论文存在会影响当前证据判断的定量结果，所有进入核心 evidence chain 的 n、estimate/effect size、CI、P/FDR 等作者报告统计量必须进入对应 Observation 的 `statistics`；不能只把数字写在人类报告里而让结构化数据库保持空白。若确实没有相关定量结果，必须明确说明原因。
 
 正文引用 Supplementary Methods、Supplementary Tables、protocol 或其他附件且它们影响当前研究时，必须继续检查；主文缺失但 supplement 尚未检查时，不得把信息标记成 `not_reported`。无法合法取得但会影响判断的 supplement 必须记录为 access limitation，不得默认为 `not_applicable`。
 

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from research_db_core import ResearchDbError, connect
+from research_db_ops.acquisition import unavailable_candidate_blockers
 from research_db_ingest import normalize_doi, normalize_identifier
 from research_db_ops.discovery import (
     ACQUISITION_STATUSES,
@@ -88,6 +89,14 @@ def update_candidate(project_root: Path, candidate_id: int, changes: dict[str, A
             ).fetchone()
             if paper is None:
                 raise ResearchDbError(f"Paper 不存在：{merged['paper_id']}")
+        if merged.get("acquisition_status") == "unavailable":
+            access_blockers = unavailable_candidate_blockers(connection, merged)
+            if access_blockers:
+                reasons = ", ".join(str(item["reason"]) for item in access_blockers)
+                raise ResearchDbError(
+                    "candidate 不能标记 unavailable；Acquisition Attempt provenance 尚未闭合："
+                    + reasons
+                )
 
         for field in ("doi", "pmid"):
             value = merged.get(field)
@@ -231,6 +240,11 @@ def merge_candidates(
                 ),
             )
 
+            connection.execute(
+                "UPDATE acquisition_attempts SET candidate_id = ? WHERE candidate_id = ?",
+                (keep_id, merge_id),
+            )
+
             for link in connection.execute(
                 "SELECT * FROM search_run_candidates WHERE candidate_id = ? ORDER BY search_run_id",
                 (merge_id,),
@@ -311,6 +325,9 @@ def discovery_readiness(project_root: Path) -> dict[str, Any]:
             if row["relevance_status"] != "relevant":
                 continue
             relevant_count += 1
+            if row["acquisition_status"] == "unavailable":
+                blockers.extend(unavailable_candidate_blockers(connection, row))
+
             if row["reading_priority"] == "core" and row["acquisition_status"] not in {
                 "acquired",
                 "unavailable",

@@ -10,6 +10,7 @@ SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from research_db_core import database_path, init_database, validate  # noqa: E402
+from research_db_ops.acquisition import record_acquisition_attempt  # noqa: E402
 from research_db_critical import ingest_critical  # noqa: E402
 from research_db_ingest import ingest_paper  # noqa: E402
 from research_db_reading import ingest_reading  # noqa: E402
@@ -221,6 +222,7 @@ class ResearchDbReadingTests(unittest.TestCase):
             "figures_tables_checked": True,
             "quantitative_results_checked": True,
             "supplement_status": "checked",
+            "supplement_presence": "present",
             "code_data_status": "not_applicable",
             "code_data_reason": "No code or data repository is part of this synthetic test paper.",
             "quantitative_results_present": True,
@@ -243,6 +245,7 @@ class ResearchDbReadingTests(unittest.TestCase):
             "figures_tables_checked": True,
             "quantitative_results_checked": True,
             "supplement_status": "not_applicable",
+            "supplement_presence": "none_found",
             "code_data_status": "not_applicable",
             "code_data_reason": "No code/data repository is reported in this synthetic paper.",
             "quantitative_results_present": True,
@@ -260,13 +263,14 @@ class ResearchDbReadingTests(unittest.TestCase):
             "figures_tables_checked": True,
             "quantitative_results_checked": True,
             "supplement_status": "not_applicable",
+            "supplement_presence": "none_found",
             "supplement_reason": "The supplement looks unrelated.",
             "code_data_status": "not_applicable",
             "code_data_reason": "No code/data repository is reported in this synthetic paper.",
             "quantitative_results_present": True,
         }
 
-        with self.assertRaisesRegex(RuntimeError, "已登记 supplement artifact"):
+        with self.assertRaisesRegex(RuntimeError, "supplement_presence"):
             ingest_reading(self.root, bundle)
 
     def test_deep_extraction_checked_supplement_must_be_in_artifacts_checked(self) -> None:
@@ -278,6 +282,7 @@ class ResearchDbReadingTests(unittest.TestCase):
             "figures_tables_checked": True,
             "quantitative_results_checked": True,
             "supplement_status": "checked",
+            "supplement_presence": "present",
             "code_data_status": "not_applicable",
             "code_data_reason": "No code/data repository is reported in this synthetic paper.",
             "quantitative_results_present": True,
@@ -287,6 +292,54 @@ class ResearchDbReadingTests(unittest.TestCase):
             ingest_reading(self.root, bundle)
 
         bundle["artifacts_checked"].append({"artifact_kind": "supplementary_material"})
+        result = ingest_reading(self.root, bundle)
+        self.assertEqual(result["depth"], "deep_extraction")
+
+    def test_deep_extraction_access_limited_supplement_requires_attempt_provenance(self) -> None:
+        bundle = self.reconstruction_bundle()
+        bundle["depth"] = "deep_extraction"
+        bundle["observations"][0]["statistics"] = {"n": 45}
+        bundle["artifacts_checked"].append({"artifact_kind": "supplementary_material"})
+        bundle["extraction_checks"] = {
+            "observation_semantics_checked": True,
+            "figures_tables_checked": True,
+            "quantitative_results_checked": True,
+            "supplement_status": "access_limited",
+            "supplement_presence": "present",
+            "supplement_reason": "An additional referenced supplement could not yet be retrieved.",
+            "code_data_status": "not_applicable",
+            "code_data_reason": "No code/data repository is reported in this synthetic paper.",
+            "quantitative_results_present": True,
+            "supplement_attempt_ids": [999],
+        }
+        with self.assertRaisesRegex(RuntimeError, "Acquisition Attempt provenance"):
+            ingest_reading(self.root, bundle)
+
+        attempts = []
+        for payload in (
+            {
+                "paper_id": "P000001",
+                "target_kind": "supplement",
+                "target_label": "Supplementary Table 2",
+                "route_family": "publisher",
+                "resource_kind": "supplement",
+                "source_url": "https://publisher.example/supp2.pdf",
+                "outcome": "access_denied",
+                "detail": "Direct supplementary PDF returned access denial.",
+            },
+            {
+                "paper_id": "P000001",
+                "target_kind": "supplement",
+                "target_label": "Supplementary Table 2",
+                "route_family": "open_index",
+                "resource_kind": "repository_record",
+                "source_url": "https://open-index.example/supp2",
+                "outcome": "not_found",
+                "detail": "Open repository resolution did not expose the referenced supplement.",
+            },
+        ):
+            attempts.append(record_acquisition_attempt(self.root, payload)["attempt"]["id"])
+        bundle["extraction_checks"]["supplement_attempt_ids"] = attempts
         result = ingest_reading(self.root, bundle)
         self.assertEqual(result["depth"], "deep_extraction")
 
