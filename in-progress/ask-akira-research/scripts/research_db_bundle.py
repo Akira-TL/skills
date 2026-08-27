@@ -139,6 +139,26 @@ def _checked_artifacts(
     return normalized
 
 
+def _source_locator_is_specific(value: str) -> bool:
+    normalized = " ".join(value.strip().casefold().split())
+    generic = {
+        "abstract",
+        "introduction",
+        "methods",
+        "materials and methods",
+        "results",
+        "discussion",
+        "conclusion",
+        "conclusions",
+        "main text",
+        "supplement",
+        "supplementary material",
+        "supplementary materials",
+        "supplementary information",
+    }
+    return normalized not in generic
+
+
 def _source_fields(
     connection: sqlite3.Connection,
     paper_id: str,
@@ -153,6 +173,11 @@ def _source_fields(
         raise ResearchDbError(f"{field} 必须定位到具体 artifact。")
     if required and source_locator is None:
         raise ResearchDbError(f"{field} 必须提供 source_locator。")
+    if required and source_locator is not None and not _source_locator_is_specific(source_locator):
+        raise ResearchDbError(
+            f"{field} 的 source_locator={source_locator!r} 过于模糊；"
+            "至少定位到具体 subsection、page、figure/table、supplement item 或等价的唯一位置。"
+        )
     return artifact_id, source_locator
 
 

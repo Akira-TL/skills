@@ -50,6 +50,30 @@ class ResearchDbError(RuntimeError):
     pass
 
 
+def _source_locator_is_specific(value: object) -> bool:
+    if value is None:
+        return False
+    normalized = " ".join(str(value).strip().casefold().split())
+    if not normalized:
+        return False
+    generic = {
+        "abstract",
+        "introduction",
+        "methods",
+        "materials and methods",
+        "results",
+        "discussion",
+        "conclusion",
+        "conclusions",
+        "main text",
+        "supplement",
+        "supplementary material",
+        "supplementary materials",
+        "supplementary information",
+    }
+    return normalized not in generic
+
+
 def discover_project_root(project: str | None, *, for_init: bool = False) -> Path:
     if project:
         return Path(project).expanduser().resolve()
@@ -275,7 +299,7 @@ def validate(project_root: Path) -> dict[str, Any]:
 
             for run in connection.execute(
                 """
-                SELECT id, paper_id, depth, extraction_checks_json
+                SELECT id, paper_id, depth, artifacts_checked, extraction_checks_json
                 FROM reading_runs
                 WHERE pass = 'reconstruction' AND completed_at IS NOT NULL
                 ORDER BY id
@@ -302,10 +326,51 @@ def validate(project_root: Path) -> dict[str, Any]:
                             f"deep_extraction run {run['id']} ({run['paper_id']}) 未确认定量结果检查。"
                         )
                     for field in ("supplement_status", "code_data_status"):
-                        if checks.get(field) not in {"checked", "not_applicable", "access_limited"}:
+                        value = checks.get(field)
+                        if value not in {"checked", "not_applicable", "access_limited"}:
                             errors.append(
                                 f"deep_extraction run {run['id']} ({run['paper_id']}) 的 {field} 状态不完整。"
                             )
+                        elif value in {"not_applicable", "access_limited"}:
+                            reason_field = field.removesuffix("_status") + "_reason"
+                            if not checks.get(reason_field):
+                                errors.append(
+                                    f"deep_extraction run {run['id']} ({run['paper_id']}) 的 "
+                                    f"{field}={value} 缺少 {reason_field}。"
+                                )
+
+                    supplement_ids = {
+                        int(row["id"])
+                        for row in connection.execute(
+                            "SELECT id, kind FROM artifacts WHERE paper_id = ?",
+                            (run["paper_id"],),
+                        )
+                        if str(row["kind"]).casefold().startswith(("supplement", "supplementary"))
+                        or str(row["kind"]).casefold() == "reporting_summary"
+                    }
+                    if supplement_ids and checks.get("supplement_status") == "not_applicable":
+                        errors.append(
+                            f"deep_extraction run {run['id']} ({run['paper_id']}) 已登记 supplement artifact，"
+                            "supplement_status 不能为 not_applicable。"
+                        )
+                    if supplement_ids and checks.get("supplement_status") == "checked":
+                        try:
+                            checked_artifacts = json.loads(run["artifacts_checked"] or "[]")
+                        except json.JSONDecodeError:
+                            checked_artifacts = []
+                        checked_ids = {
+                            int(item["id"])
+                            for item in checked_artifacts
+                            if isinstance(item, dict) and item.get("id") is not None
+                        }
+                        missing_ids = sorted(supplement_ids - checked_ids)
+                        if missing_ids:
+                            errors.append(
+                                f"deep_extraction run {run['id']} ({run['paper_id']}) "
+                                "声明 supplement_status=checked，但 artifacts_checked 未覆盖全部已登记 supplement artifact："
+                                + ", ".join(str(value) for value in missing_ids)
+                            )
+
                     quantitative_present = checks.get("quantitative_results_present")
                     if not isinstance(quantitative_present, bool):
                         errors.append(
@@ -348,6 +413,27 @@ def validate(project_root: Path) -> dict[str, Any]:
             ).fetchall()
             for row in critical_without_run:
                 errors.append(f"{row['id']} 标记为 critically_reviewed，但缺少完成的 critical audit run。")
+
+            for row in connection.execute(
+                """
+                SELECT c.id, c.paper_id
+                FROM reading_runs c
+                WHERE c.pass = 'critical_audit'
+                  AND c.depth = 'deep_extraction'
+                  AND c.completed_at IS NOT NULL
+                  AND NOT EXISTS (
+                    SELECT 1 FROM reading_runs r
+                    WHERE r.paper_id = c.paper_id
+                      AND r.pass = 'reconstruction'
+                      AND r.depth = 'deep_extraction'
+                      AND r.completed_at IS NOT NULL
+                  )
+                """
+            ):
+                errors.append(
+                    f"critical audit run {row['id']} ({row['paper_id']}) 标为 deep_extraction，"
+                    "但没有对应的 deep_extraction Reconstruction。"
+                )
 
             reviewed_without_issue = connection.execute(
                 """
@@ -484,6 +570,14 @@ def validate(project_root: Path) -> dict[str, Any]:
                 elif not _entity_exists(connection, row["target_type"], row["target_id"]):
                     errors.append(f"issue {row['id']} 指向不存在的 target。")
 
+            for row in connection.execute(
+                "SELECT id, basis, basis_rationale FROM issues ORDER BY id"
+            ):
+                if not row["basis_rationale"] or not str(row["basis_rationale"]).strip():
+                    errors.append(
+                        f"issue {row['id']} 缺少 basis_rationale；无法审计 basis={row['basis']!r} 的证据状态判断。"
+                    )
+
             not_reported_without_locator = connection.execute(
                 """
                 SELECT id FROM issues
@@ -494,6 +588,23 @@ def validate(project_root: Path) -> dict[str, Any]:
             ).fetchall()
             for row in not_reported_without_locator:
                 errors.append(f"issue {row['id']} 为 not_reported，但没有 artifact/source locator。")
+
+            for entity, table in (
+                ("method", "methods"),
+                ("experiment", "experiments"),
+                ("observation", "observations"),
+                ("claim", "claims"),
+                ("issue", "issues"),
+                ("lead", "leads"),
+            ):
+                for row in connection.execute(
+                    f"SELECT id, paper_id, source_locator FROM {table} ORDER BY id"
+                ):
+                    if not _source_locator_is_specific(row["source_locator"]):
+                        errors.append(
+                            f"{entity} {row['id']} ({row['paper_id']}) 的 source_locator="
+                            f"{row['source_locator']!r} 过于模糊；需要具体 subsection/page/figure/table/supplement 定位。"
+                        )
 
     if not (project_root / "RESEARCH.md").exists():
         warnings.append("项目根目录没有 RESEARCH.md；数据库可用，但不满足完整科研项目 bootstrap 契约。")

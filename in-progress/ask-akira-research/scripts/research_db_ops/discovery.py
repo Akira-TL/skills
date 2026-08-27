@@ -16,6 +16,17 @@ IDENTITY_STATUSES = {"unresolved", "resolved"}
 RELEVANCE_STATUSES = {"pending", "relevant", "excluded"}
 ACQUISITION_STATUSES = {"pending", "queued", "acquired", "unavailable"}
 READING_PRIORITIES = {"core", "high", "normal", "low"}
+DISCOVERY_METHODS = {
+    "seed_search",
+    "query_expansion",
+    "backward_citation",
+    "forward_citation",
+    "related_work",
+    "method_search",
+    "update_search",
+    "exact_work",
+    "other",
+}
 
 
 def _now() -> str:
@@ -335,6 +346,19 @@ def record_search_run(project_root: Path, bundle: dict[str, Any]) -> dict[str, A
     mode = mode.upper()
     if mode not in SEARCH_MODES:
         raise ResearchDbError("mode 必须是 DISCOVERY 或 SYSTEMATIC。")
+    discovery_method = _text(bundle.get("discovery_method"))
+    if mode == "DISCOVERY":
+        if discovery_method not in DISCOVERY_METHODS:
+            raise ResearchDbError(
+                "DISCOVERY Search Run 必须显式提供 discovery_method："
+                + ", ".join(sorted(DISCOVERY_METHODS))
+            )
+    else:
+        discovery_method = discovery_method or "other"
+        if discovery_method not in DISCOVERY_METHODS:
+            raise ResearchDbError(
+                "discovery_method 必须是：" + ", ".join(sorted(DISCOVERY_METHODS))
+            )
 
     raw_candidates = bundle.get("candidates", [])
     if not isinstance(raw_candidates, list):
@@ -377,8 +401,9 @@ def record_search_run(project_root: Path, bundle: dict[str, Any]) -> dict[str, A
                 """
                 INSERT INTO search_runs(
                     purpose, mode, source, query, filters, parent_run_id, reason,
-                    executed_at, result_count, what_we_learned, next_decision
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    executed_at, result_count, what_we_learned, next_decision,
+                    discovery_method
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     purpose,
@@ -392,6 +417,7 @@ def record_search_run(project_root: Path, bundle: dict[str, Any]) -> dict[str, A
                     result_count,
                     _text(bundle.get("what_we_learned")),
                     _text(bundle.get("next_decision")),
+                    discovery_method,
                 ),
             )
             run_id = int(cursor.lastrowid)
@@ -428,6 +454,7 @@ def record_search_run(project_root: Path, bundle: dict[str, Any]) -> dict[str, A
         "ok": True,
         "search_run_id": run_id,
         "mode": mode,
+        "discovery_method": discovery_method,
         "result_count": result_count,
         "persisted_candidates": candidates,
     }

@@ -286,6 +286,11 @@ def merge_candidates(
 
 def discovery_readiness(project_root: Path) -> dict[str, Any]:
     blockers: list[dict[str, Any]] = []
+    discovery_methods: dict[str, int] = {}
+    discovery_families: set[str] = set()
+    citation_chasing_count = 0
+    relevant_count = 0
+
     with connect(_db_path(project_root)) as connection:
         search_count = int(connection.execute("SELECT COUNT(*) FROM search_runs").fetchone()[0])
         candidates = connection.execute(
@@ -305,6 +310,7 @@ def discovery_readiness(project_root: Path) -> dict[str, Any]:
                 continue
             if row["relevance_status"] != "relevant":
                 continue
+            relevant_count += 1
             if row["reading_priority"] == "core" and row["acquisition_status"] not in {
                 "acquired",
                 "unavailable",
@@ -329,6 +335,61 @@ def discovery_readiness(project_root: Path) -> dict[str, Any]:
                     }
                 )
 
+        search_run_columns = {
+            str(row["name"])
+            for row in connection.execute("PRAGMA table_info(search_runs)")
+        }
+        if "discovery_method" not in search_run_columns:
+            if search_count > 0:
+                blockers.append({"reason": "discovery_method_schema_missing"})
+        else:
+            for run in connection.execute(
+                "SELECT id, mode, discovery_method FROM search_runs ORDER BY id"
+            ):
+                if str(run["mode"]).upper() != "DISCOVERY":
+                    continue
+                method = str(run["discovery_method"] or "unspecified")
+                discovery_methods[method] = discovery_methods.get(method, 0) + 1
+                if method in {"backward_citation", "forward_citation"}:
+                    citation_chasing_count += 1
+                    discovery_families.add("citation_chasing")
+                elif method in {
+                    "seed_search",
+                    "query_expansion",
+                    "method_search",
+                    "update_search",
+                }:
+                    discovery_families.add("query_search")
+                elif method == "related_work":
+                    discovery_families.add("related_work")
+
+            # Legacy/unknown search provenance cannot support a saturation claim.
+            if relevant_count >= 2 and discovery_methods.get("unspecified", 0):
+                blockers.append(
+                    {
+                        "reason": "discovery_method_unspecified",
+                        "count": discovery_methods["unspecified"],
+                    }
+                )
+
+            # A topical discovery with multiple relevant papers may not claim practical
+            # conceptual saturation from a closed Candidate queue alone. Exact-work-only
+            # retrieval is a targeted reading workflow, not a saturation claim, and is
+            # therefore intentionally exempt from this diversity requirement.
+            topical_discovery = relevant_count >= 2 and bool(
+                discovery_families & {"query_search", "related_work"}
+            )
+            if topical_discovery:
+                if citation_chasing_count == 0:
+                    blockers.append({"reason": "citation_chasing_missing"})
+                if len(discovery_families) < 2:
+                    blockers.append(
+                        {
+                            "reason": "discovery_strategy_diversity_insufficient",
+                            "families": sorted(discovery_families),
+                        }
+                    )
+
         for field in ("doi", "pmid"):
             where = "doi IS NOT NULL AND trim(doi) <> ''" if field == "doi" else "pmid IS NOT NULL AND trim(pmid) <> ''"
             normalizer = "lower(doi)" if field == "doi" else "pmid"
@@ -349,6 +410,10 @@ def discovery_readiness(project_root: Path) -> dict[str, Any]:
         "ok": True,
         "has_discovery": search_count > 0,
         "search_run_count": search_count,
+        "relevant_candidate_count": relevant_count,
+        "discovery_methods": discovery_methods,
+        "discovery_families": sorted(discovery_families),
+        "citation_chasing_count": citation_chasing_count,
         "ready_for_saturation": not blockers,
         "blockers": blockers,
     }

@@ -25,6 +25,8 @@ class ResearchDbReadingTests(unittest.TestCase):
         incoming.mkdir()
         pdf = incoming / "paper.pdf"
         pdf.write_bytes(b"%PDF-1.4\nreading-test\n")
+        supplement = incoming / "supplement.pdf"
+        supplement.write_bytes(b"%PDF-1.4\nsupplement-test\n")
         ingest_paper(
             self.root,
             {
@@ -36,7 +38,13 @@ class ResearchDbReadingTests(unittest.TestCase):
                         "path": str(pdf),
                         "source": "publisher",
                         "source_url": "https://example.test/reading.pdf",
-                    }
+                    },
+                    {
+                        "kind": "supplementary_material",
+                        "path": str(supplement),
+                        "source": "publisher",
+                        "source_url": "https://example.test/supplement.pdf",
+                    },
                 ],
             },
         )
@@ -90,7 +98,7 @@ class ResearchDbReadingTests(unittest.TestCase):
                     "claim_type": "causal",
                     "author_strength": "suggestive",
                     "artifact_kind": "main_text",
-                    "source_locator": "Discussion",
+                    "source_locator": "Discussion > Interpretation",
                 }
             ],
             "leads": [
@@ -191,6 +199,13 @@ class ResearchDbReadingTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Observation 必须提供 source_locator"):
             ingest_reading(self.root, bundle)
 
+    def test_vague_source_locator_is_rejected(self) -> None:
+        bundle = self.reconstruction_bundle()
+        bundle["claims"][0]["source_locator"] = "Discussion"
+
+        with self.assertRaisesRegex(RuntimeError, "source_locator=.*过于模糊"):
+            ingest_reading(self.root, bundle)
+
     def test_reconstruction_requires_observation_semantics_self_audit(self) -> None:
         bundle = self.reconstruction_bundle()
         bundle.pop("extraction_checks")
@@ -205,8 +220,9 @@ class ResearchDbReadingTests(unittest.TestCase):
             "observation_semantics_checked": True,
             "figures_tables_checked": True,
             "quantitative_results_checked": True,
-            "supplement_status": "not_applicable",
+            "supplement_status": "checked",
             "code_data_status": "not_applicable",
+            "code_data_reason": "No code or data repository is part of this synthetic test paper.",
             "quantitative_results_present": True,
         }
 
@@ -214,6 +230,63 @@ class ResearchDbReadingTests(unittest.TestCase):
             ingest_reading(self.root, bundle)
 
         bundle["observations"][0]["statistics"] = {"n": 45, "p_value": 0.01}
+        bundle["artifacts_checked"].append({"artifact_kind": "supplementary_material"})
+        result = ingest_reading(self.root, bundle)
+        self.assertEqual(result["depth"], "deep_extraction")
+
+    def test_deep_extraction_requires_reason_for_not_applicable_status(self) -> None:
+        bundle = self.reconstruction_bundle()
+        bundle["depth"] = "deep_extraction"
+        bundle["observations"][0]["statistics"] = {"n": 45}
+        bundle["extraction_checks"] = {
+            "observation_semantics_checked": True,
+            "figures_tables_checked": True,
+            "quantitative_results_checked": True,
+            "supplement_status": "not_applicable",
+            "code_data_status": "not_applicable",
+            "code_data_reason": "No code/data repository is reported in this synthetic paper.",
+            "quantitative_results_present": True,
+        }
+
+        with self.assertRaisesRegex(RuntimeError, "supplement_reason"):
+            ingest_reading(self.root, bundle)
+
+    def test_deep_extraction_rejects_not_applicable_when_supplement_is_registered(self) -> None:
+        bundle = self.reconstruction_bundle()
+        bundle["depth"] = "deep_extraction"
+        bundle["observations"][0]["statistics"] = {"n": 45}
+        bundle["extraction_checks"] = {
+            "observation_semantics_checked": True,
+            "figures_tables_checked": True,
+            "quantitative_results_checked": True,
+            "supplement_status": "not_applicable",
+            "supplement_reason": "The supplement looks unrelated.",
+            "code_data_status": "not_applicable",
+            "code_data_reason": "No code/data repository is reported in this synthetic paper.",
+            "quantitative_results_present": True,
+        }
+
+        with self.assertRaisesRegex(RuntimeError, "已登记 supplement artifact"):
+            ingest_reading(self.root, bundle)
+
+    def test_deep_extraction_checked_supplement_must_be_in_artifacts_checked(self) -> None:
+        bundle = self.reconstruction_bundle()
+        bundle["depth"] = "deep_extraction"
+        bundle["observations"][0]["statistics"] = {"n": 45}
+        bundle["extraction_checks"] = {
+            "observation_semantics_checked": True,
+            "figures_tables_checked": True,
+            "quantitative_results_checked": True,
+            "supplement_status": "checked",
+            "code_data_status": "not_applicable",
+            "code_data_reason": "No code/data repository is reported in this synthetic paper.",
+            "quantitative_results_present": True,
+        }
+
+        with self.assertRaisesRegex(RuntimeError, "artifacts_checked.*supplement artifact"):
+            ingest_reading(self.root, bundle)
+
+        bundle["artifacts_checked"].append({"artifact_kind": "supplementary_material"})
         result = ingest_reading(self.root, bundle)
         self.assertEqual(result["depth"], "deep_extraction")
 
@@ -229,6 +302,48 @@ class ResearchDbReadingTests(unittest.TestCase):
                 },
             )
 
+    def test_critical_audit_cannot_upgrade_full_scan_to_deep_extraction(self) -> None:
+        ingest_reading(self.root, self.reconstruction_bundle())
+        with self.assertRaisesRegex(RuntimeError, "不能把 full_scan Reconstruction 升级"):
+            ingest_critical(
+                self.root,
+                {
+                    "paper_id": "P000001",
+                    "depth": "deep_extraction",
+                    "artifacts_checked": [{"artifact_kind": "main_text"}],
+                    "sections_checked": ["Methods", "Discussion"],
+                    "issues": [],
+                },
+            )
+
+    def test_critical_issue_requires_basis_rationale(self) -> None:
+        reading = ingest_reading(self.root, self.reconstruction_bundle())
+        claim_id = reading["refs"]["claim:claim-1"]
+        with self.assertRaisesRegex(RuntimeError, "basis_rationale"):
+            ingest_critical(
+                self.root,
+                {
+                    "paper_id": "P000001",
+                    "artifacts_checked": [{"artifact_kind": "main_text"}],
+                    "sections_checked": ["Methods", "Discussion"],
+                    "issues": [
+                        {
+                            "ref": "issue-1",
+                            "category": "population_scope",
+                            "nature": "scope_limitation",
+                            "target_type": "claim",
+                            "target_id": claim_id,
+                            "assessment": "The sampled cohort has a defined scope.",
+                            "basis": "demonstrated",
+                            "severity": "moderate",
+                            "confidence": "high",
+                            "artifact_kind": "main_text",
+                            "source_locator": "Methods > Participants",
+                        }
+                    ],
+                },
+            )
+
     def test_critical_audit_links_issue_and_sidecar(self) -> None:
         reading = ingest_reading(self.root, self.reconstruction_bundle())
         claim_id = reading["refs"]["claim:claim-1"]
@@ -239,7 +354,7 @@ class ResearchDbReadingTests(unittest.TestCase):
             self.root,
             {
                 "paper_id": "P000001",
-                "depth": "deep_extraction",
+                "depth": "full_scan",
                 "artifacts_checked": [{"artifact_kind": "main_text"}],
                 "sections_checked": ["Methods", "Results", "Discussion"],
                 "sidecar_path": "literature/papers/P000001/README.md",
@@ -252,6 +367,7 @@ class ResearchDbReadingTests(unittest.TestCase):
                         "target_id": claim_id,
                         "assessment": "The cohort does not establish generalizability beyond the sampled population.",
                         "basis": "demonstrated",
+                        "basis_rationale": "The sampled population is explicitly defined in Methods, so the scope limitation is directly established by the study design.",
                         "severity": "moderate",
                         "confidence": "high",
                         "why_it_matters": "The causal claim should retain a population scope.",
@@ -289,7 +405,7 @@ class ResearchDbReadingTests(unittest.TestCase):
         self.assertEqual(
             paper,
             (
-                "deep_extraction",
+                "full_scan",
                 "extracted",
                 "critically_reviewed",
                 "literature/papers/P000001/README.md",

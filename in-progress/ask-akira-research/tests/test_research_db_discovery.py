@@ -37,6 +37,7 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
             {
                 "purpose": "Find human altitude microbiome evidence",
                 "mode": "DISCOVERY",
+                "discovery_method": "seed_search",
                 "source": "PubMed",
                 "query": "altitude gut microbiome Blautia",
                 "filters": {"language": "English"},
@@ -64,6 +65,7 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
             self.root,
             {
                 "purpose": "Forward citation chase",
+                "discovery_method": "forward_citation",
                 "source": "OpenAlex",
                 "query": "10.1234/altitude cited_by",
                 "parent_run_id": first["search_run_id"],
@@ -87,11 +89,57 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
         self.assertEqual(len(candidates[0]["search_runs"]), 2)
         self.assertEqual(len(list_search_runs(self.root)["search_runs"]), 2)
 
+    def test_discovery_search_requires_explicit_discovery_method(self) -> None:
+        with self.assertRaisesRegex(ResearchDbError, "discovery_method"):
+            record_search_run(
+                self.root,
+                {
+                    "purpose": "Seed search",
+                    "mode": "DISCOVERY",
+                    "source": "PubMed",
+                    "query": "altitude microbiome",
+                    "candidates": [],
+                },
+            )
+
+    def test_exact_work_only_does_not_require_saturation_citation_chasing(self) -> None:
+        result = record_search_run(
+            self.root,
+            {
+                "purpose": "Retrieve two user-specified papers",
+                "discovery_method": "exact_work",
+                "source": "Crossref",
+                "query": "two exact titles",
+                "candidates": [
+                    {
+                        "title": "Known paper one",
+                        "doi": "10.1234/known-one",
+                        "relevance_status": "relevant",
+                        "reading_priority": "core",
+                    },
+                    {
+                        "title": "Known paper two",
+                        "doi": "10.1234/known-two",
+                        "relevance_status": "relevant",
+                        "reading_priority": "core",
+                    },
+                ],
+            },
+        )
+        for item in result["persisted_candidates"]:
+            update_candidate(self.root, item["id"], {"acquisition_status": "unavailable"})
+
+        readiness = discovery_readiness(self.root)
+        self.assertTrue(readiness["ready_for_saturation"])
+        self.assertEqual(readiness["discovery_families"], [])
+        self.assertEqual(readiness["citation_chasing_count"], 0)
+
     def test_relevant_candidate_defaults_to_acquisition_queue(self) -> None:
         record_search_run(
             self.root,
             {
                 "purpose": "Seed search",
+                "discovery_method": "seed_search",
                 "source": "PubMed",
                 "query": "altitude microbiome",
                 "candidates": [
@@ -124,6 +172,7 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
             self.root,
             {
                 "purpose": "Related work",
+                "discovery_method": "related_work",
                 "source": "Crossref",
                 "query": "known paper",
                 "candidates": [
@@ -143,6 +192,7 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
             self.root,
             {
                 "purpose": "Seed search",
+                "discovery_method": "seed_search",
                 "source": "PubMed",
                 "query": "altitude microbiome",
                 "candidates": [{"title": "Possibly relevant result"}],
@@ -168,6 +218,7 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
             self.root,
             {
                 "purpose": "Seed search",
+                "discovery_method": "seed_search",
                 "source": "PubMed",
                 "query": "altitude microbiome",
                 "candidates": [
@@ -209,6 +260,7 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
             self.root,
             {
                 "purpose": "Seed search",
+                "discovery_method": "seed_search",
                 "source": "Web",
                 "query": "yak microbiome",
                 "candidates": [
@@ -224,6 +276,7 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
             self.root,
             {
                 "purpose": "Identity resolution",
+                "discovery_method": "exact_work",
                 "source": "Europe PMC",
                 "query": "exact title",
                 "candidates": [
@@ -245,6 +298,7 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
             self.root,
             {
                 "purpose": "Seed",
+                "discovery_method": "seed_search",
                 "source": "Web",
                 "query": "paper a",
                 "candidates": [{"title": "Paper A", "year": 2024}],
@@ -254,6 +308,7 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
             self.root,
             {
                 "purpose": "Independent identity result",
+                "discovery_method": "exact_work",
                 "source": "Crossref",
                 "query": "10.1234/a",
                 "candidates": [
@@ -288,6 +343,7 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
             self.root,
             {
                 "purpose": "Seed",
+                "discovery_method": "seed_search",
                 "source": "Web",
                 "query": "yak microbiome",
                 "candidates": [
@@ -309,7 +365,11 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
 
         first = discovery_readiness(self.root)
         self.assertFalse(first["ready_for_saturation"])
-        self.assertEqual(len(first["blockers"]), 2)
+        reasons = {item["reason"] for item in first["blockers"]}
+        self.assertIn("core_candidate_not_closed", reasons)
+        self.assertIn("high_priority_candidate_missing_defer_reason", reasons)
+        self.assertIn("citation_chasing_missing", reasons)
+        self.assertIn("discovery_strategy_diversity_insufficient", reasons)
 
         update_candidate(self.root, core_id, {"acquisition_status": "unavailable"})
         update_candidate(
@@ -319,7 +379,24 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
                 "defer_reason": "Additional reading is unlikely to change the current uncertainty boundary.",
             },
         )
-        self.assertTrue(discovery_readiness(self.root)["ready_for_saturation"])
+        record_search_run(
+            self.root,
+            {
+                "purpose": "Backward citation chase of the core evidence",
+                "discovery_method": "backward_citation",
+                "source": "OpenAlex",
+                "query": "core references",
+                "parent_run_id": result["search_run_id"],
+                "result_count": 0,
+                "what_we_learned": "No additional relevant evidence family was identified.",
+                "next_decision": "Close discovery after candidate resolution.",
+                "candidates": [],
+            },
+        )
+        readiness = discovery_readiness(self.root)
+        self.assertTrue(readiness["ready_for_saturation"])
+        self.assertEqual(readiness["citation_chasing_count"], 1)
+        self.assertEqual(readiness["discovery_families"], ["citation_chasing", "query_search"])
 
     def test_record_search_rejects_missing_parent_run(self) -> None:
         with self.assertRaises(ResearchDbError):
@@ -327,6 +404,7 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
                 self.root,
                 {
                     "purpose": "Expansion",
+                    "discovery_method": "query_expansion",
                     "source": "PubMed",
                     "query": "Blautia",
                     "parent_run_id": 999,

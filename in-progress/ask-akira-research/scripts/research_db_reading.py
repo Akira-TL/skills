@@ -22,6 +22,7 @@ from research_db_core import ResearchDbError, connect, database_path
 
 
 DEEP_EXTRACTION_STATUSES = {"checked", "not_applicable", "access_limited"}
+SUPPLEMENT_ARTIFACT_PREFIXES = ("supplement", "supplementary")
 
 
 def _extraction_checks(
@@ -52,6 +53,12 @@ def _extraction_checks(
                 f"deep_extraction 要求 extraction_checks.{field} 为："
                 + ", ".join(sorted(DEEP_EXTRACTION_STATUSES))
             )
+        if value in {"not_applicable", "access_limited"}:
+            reason_field = field.removesuffix("_status") + "_reason"
+            if not _text(checks.get(reason_field)):
+                raise ResearchDbError(
+                    f"deep_extraction 的 {field}={value} 时必须说明 extraction_checks.{reason_field}。"
+                )
 
     present = checks.get("quantitative_results_present")
     if not isinstance(present, bool):
@@ -71,6 +78,38 @@ def _extraction_checks(
             "quantitative_results_present=false 时必须说明 quantitative_results_reason。"
         )
     return checks
+
+
+def _validate_deep_artifact_checks(
+    connection: Any,
+    paper_id: str,
+    checked: list[dict[str, Any]],
+    checks: dict[str, Any],
+) -> None:
+    supplement_rows = connection.execute(
+        "SELECT id, kind FROM artifacts WHERE paper_id = ? ORDER BY id",
+        (paper_id,),
+    ).fetchall()
+    supplement_ids = {
+        int(row["id"])
+        for row in supplement_rows
+        if str(row["kind"]).casefold().startswith(SUPPLEMENT_ARTIFACT_PREFIXES)
+        or str(row["kind"]).casefold() == "reporting_summary"
+    }
+    if supplement_ids and checks.get("supplement_status") == "not_applicable":
+        raise ResearchDbError(
+            "deep_extraction 已登记 supplement artifact，supplement_status 不能为 not_applicable；"
+            "至少检查已取得附件并标记 checked，或明确记录真实的 access_limited 情形。"
+        )
+    if supplement_ids and checks.get("supplement_status") == "checked":
+        checked_ids = {int(item["id"]) for item in checked}
+        missing_ids = sorted(supplement_ids - checked_ids)
+        if missing_ids:
+            raise ResearchDbError(
+                "deep_extraction 声明 supplement_status=checked，"
+                "但 artifacts_checked 未覆盖全部已登记 supplement artifact："
+                + ", ".join(str(value) for value in missing_ids)
+            )
 
 
 def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
@@ -118,6 +157,10 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
             if existing:
                 raise ResearchDbError(f"{paper_id} 已有完成的 reconstruction run。")
             checked = _checked_artifacts(connection, paper_id, bundle.get("artifacts_checked"))
+            if requested_depth == "deep_extraction":
+                _validate_deep_artifact_checks(
+                    connection, paper_id, checked, extraction_checks
+                )
             run_cursor = connection.execute(
                 """
                 INSERT INTO reading_runs(

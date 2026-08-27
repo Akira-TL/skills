@@ -130,6 +130,7 @@ executed_at
 result_count
 what_we_learned
 next_decision
+discovery_method      -- seed_search | query_expansion | backward_citation | forward_citation | related_work | method_search | update_search | exact_work | other
 ```
 
 ### `candidates`
@@ -175,7 +176,7 @@ completed_at
 artifacts_checked    -- JSON
 sections_checked     -- JSON
 notes
-extraction_checks_json -- Observation 语义自审、定量结果、figures/tables、supplement、code/data 检查状态
+extraction_checks_json -- Observation 语义自审、定量结果、figures/tables、supplement、code/data 检查状态及不适用/访问受限理由
 ```
 
 不能只靠手工修改 `papers.critical_status` 冒充完成批判阅读。
@@ -260,6 +261,7 @@ target_type
 target_id
 assessment
 basis
+basis_rationale
 severity
 confidence
 why_it_matters
@@ -279,7 +281,7 @@ severity: critical | major | moderate | minor
 confidence: high | medium | low
 ```
 
-`nature` 回答“这是什么性质的问题”，`basis` 回答“我们凭什么这样判断”。例如只覆盖年轻男性而限制外推范围可记为 `scope_limitation + demonstrated`，不把明确的研究边界误称为 flaw。
+`nature` 回答“这是什么性质的问题”，`basis` 回答“当前证据状态是什么”，`basis_rationale` 解释为什么属于该状态。已经由 Methods/Results/Supplement 明确建立的设计事实、样本事实、未采集来源或方法固有限制使用 `demonstrated`；尚未直接证实的风险/替代解释才使用 `potential`；只知道论文没有报告的信息使用 `not_reported`。
 
 ### `leads`
 
@@ -394,9 +396,9 @@ leads[]
 relations[]
 ```
 
-每个新知识单元提供当前 bundle 内唯一的 `ref`。relation 使用 `subject_type + subject_ref/id` 与 `object_type + object_ref/id`，脚本在事务内把临时 ref 解析为数据库主键；Observation 也可通过 `experiment_ref` 连接当前 bundle 的 Experiment。每个 Method / Experiment / Observation / Claim / Lead 都必须定位到具体 artifact，并保存能够回到原文的 section / page / figure/table 等 `source_locator`；来源过于模糊时不应视为完成 extraction。
+每个新知识单元提供当前 bundle 内唯一的 `ref`。relation 使用 `subject_type + subject_ref/id` 与 `object_type + object_ref/id`，脚本在事务内把临时 ref 解析为数据库主键；Observation 也可通过 `experiment_ref` 连接当前 bundle 的 Experiment。每个 Method / Experiment / Observation / Claim / Lead 都必须定位到具体 artifact，并保存能够回到原文的 subsection / page / figure/table / supplement item 等 `source_locator`；仅写 `Methods`、`Results`、`Discussion`、`Abstract` 等顶层 section 会被 ingest/validate 直接拒绝。
 
-所有 Reconstruction 都必须在 `extraction_checks` 中确认 `observation_semantics_checked=true`。`depth=deep_extraction` 额外要求 `figures_tables_checked=true`、`quantitative_results_checked=true`、`supplement_status` 与 `code_data_status`（`checked | not_applicable | access_limited`），并明确 `quantitative_results_present`。存在相关定量结果时至少一个 Observation 保存非空 `statistics`；若声明不存在，则必须写 `quantitative_results_reason`。这些检查状态写入 `reading_runs.extraction_checks_json`，使 `validate` 能识别只标了 deep_extraction、实际没有完成定量/附件审计的记录。
+所有 Reconstruction 都必须在 `extraction_checks` 中确认 `observation_semantics_checked=true`。`depth=deep_extraction` 额外要求 `figures_tables_checked=true`、`quantitative_results_checked=true`、`supplement_status` 与 `code_data_status`（`checked | not_applicable | access_limited`），并明确 `quantitative_results_present`。`not_applicable`/`access_limited` 必须分别给出 `supplement_reason`/`code_data_reason`；数据库一旦已登记 supplement artifact，`supplement_status` 不得再为 `not_applicable`；若声明已 `checked`，`artifacts_checked` 必须覆盖全部已登记 supplement artifacts。存在相关定量结果时至少一个 Observation 保存非空 `statistics`；若声明不存在，则必须写 `quantitative_results_reason`。这些检查状态写入 `reading_runs.extraction_checks_json`，使 `validate` 能识别只标了 deep_extraction、实际没有完成定量/附件审计的记录。
 
 证据关系不能把“方向一致”一律写成 `SUPPORTS`。科研层优先使用 `DIRECTLY_SUPPORTS | INDIRECTLY_SUPPORTS | QUALIFIES | CONTRADICTS | DOES_NOT_TEST`；其中 `INDIRECTLY_SUPPORTS`、`QUALIFIES`、`DOES_NOT_TEST` 必须通过 relation `note` 说明 inference gap 或边界。脚本只校验结构，主模型负责判断证据是否真的达到目标 Claim 的 descriptive / association / causal / mechanistic 层级。
 
@@ -412,7 +414,7 @@ uv run scripts/research_db.py ingest-critical
 
 默认读取 `.research/bundles/critical.json`；同样属于隐藏的内部事务载荷。
 
-Critical Audit 必须建立在已经完成的 Reconstruction 上。bundle 至少包含：
+Critical Audit 必须建立在已经完成的 Reconstruction 上，并且不能把 `FULL_SCAN` Reconstruction 直接升级成 `DEEP_EXTRACTION`。bundle 至少包含：
 
 ```text
 paper_id
@@ -423,7 +425,7 @@ relations[]
 sidecar_path          -- 可选
 ```
 
-每个 Issue 使用 bundle `ref`，并保存 category、nature、assessment、basis、severity、confidence、具体 artifact 与 source locator。Issue 可通过 `target_type + target_id` 指向 Reconstruction 已写入的 Claim / Observation / Method / Experiment；`ingest-reading` 返回的 `refs` map 可用于取得这些内部 ID。Issue 与 Claim/Observation 的 `LIMITS`、`CHALLENGES`、`WEAKENS`、`QUALIFIES` 等明确关系继续写入 `relations`。
+每个 Issue 使用 bundle `ref`，并保存 category、nature、assessment、basis、`basis_rationale`、severity、confidence、具体 artifact 与精确 source locator。`basis_rationale` 是强制字段：必须说明为什么该 Issue 属于 `demonstrated`、`potential` 或 `not_reported`，不能只重复 assessment。Issue 可通过 `target_type + target_id` 指向 Reconstruction 已写入的 Claim / Observation / Method / Experiment；`ingest-reading` 返回的 `refs` map 可用于取得这些内部 ID。Issue 与 Claim/Observation 的 `LIMITS`、`CHALLENGES`、`WEAKENS`、`QUALIFIES` 等明确关系继续写入 `relations`。
 
 若 Agent 已在论文 canonical 目录写好人类必读 `README.md`，可通过 `sidecar_path` 一并关联；脚本只链接已存在文件，不负责机械生成 synthesis。全部校验通过后才将论文更新为 `reading_status=extracted`、`critical_status=critically_reviewed`。任何 target、artifact、relation 或 sidecar 错误都整次回滚。
 
@@ -509,14 +511,16 @@ research-db paper-context P000001 --for-sidecar
 - issue target 不存在；
 - artifact path 缺失；
 - reconstructed 状态缺少已完成 reconstruction run，或 Reconstruction 缺少 Observation 语义自审；
-- `deep_extraction` 缺少 figures/tables、quantitative results、supplement、code/data 检查状态，或声明存在定量结果却未保存 `statistics_json`；
+- `deep_extraction` 缺少 figures/tables、quantitative results、supplement、code/data 检查状态；`not_applicable/access_limited` 没有理由；声明 supplement 已检查却未在 `artifacts_checked` 中留下附件证据；或声明存在定量结果却未保存 `statistics_json`；
+- Critical Audit 将 `full_scan` Reconstruction 越级标成 `deep_extraction`；
 - critically reviewed 状态缺少已完成 critical audit run；
-- `not_reported` issue 缺少足够 artifact / source inspection 记录；
+- Issue 缺少 `basis_rationale`，或 `not_reported` issue 缺少足够 artifact / source inspection 记录；
+- Method / Experiment / Observation / Claim / Issue / Lead 的 `source_locator` 只有 `Methods`、`Results`、`Discussion` 等模糊顶层 section；
 - schema version / migration 状态异常；
 - sidecar pointer 指向不存在文件时给出明确错误或 warning。
 
 对“critically reviewed 但没有 Issue”这类可能合法的情况给 warning，而不是为了满足 schema 强迫 Agent 编造批判。
 
-`research-db discovery-status` 是 Literature Discovery 的 closure gate：存在 `relevance_status=pending`、未闭合的 `core + relevant` Candidate、没有 `defer_reason` 的 `high + relevant + queued/pending` Candidate 或重复稳定身份时返回 `ready_for_saturation=false`。
+`research-db discovery-status` 是 Literature Discovery 的 closure gate：存在 `relevance_status=pending`、未闭合的 `core + relevant` Candidate、没有 `defer_reason` 的 `high + relevant + queued/pending` Candidate 或重复稳定身份时返回 `ready_for_saturation=false`。主题型 Discovery 若已有至少 2 个 relevant Candidate，且轨迹包含 query search 或 related-work 扩展，还必须有显式 `discovery_method` provenance、至少一次 `backward_citation`/`forward_citation`，并覆盖至少两个 discovery family；否则即使 Candidate 队列已清空也不能宣称 practical conceptual saturation。纯 `exact_work` 定向阅读不被误判为 saturation workflow。
 
 `research-db validate --completion` 是“本轮科研项目已完成”的最终门禁。它先执行普通数据库校验，再检查 Discovery closure，并要求项目根目录本身是 Git repository top-level、已经存在至少一个 commit、`RESEARCH.md`、`.research/research.sqlite`、canonical paper artifacts 与 sidecar 已被 Git 跟踪且没有未提交修改。普通 `validate` 通过不能替代这个 completion gate。

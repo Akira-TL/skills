@@ -63,14 +63,20 @@ def ingest_critical(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
             paper = _paper(connection, paper_id)
             reconstructed = connection.execute(
                 """
-                SELECT 1 FROM reading_runs
+                SELECT depth FROM reading_runs
                 WHERE paper_id = ? AND pass = 'reconstruction' AND completed_at IS NOT NULL
+                ORDER BY CASE depth WHEN 'deep_extraction' THEN 2 ELSE 1 END DESC, id DESC
                 LIMIT 1
                 """,
                 (paper_id,),
             ).fetchone()
             if reconstructed is None:
                 raise ResearchDbError(f"{paper_id} 尚未完成 Reconstruction。")
+            if requested_depth == "deep_extraction" and reconstructed["depth"] != "deep_extraction":
+                raise ResearchDbError(
+                    f"{paper_id} 的 Critical Audit 不能把 full_scan Reconstruction 升级为 deep_extraction；"
+                    "先以 deep_extraction 完成 Reconstruction contract。"
+                )
             existing = connection.execute(
                 """
                 SELECT 1 FROM reading_runs
@@ -105,6 +111,12 @@ def ingest_critical(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                 artifact_id, locator = _source_fields(
                     connection, paper_id, spec, required=True, field="Issue"
                 )
+                basis = _text(spec.get("basis"), required=True, field="issue.basis")
+                basis_rationale = _text(
+                    spec.get("basis_rationale"),
+                    required=True,
+                    field="issue.basis_rationale",
+                )
                 target_type = _text(spec.get("target_type"))
                 target_ref = _text(spec.get("target_ref"))
                 target_id = _text(spec.get("target_id"))
@@ -122,10 +134,10 @@ def ingest_critical(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                     """
                     INSERT INTO issues(
                         paper_id, category, nature, target_type, target_id, assessment,
-                        basis, severity, confidence, why_it_matters,
+                        basis, basis_rationale, severity, confidence, why_it_matters,
                         alternative_explanations, possible_resolution,
                         artifact_id, source_locator, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         paper_id,
@@ -134,7 +146,8 @@ def ingest_critical(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                         target_type,
                         resolved_target_id,
                         _text(spec.get("assessment"), required=True, field="issue.assessment"),
-                        _text(spec.get("basis"), required=True, field="issue.basis"),
+                        basis,
+                        basis_rationale,
                         _text(spec.get("severity"), required=True, field="issue.severity"),
                         _text(spec.get("confidence"), required=True, field="issue.confidence"),
                         _text(spec.get("why_it_matters")),

@@ -117,6 +117,7 @@ class LiteratureWorkflowIntegrationTests(unittest.TestCase):
                         "target_id": claim_id,
                         "assessment": "The observational design does not identify an independent causal effect of marker X.",
                         "basis": "demonstrated",
+                        "basis_rationale": "The observational design is directly reported in Methods, so the inference limit is an established design fact rather than a hypothetical risk.",
                         "severity": "major",
                         "confidence": "high",
                         "why_it_matters": "The causal claim must remain indirect.",
@@ -141,6 +142,7 @@ class LiteratureWorkflowIntegrationTests(unittest.TestCase):
             self.root,
             {
                 "purpose": "Map evidence for marker X and human adaptation",
+                "discovery_method": "seed_search",
                 "source": "literature-index-a",
                 "query": "marker X human adaptation",
                 "what_we_learned": "Two longitudinal cohort papers use the same deposited dataset.",
@@ -167,6 +169,7 @@ class LiteratureWorkflowIntegrationTests(unittest.TestCase):
             self.root,
             {
                 "purpose": "Citation and terminology expansion",
+                "discovery_method": "backward_citation",
                 "source": "literature-index-b",
                 "query": "10.1234/marker-one related work",
                 "parent_run_id": seed["search_run_id"],

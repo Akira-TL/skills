@@ -4,7 +4,7 @@
 
 ## 1. Discovery，不把日常科研伪装成 Systematic Review
 
-默认模式为 `DISCOVERY`：目标是高召回地理解领域、发现术语、方法、矛盾、边界条件与关键工作。检索式允许迭代；每次检索作为独立 Search Run 写入数据库，保留 purpose、source、query、filters、parent run、reason、result count、what we learned 与 next decision。
+默认模式为 `DISCOVERY`：目标是高召回地理解领域、发现术语、方法、矛盾、边界条件与关键工作。检索式允许迭代；每次检索作为独立 Search Run 写入数据库，保留 purpose、source、query、filters、parent run、reason、result count、what we learned 与 next decision，并显式记录 `discovery_method`：`seed_search | query_expansion | backward_citation | forward_citation | related_work | method_search | update_search | exact_work | other`。`exact_work` 只表示已知论文的定向检索，不计作独立的 discovery strategy。
 
 只有用户明确需要 systematic review、meta-analysis、scoping review 或可发表的正式系统检索时才进入 `SYSTEMATIC`；该模式的完整 protocol 另行设计，不用 discovery 规则冒充系统综述。
 
@@ -23,7 +23,7 @@ Active Uncertainty
 
 搜索停止依据是相对当前 Active Uncertainty 的边际知识增益：连续检索与引用追踪不再产生新的重要方法、观察、解释、矛盾、边界条件、研究设计或基础工作时，可以认为 discovery 达到当前目的的 saturation；不以固定论文数量作为停止条件。
 
-在正式声称 practical conceptual saturation 前必须运行 `research-db discovery-status`。`core + relevant` Candidate 必须已经 `acquired` 或明确 `unavailable`；`high + relevant` Candidate 若仍处于 `pending/queued`，必须保存具体 `defer_reason` 说明为什么它预计不会改变当前 Active Uncertainty / Evidence Boundary；`relevance_status=pending` 不能遗留；稳定 DOI/PMID 重复必须先合并。工具返回 `ready_for_saturation=false` 时不得仅凭主观判断宣布 saturation。
+在正式声称 practical conceptual saturation 前必须运行 `research-db discovery-status`。`core + relevant` Candidate 必须已经 `acquired` 或明确 `unavailable`；`high + relevant` Candidate 若仍处于 `pending/queued`，必须保存具体 `defer_reason` 说明为什么它预计不会改变当前 Active Uncertainty / Evidence Boundary；`relevance_status=pending` 不能遗留；稳定 DOI/PMID 重复必须先合并。对于包含至少 2 个 relevant Candidate、且实际执行了主题检索或 related-work 扩展的 Discovery，Candidate 队列闭合本身不等于 saturation：必须至少记录一次真实的 backward 或 forward citation chasing，并且检索轨迹至少覆盖两个 discovery family（query search、citation chasing、related work 中的两个）。仅对用户给定的已知论文做 `exact_work` 定向获取/阅读不属于 saturation claim，不强制补造主题检索。citation chasing 即使没有新增 Candidate，也要作为 result_count=0 的真实 Search Run 保存 `what_we_learned` 与 `next_decision`。工具返回 `ready_for_saturation=false` 时不得仅凭主观判断宣布 saturation。
 
 每次真实搜索结束后用 `research-db record-search` 原子持久化 Search Run 与本次保留的 Candidate；同一论文在 seed search、query expansion 与 citation chasing 中重复出现时应复用 Candidate，并保留每个 `search_run_candidates` 发现边。identity resolution 只改变同一 scholarly work 的身份信息，不应通过 `excluded` 制造“重复论文”记录；发现旧 Candidate 与新稳定 DOI/PMID 实际属于同一 scholarly work 时，用 `research-db merge-candidates` 合并，并保留全部 Search Run provenance。`what_we_learned` 与 `next_decision` 记录这次检索如何改变下一步，而不是事后写成检索日志散文。
 
@@ -45,7 +45,7 @@ Active Uncertainty
 
 相关论文至少执行 `FULL_SCAN`：整篇正文过一遍并识别 research problem、design、methods、experiments、major observations、claims、limitations 与 leads。核心或方法学重要论文执行 `DEEP_EXTRACTION`：继续深入 exact protocol、关键参数、supplement、统计细节、figure/table-level result、代码/数据仓库与关键引用链。
 
-`DEEP_EXTRACTION` 不是“读得比较认真”的主观标签。`ingest-reading` 必须持久化 `extraction_checks`：确认 Observation 语义已经逐条自审、figures/tables 已检查、定量结果已检查，并明确记录 supplement 与 code/data 的状态为 `checked | not_applicable | access_limited`。若论文存在会影响当前证据判断的定量结果，所有进入核心 evidence chain 的 n、estimate/effect size、CI、P/FDR 等作者报告统计量必须进入对应 Observation 的 `statistics`；不能只把数字写在人类报告里而让结构化数据库保持空白。若确实没有相关定量结果，必须明确说明原因。
+`DEEP_EXTRACTION` 不是“读得比较认真”的主观标签。`ingest-reading` 必须持久化 `extraction_checks`：确认 Observation 语义已经逐条自审、figures/tables 已检查、定量结果已检查，并明确记录 supplement 与 code/data 的状态为 `checked | not_applicable | access_limited`。`not_applicable` 与 `access_limited` 都必须分别填写 `supplement_reason` / `code_data_reason`；不能只用枚举值跳过附件审计。只要数据库已经登记 supplement artifact，`supplement_status` 就不能再写 `not_applicable`：应检查全部已取得并登记的 supplement artifacts 并标记 `checked`，此时 `artifacts_checked` 必须覆盖这些附件；确有无法取得的其他关键附件时才使用 `access_limited` 并说明原因。Critical Audit 不能把仅完成 `FULL_SCAN` 的 Reconstruction 升级成 `DEEP_EXTRACTION`。若论文存在会影响当前证据判断的定量结果，所有进入核心 evidence chain 的 n、estimate/effect size、CI、P/FDR 等作者报告统计量必须进入对应 Observation 的 `statistics`；不能只把数字写在人类报告里而让结构化数据库保持空白。若确实没有相关定量结果，必须明确说明原因。
 
 正文引用 Supplementary Methods、Supplementary Tables、protocol 或其他附件且它们影响当前研究时，必须继续检查；主文缺失但 supplement 尚未检查时，不得把信息标记成 `not_reported`。无法合法取得但会影响判断的 supplement 必须记录为 access limitation，不得默认为 `not_applicable`。
 
@@ -63,7 +63,7 @@ Active Uncertainty
 
 Paper 保留稳定 `P000001` 一类 ID；论文内部知识单元由数据库主键管理，人类 sidecar 不暴露满屏缩写编号。
 
-每个进入数据库的 Method、Experiment、Observation、Claim、Lead 都必须定位到具体 artifact，并给出可回到原文的 `source_locator`，优先精确到 section + figure/table/supplement；仅有模糊的“Results”或无来源定位不能视为完成 extraction。
+每个进入数据库的 Method、Experiment、Observation、Claim、Lead 都必须定位到具体 artifact，并给出可回到原文的 `source_locator`，优先精确到 subsection、page、figure/table/supplement item；仅有 `Methods`、`Results`、`Discussion`、`Abstract` 等顶层 section 名称或无来源定位不能视为完成 extraction，写入与 `validate` 都会拒绝这种模糊 locator。
 
 Observation 与 Claim 强制分离。`Observation.statement` 与 `effect` 只承载图表、表格或正文能够直接复述的结果；`effect` 用于直接 contrast / effect size，bundle 的 `statistics` 保存作者报告的 n、estimate、CI、P/FDR 等具体统计量。对结果大小的意义、外部一致性、机制兼容性、缺失数据后果等解释进入 Claim、relation、Issue 或后续 synthesis。不得把 Agent 自己的解释写成作者 Claim。
 
@@ -101,7 +101,7 @@ Observation 与 Claim 强制分离。`Observation.statement` 与 `effect` 只承
 
 作者自己声明的 limitation 与 Critical Audit 发现的问题必须分开。
 
-每个 `Issue` 至少保存 category、nature、target、assessment、basis、severity、confidence、why it matters、alternative explanation / possible resolution（若适用）以及具体 artifact + source locator。
+每个 `Issue` 至少保存 category、nature、target、assessment、basis、`basis_rationale`、severity、confidence、why it matters、alternative explanation / possible resolution（若适用）以及具体 artifact + source locator。`basis_rationale` 必须说明为什么当前证据状态属于该 basis，而不是重复 assessment。
 
 `nature` 描述问题是什么：
 
@@ -112,7 +112,7 @@ reporting_gap
 concern
 ```
 
-`basis` 取 `demonstrated | potential | not_reported`，回答当前判断的证据状态，而不是给问题贴价值标签。`severity` 取 `critical | major | moderate | minor`；`confidence` 取 `high | medium | low`。例如“只研究年轻男性”可以是 `scope_limitation + demonstrated`，不应为了批判而称为 flaw。缺少报告也不等于证明没有执行，批判本身必须避免 overclaim。
+`basis` 取 `demonstrated | potential | not_reported`，回答当前判断的证据状态，而不是给问题贴价值标签。论文明确报告的样本量、研究设计、未采集来源、测量方法固有限制、已报告统计结果等已经成立的事实，原则上属于 `demonstrated`；`potential` 只用于尚未被数据或报告直接证实、但设计上真实存在的风险或替代解释；`not_reported` 只表示论文/附件没有报告所需信息，不能推断作者没有执行。每个 Issue 必须写 `basis_rationale` 明确这一步判断。`severity` 取 `critical | major | moderate | minor`；`confidence` 取 `high | medium | low`。例如“只研究年轻男性”可以是 `scope_limitation + demonstrated`，不应为了批判而称为 flaw。缺少报告也不等于证明没有执行，批判本身必须避免 overclaim。
 
 只有完成 Reconstruction 与 Critical Audit，论文才可标记为 `critically_reviewed` 并进入后续跨论文综合。
 
