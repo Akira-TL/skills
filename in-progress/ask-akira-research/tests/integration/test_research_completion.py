@@ -11,9 +11,11 @@ SCRIPT_DIR = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from research_db_core import database_path, init_database  # noqa: E402
+from research_db_ops.planning import record_design, record_hypothesis_set  # noqa: E402
 from research_db_ops.completion import (  # noqa: E402
     academic_language_readiness,
     literature_completion_readiness,
+    planning_completion_readiness,
     validate_completion,
 )
 
@@ -115,6 +117,43 @@ class ResearchCompletionTests(unittest.TestCase):
         result = literature_completion_readiness(self.root, {"relevant_candidate_count": 1})
         reasons = {item["reason"] for item in result["blockers"]}
         self.assertIn("acquired_main_text_access_basis_unverified", reasons)
+
+    def test_targeted_direct_ingest_paper_requires_full_review(self) -> None:
+        now = "2026-08-27T00:00:00+00:00"
+        with sqlite3.connect(database_path(self.root)) as connection:
+            connection.execute(
+                """
+                INSERT INTO papers(
+                    id, title, status, read_depth, reading_status, critical_status,
+                    created_at, updated_at
+                ) VALUES ('P000001', 'Targeted paper', 'active', 'full_scan',
+                          'unread', 'not_reviewed', ?, ?)
+                """,
+                (now, now),
+            )
+            connection.execute(
+                """
+                INSERT INTO acquisition_attempts(
+                    paper_id, target_kind, route_family, resource_kind, source_url,
+                    outcome, detail, attempted_at, access_basis, access_basis_detail
+                ) VALUES ('P000001', 'main_text', 'repository', 'xml',
+                          'https://pmc.ncbi.nlm.nih.gov/articles/test/', 'acquired',
+                          'Targeted full text acquired.', ?, 'public_repository',
+                          'Public repository full text verified for test.')
+                """,
+                (now,),
+            )
+        first = literature_completion_readiness(self.root, {"relevant_candidate_count": 0})
+        reasons = {item["reason"] for item in first["blockers"]}
+        self.assertIn("targeted_paper_not_fully_reviewed", reasons)
+
+        with sqlite3.connect(database_path(self.root)) as connection:
+            connection.execute(
+                "UPDATE papers SET reading_status='extracted', critical_status='critically_reviewed' "
+                "WHERE id='P000001'"
+            )
+        second = literature_completion_readiness(self.root, {"relevant_candidate_count": 0})
+        self.assertTrue(second["ready"], second["blockers"])
 
     def test_literature_completion_requires_core_deep_extraction(self) -> None:
         self._insert_reviewed_candidate(1, "P000001", priority="core", depth="full_scan")
@@ -243,6 +282,89 @@ class ResearchCompletionTests(unittest.TestCase):
             )
         result = academic_language_readiness(self.root)
         self.assertTrue(result["ready"], result["blockers"])
+
+    def test_planning_completion_requires_registered_frozen_artifacts(self) -> None:
+        hypotheses = self.root / "hypotheses"
+        designs = self.root / "designs"
+        hypotheses.mkdir()
+        designs.mkdir()
+        hypothesis_path = hypotheses / "causal-set.md"
+        design_path = designs / "causal-design.md"
+        hypothesis_path.write_text("# 假设集合\n\nH1 与 H2 给出不同预测。\n", encoding="utf-8")
+        design_path.write_text("# 研究设计\n\n主要估计目标与实验单位已经定义。\n", encoding="utf-8")
+
+        orphaned = planning_completion_readiness(self.root)
+        reasons = {item["reason"] for item in orphaned["blockers"]}
+        self.assertIn("hypothesis_artifacts_unregistered", reasons)
+        self.assertIn("design_artifacts_unregistered", reasons)
+
+        subprocess.run(
+            ["git", "-C", str(self.root), "add", "RESEARCH.md", ".research/research.sqlite", "hypotheses", "designs"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(self.root), "commit", "-m", "RESEARCH: freeze hypothesis and design"],
+            check=True,
+            capture_output=True,
+        )
+        freeze_commit = subprocess.run(
+            ["git", "-C", str(self.root), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        record_hypothesis_set(
+            self.root,
+            {
+                "slug": "causal-set",
+                "title": "因果竞争假设",
+                "target_uncertainty": "目标因素是否具有独立因果贡献？",
+                "artifact_path": "hypotheses/causal-set.md",
+                "status": "frozen",
+                "freeze_commit": freeze_commit,
+            },
+        )
+        record_design(
+            self.root,
+            {
+                "slug": "causal-design",
+                "title": "因果判别设计",
+                "hypothesis_set_slug": "causal-set",
+                "target_estimand": "干预组与对照组的主要结局差异",
+                "primary_outcome": "主要结局",
+                "experimental_unit": "独立随机化集群",
+                "artifact_path": "designs/causal-design.md",
+                "status": "frozen",
+                "feasibility_status": "unresolved",
+                "feasibility_summary": "关键设施和精度参数仍需确认。",
+                "freeze_commit": freeze_commit,
+            },
+        )
+        ready = planning_completion_readiness(self.root)
+        self.assertTrue(ready["ready"], ready["blockers"])
+        self.assertEqual(ready["hypothesis_set_count"], 1)
+        self.assertEqual(ready["design_count"], 1)
+        self.assertEqual(ready["frozen_design_count"], 1)
+
+        subprocess.run(
+            ["git", "-C", str(self.root), "add", ".research/research.sqlite"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(self.root), "commit", "-m", "CHORE: register planning provenance"],
+            check=True,
+            capture_output=True,
+        )
+        clean = validate_completion(self.root)
+        self.assertTrue(clean["ok"], clean["errors"])
+        self.assertIn("hypotheses/causal-set.md", clean["git"]["canonical_paths"])
+        self.assertIn("designs/causal-design.md", clean["git"]["canonical_paths"])
+
+        design_path.write_text("# 研究设计\n\n冻结后的设计被未经提交地修改。\n", encoding="utf-8")
+        dirty = validate_completion(self.root)
+        self.assertFalse(dirty["ok"])
+        self.assertTrue(any("designs/causal-design.md" in error for error in dirty["errors"]))
 
     def test_completion_requires_committed_canonical_research_state(self) -> None:
         subprocess.run(

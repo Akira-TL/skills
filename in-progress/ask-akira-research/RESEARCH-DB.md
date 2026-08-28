@@ -41,6 +41,8 @@ analysis_inputs
 analysis_artifacts
 analysis_amendments
 project_observations
+hypothesis_sets
+research_designs
 ```
 
 暂不建立独立 evidence graph、method graph、evidence family 或 contradiction Markdown / tables；能够从现有节点与关系动态查询得到的视图先不物化。未来只有出现稳定的独立领域对象时再通过 migration 增加表。
@@ -184,7 +186,9 @@ Candidate ID 主要供数据库内部使用。
 
 `research-db validate --completion` 会把已登记且需要 Git 跟踪的 data/analysis artifact 纳入 canonical path gate。`data/` 或 `analysis/` 下已经被 Git 跟踪但没有进入上述 provenance 的文件会阻止完成；已完成的确认性 Analysis 还必须证明其 freeze commit 是当前 HEAD 的祖先、主要计划/代码/输入在 freeze 时已经存在、而本轮结果 artifact 在 freeze 时尚不存在。
 
-当前**不**因为工作流阶段对称而建立独立 Hypothesis、Design 或 Project Claim 表。它们继续由 `RESEARCH.md` 与必要的 `hypotheses/`、`designs/` artifact 承载，等更多真实项目验证出稳定查询需求后再迁移。
+从 schema v14 起，Hypothesis Set 与 Research Design 经过真实设计黑盒后已经显示出稳定的身份与冻结审计需求，因此进入最小结构化 provenance：`hypothesis_sets` 保存 target uncertainty、canonical `hypotheses/<slug>.md`、状态与 freeze commit；`research_designs` 保存关联 Hypothesis Set、主要 estimand、primary outcome、experimental unit、canonical `designs/<slug>.md`、feasibility 状态与 freeze commit。
+
+数据库**不**复制每个 H1/H2、Prediction、Discriminator Matrix、Decision Boundary、组别表或完整设计正文；这些仍由 canonical Markdown artifact 承载。当前也不建立 Project Claim 表。只有未来真实项目反复证明某个科研语义对象存在稳定的跨项目查询/关系需求时，才继续迁移，不能为了工作流阶段对称而机械建表。
 
 ### `acquisition_attempts`
 
@@ -524,6 +528,10 @@ research-db record-dataset [bundle]
 research-db datasets
 research-db record-analysis [bundle]
 research-db analyses
+research-db record-hypothesis-set [bundle]
+research-db hypothesis-sets
+research-db record-design [bundle]
+research-db designs
 research-db status
 research-db validate
 ```
@@ -578,6 +586,7 @@ research-db paper-context P000001 --for-sidecar
 - Dataset provenance path、本地 Dataset artifact、Analysis 入口/代码/结果 artifact 缺失；
 - Project Observation 指向其他 Analysis 的结果 artifact；
 - confirmatory Analysis 已进入 frozen/completed 却没有记录 freeze commit；
+- Hypothesis Set / Research Design 的 canonical artifact 缺失、冻结状态缺少 freeze commit、Design 引用不存在的 Hypothesis Set、未解决 feasibility 没有说明，或 execution-ready 与 feasibility 状态矛盾；
 - schema version / migration 状态异常；
 - sidecar pointer 指向不存在文件时给出明确错误或 warning。
 
@@ -585,8 +594,10 @@ research-db paper-context P000001 --for-sidecar
 
 `research-db discovery-status` 是文献发现（Literature Discovery）的闭合门禁：存在 `relevance_status=pending`、未闭合的 `core + relevant` 或 `high + relevant` Candidate、仍处于 `user_access_status=required` 的用户协同任务，或重复稳定身份时返回 `ready_for_saturation=false`。高优先级 Candidate 的 `defer_reason` 不再构成闭合依据。主题型文献发现若已有至少 2 个相关 Candidate，还必须保留检索策略来源、至少一次后向/前向引用追踪，并覆盖至少两个发现策略家族；否则即使 Candidate 队列表面清空也不能宣称实践性概念饱和（practical conceptual saturation）。
 
-`research-db validate --completion` 是“本轮有边界科研工作流已完成”的最终门禁。它先执行普通数据库校验，再检查文献发现闭合与文献语义完成状态：所有相关且已获取全文的候选论文必须有可审计正文获取记录与合格获取依据，并完成论文重建（Reconstruction）和批判性审阅（Critical Audit）；所有核心且已获取论文必须有真实深度抽取（DEEP_EXTRACTION）重建；主题型文献发现已有至少两篇完成审阅的论文时，必须存在至少一条连接不同论文的科学关系，共享样本/共享数据/引用关系不计作该门禁。
+`research-db validate --completion` 是“本轮有边界科研工作流已完成”的最终门禁。它先执行普通数据库校验，再检查文献发现闭合与文献语义完成状态：所有相关且已获取全文的候选论文必须有可审计正文获取记录与合格获取依据，并完成论文重建（Reconstruction）和批判性审阅（Critical Audit）；所有核心且已获取论文必须有真实深度抽取（DEEP_EXTRACTION）重建；主题型文献发现已有至少两篇完成审阅的论文时，必须存在至少一条连接不同论文的科学关系，共享样本/共享数据/引用关系不计作该门禁。对于为当前问题**定向直接入库**、没有经过 Candidate/Discovery 队列的 `active/acquired` Paper，仍必须留下合格的正文获取 provenance 并完成 Reconstruction + Critical Audit；“本轮不是 Literature Discovery”不能成为绕过关键论文阅读闭合的路径。
 
 项目存在 `data/` 或 `analysis/` 科研资产时，完成验证还检查下游 provenance：被 Git 跟踪的数据/分析文件不能游离在数据库之外；已完成 Analysis 必须关联 Dataset、至少一个 estimate artifact 和至少一个项目 Observation；确认性 Analysis 的 freeze commit 必须存在且是当前 HEAD 的祖先，主要计划/代码/输入在 freeze 时已经存在，而本轮结果 artifact 在该 freeze 时尚未出现。这样 `completion=true` 才能说明预先冻结与结果 provenance 真实存在，而不是事后写在 README 里。
+
+项目存在 `hypotheses/` 或 `designs/` canonical artifact 时同样不能游离在数据库之外。冻结的 Hypothesis Set / Design 必须登记有效 Git freeze commit；该提交必须是当前 HEAD 的祖先并真实包含相应 artifact，Design 的 freeze 还必须同时包含其关联 Hypothesis Set，且不能早于 Hypothesis Set 的冻结。`feasibility_status=unresolved` 可以完成“科研设计工作流”，但只表示设计已形成并明确 blocker，不能被解释成实验已经 execution-ready。
 
 对于以中文为主体的科研项目，完成验证还会检查 `RESEARCH.md`、论文侧记、Dataset provenance 和 Analysis 人类入口中的明显大段英文科研叙述；代码块、内联代码、路径和 URL 不参与该语言比例判断。随后要求项目根目录本身是独立版本仓库（Git repository）顶层、已经存在至少一个提交，且全部声明为规范化并需要 Git 跟踪的科研 artifact 已被版本管理跟踪且没有未提交修改。普通 `validate` 通过不能替代这个完成门禁，也不能把 `completion=true` 解释成科学问题本身已经解决。

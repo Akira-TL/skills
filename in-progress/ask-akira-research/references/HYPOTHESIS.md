@@ -63,6 +63,8 @@ Falsifiers:
 
 `Statement` 必须带 scope。比如“Blautia A causes adaptation”过宽；“在目标人群和暴露定义下，Blautia A 的变化对某个预定义 host adaptation phenotype 具有独立可干预贡献”才是可设计检验的 target。
 
+当 `hypotheses/<slug>.md` 已成为后续 Design / Analysis 将依赖的 canonical hypothesis set 时，使用 `research-db record-hypothesis-set` 登记其身份、target uncertainty 与 artifact path；进入结果判别前的冻结状态时同时记录真实 Git `freeze_commit`。数据库只保存这一最小 provenance，不复制 H1/H2、Prediction 或 Discriminator Matrix 的科研语义正文。
+
 ## 4. Prediction discipline
 
 Prediction 必须在看到将用于判别的新结果前写清楚，避免结果出来后把 explanation 改写成永远正确的故事。
@@ -96,6 +98,7 @@ Hypothesis 阶段完成时必须有：
 1. 一个与 Active Uncertainty 对齐的 hypothesis set；
 2. 至少一个能区分主要 competing hypotheses 的 observable prediction；
 3. 明确的 discriminator / decision boundary；
-4. 下一步 evidence 是否已存在于当前数据中、需要额外分析，还是必须进入新 Design 的判断。
+4. 下一步 evidence 是否已存在于当前数据中、需要额外分析，还是必须进入新 Design 的判断；
+5. 若已形成独立 canonical `hypotheses/<slug>.md`，其 provenance 已登记；若该集合将作为后续确认性设计/分析的判别依据，已在结果出现前形成 Git freeze。
 
 只有第 4 项指向新的 sampling、measurement、control 或 intervention 时才按 [`DESIGN.md`](DESIGN.md) 进入 `DESIGN`。

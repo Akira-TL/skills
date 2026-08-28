@@ -124,6 +124,22 @@ class ResearchDbCliTests(unittest.TestCase):
             build_parser().parse_args(["--project", str(self.root), "analyses"]).command,
             "analyses",
         )
+        hypothesis_args = build_parser().parse_args(
+            ["--project", str(self.root), "record-hypothesis-set"]
+        )
+        self.assertIsNone(hypothesis_args.bundle)
+        design_args = build_parser().parse_args(
+            ["--project", str(self.root), "record-design"]
+        )
+        self.assertIsNone(design_args.bundle)
+        self.assertEqual(
+            build_parser().parse_args(["--project", str(self.root), "hypothesis-sets"]).command,
+            "hypothesis-sets",
+        )
+        self.assertEqual(
+            build_parser().parse_args(["--project", str(self.root), "designs"]).command,
+            "designs",
+        )
 
     def test_candidate_queue_filters_are_exposed(self) -> None:
         args = build_parser().parse_args(

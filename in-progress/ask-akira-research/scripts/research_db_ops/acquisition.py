@@ -301,31 +301,34 @@ def list_acquisition_attempts(
     return {"ok": True, "attempts": rows}
 
 
-def acquired_main_text_access_blockers(connection, candidate_id: int) -> list[dict[str, Any]]:
+def _main_text_access_blockers(
+    connection,
+    *,
+    where_field: str,
+    where_value: object,
+    identity_field: str,
+    missing_reason: str,
+) -> list[dict[str, Any]]:
     rows = connection.execute(
-        """
+        f"""
         SELECT id, route_family, source_url, outcome, validity_status,
                access_basis, access_basis_detail
         FROM acquisition_attempts
-        WHERE candidate_id = ? AND target_kind = 'main_text'
+        WHERE {where_field} = ? AND target_kind = 'main_text'
         ORDER BY id
         """,
-        (candidate_id,),
+        (where_value,),
     ).fetchall()
     active_acquired = [
         row
         for row in rows
         if row["validity_status"] == "active" and row["outcome"] == "acquired"
     ]
-    blockers: list[dict[str, Any]] = []
+    identity = {identity_field: where_value}
     if not active_acquired:
-        return [
-            {
-                "candidate_id": candidate_id,
-                "reason": "acquired_candidate_missing_main_text_access_attempt",
-            }
-        ]
+        return [{**identity, "reason": missing_reason}]
 
+    blockers: list[dict[str, Any]] = []
     unverified = [
         row
         for row in active_acquired
@@ -334,7 +337,7 @@ def acquired_main_text_access_blockers(connection, candidate_id: int) -> list[di
     if unverified:
         blockers.append(
             {
-                "candidate_id": candidate_id,
+                **identity,
                 "reason": "acquired_main_text_access_basis_unverified",
                 "attempt_ids": [int(row["id"]) for row in unverified],
             }
@@ -347,12 +350,32 @@ def acquired_main_text_access_blockers(connection, candidate_id: int) -> list[di
     if missing_detail:
         blockers.append(
             {
-                "candidate_id": candidate_id,
+                **identity,
                 "reason": "acquired_main_text_access_basis_detail_missing",
                 "attempt_ids": [int(row["id"]) for row in missing_detail],
             }
         )
     return blockers
+
+
+def acquired_main_text_access_blockers(connection, candidate_id: int) -> list[dict[str, Any]]:
+    return _main_text_access_blockers(
+        connection,
+        where_field="candidate_id",
+        where_value=candidate_id,
+        identity_field="candidate_id",
+        missing_reason="acquired_candidate_missing_main_text_access_attempt",
+    )
+
+
+def acquired_paper_main_text_access_blockers(connection, paper_id: str) -> list[dict[str, Any]]:
+    return _main_text_access_blockers(
+        connection,
+        where_field="paper_id",
+        where_value=paper_id,
+        identity_field="paper_id",
+        missing_reason="acquired_paper_missing_main_text_access_attempt",
+    )
 
 
 def supplement_access_blockers(connection, paper_id: str, attempt_ids: list[int]) -> list[str]:

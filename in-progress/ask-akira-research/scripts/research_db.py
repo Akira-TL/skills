@@ -32,6 +32,12 @@ from research_db_ops.downstream import (
     record_analysis,
     record_dataset,
 )
+from research_db_ops.planning import (
+    list_designs,
+    list_hypothesis_sets,
+    record_design,
+    record_hypothesis_set,
+)
 from research_db_ingest import PaperIngestBundle, ingest_paper
 from research_db_ops.query import (
     evidence_packet,
@@ -55,6 +61,8 @@ BUNDLE_DEFAULTS = {
     "ingest-critical": "critical.json",
     "record-dataset": "dataset.json",
     "record-analysis": "analysis.json",
+    "record-hypothesis-set": "hypothesis-set.json",
+    "record-design": "design.json",
 }
 
 
@@ -360,6 +368,40 @@ def cmd_analyses(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_record_hypothesis_set(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(
+        record_hypothesis_set(
+            project_root,
+            _load_json_object(project_root, "record-hypothesis-set", args.bundle),
+        )
+    )
+    return 0
+
+
+def cmd_record_design(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(
+        record_design(
+            project_root,
+            _load_json_object(project_root, "record-design", args.bundle),
+        )
+    )
+    return 0
+
+
+def cmd_hypothesis_sets(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(list_hypothesis_sets(project_root, limit=args.limit))
+    return 0
+
+
+def cmd_designs(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(list_designs(project_root, limit=args.limit))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="research-db",
@@ -523,12 +565,26 @@ def build_parser() -> argparse.ArgumentParser:
     for name, help_text, handler in (
         ("datasets", "列出项目级 Dataset provenance。", cmd_datasets),
         ("analyses", "列出项目级 Analysis Run、artifact、修订与项目 Observation。", cmd_analyses),
+        ("hypothesis-sets", "列出项目级 Hypothesis Set provenance。", cmd_hypothesis_sets),
+        ("designs", "列出项目级 Research Design provenance。", cmd_designs),
     ):
         downstream_parser = subparsers.add_parser(name, help=help_text)
         downstream_parser.add_argument("--limit", type=int, default=100)
         downstream_parser.set_defaults(handler=handler)
 
     bundle_commands = [
+        (
+            "record-hypothesis-set",
+            "登记或冻结项目 Hypothesis Set 及其 canonical artifact。",
+            "Hypothesis Set JSON bundle；默认 .research/bundles/hypothesis-set.json；传 '-' 从 stdin 读取。",
+            cmd_record_hypothesis_set,
+        ),
+        (
+            "record-design",
+            "登记或冻结 Research Design、主要 estimand 与 feasibility 状态。",
+            "Design JSON bundle；默认 .research/bundles/design.json；传 '-' 从 stdin 读取。",
+            cmd_record_design,
+        ),
         (
             "record-dataset",
             "登记项目自身数据集的身份、推断单位和 artifact provenance。",

@@ -33,6 +33,8 @@ REQUIRED_TABLES = {
     "analysis_artifacts",
     "analysis_amendments",
     "project_observations",
+    "hypothesis_sets",
+    "research_designs",
 }
 ENTITY_TABLES = {
     "paper": "papers",
@@ -852,6 +854,56 @@ def validate(project_root: Path) -> dict[str, Any]:
                 if row["artifact_analysis_id"] != row["analysis_id"]:
                     errors.append(
                         f"project observation {row['id']} 的 source artifact 不属于同一 Analysis。"
+                    )
+
+            for row in connection.execute(
+                "SELECT id, slug, artifact_path, status, freeze_commit FROM hypothesis_sets ORDER BY id"
+            ):
+                path = Path(str(row["artifact_path"]))
+                if not path.is_absolute():
+                    path = project_root / path
+                if not path.is_file():
+                    errors.append(
+                        f"hypothesis set {row['slug']} 的 artifact_path 文件不存在：{path}"
+                    )
+                if row["status"] == "frozen" and not (
+                    row["freeze_commit"] and str(row["freeze_commit"]).strip()
+                ):
+                    errors.append(
+                        f"hypothesis set {row['slug']} 已 frozen，但缺少 freeze_commit。"
+                    )
+
+            for row in connection.execute(
+                """
+                SELECT d.id, d.slug, d.artifact_path, d.status, d.feasibility_status,
+                       d.feasibility_summary, d.freeze_commit, h.id AS hypothesis_id
+                FROM research_designs d
+                LEFT JOIN hypothesis_sets h ON h.id = d.hypothesis_set_id
+                ORDER BY d.id
+                """
+            ):
+                path = Path(str(row["artifact_path"]))
+                if not path.is_absolute():
+                    path = project_root / path
+                if not path.is_file():
+                    errors.append(f"research design {row['slug']} 的 artifact_path 文件不存在：{path}")
+                if row["hypothesis_id"] is None:
+                    errors.append(f"research design {row['slug']} 引用不存在的 Hypothesis Set。")
+                if row["status"] in {"frozen", "execution_ready"} and not (
+                    row["freeze_commit"] and str(row["freeze_commit"]).strip()
+                ):
+                    errors.append(
+                        f"research design {row['slug']} 已进入 {row['status']}，但缺少 freeze_commit。"
+                    )
+                if row["feasibility_status"] == "unresolved" and not (
+                    row["feasibility_summary"] and str(row["feasibility_summary"]).strip()
+                ):
+                    errors.append(
+                        f"research design {row['slug']} feasibility_status=unresolved，但缺少 feasibility_summary。"
+                    )
+                if row["status"] == "execution_ready" and row["feasibility_status"] != "ready":
+                    errors.append(
+                        f"research design {row['slug']} 标记 execution_ready，但 feasibility_status 不是 ready。"
                     )
 
             for row in connection.execute(

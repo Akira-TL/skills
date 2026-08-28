@@ -6,7 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from research_db_core import connect, database_path, validate
-from research_db_ops.acquisition import acquired_main_text_access_blockers
+from research_db_ops.acquisition import (
+    acquired_main_text_access_blockers,
+    acquired_paper_main_text_access_blockers,
+)
 from research_db_ops.candidates import discovery_readiness
 
 
@@ -91,6 +94,12 @@ def _canonical_paths(project_root: Path) -> list[str]:
                 "SELECT path FROM analysis_artifacts WHERE git_tracking = 'required' ORDER BY id"
             ):
                 paths.add(Path(str(row["path"])).as_posix())
+        if "hypothesis_sets" in tables:
+            for row in connection.execute("SELECT artifact_path FROM hypothesis_sets ORDER BY id"):
+                paths.add(Path(str(row["artifact_path"])).as_posix())
+        if "research_designs" in tables:
+            for row in connection.execute("SELECT artifact_path FROM research_designs ORDER BY id"):
+                paths.add(Path(str(row["artifact_path"])).as_posix())
     return sorted(paths)
 
 
@@ -120,6 +129,14 @@ def _academic_language_paths(project_root: Path) -> list[Path]:
         if "analysis_runs" in tables:
             for row in connection.execute("SELECT analysis_path FROM analysis_runs ORDER BY id"):
                 path = Path(str(row["analysis_path"]))
+                paths.append(path if path.is_absolute() else project_root / path)
+        if "hypothesis_sets" in tables:
+            for row in connection.execute("SELECT artifact_path FROM hypothesis_sets ORDER BY id"):
+                path = Path(str(row["artifact_path"]))
+                paths.append(path if path.is_absolute() else project_root / path)
+        if "research_designs" in tables:
+            for row in connection.execute("SELECT artifact_path FROM research_designs ORDER BY id"):
+                path = Path(str(row["artifact_path"]))
                 paths.append(path if path.is_absolute() else project_root / path)
     return paths
 
@@ -242,6 +259,29 @@ def literature_completion_readiness(
                             "deep_reconstruction_run": deep_run is not None,
                         }
                     )
+
+        targeted_papers = connection.execute(
+            """
+            SELECT p.id, p.title, p.status, p.reading_status, p.critical_status
+            FROM papers p
+            WHERE p.status IN ('acquired', 'active')
+              AND NOT EXISTS (SELECT 1 FROM candidates c WHERE c.paper_id = p.id)
+            ORDER BY p.id
+            """
+        ).fetchall()
+        for paper in targeted_papers:
+            paper_id = str(paper["id"])
+            blockers.extend(acquired_paper_main_text_access_blockers(connection, paper_id))
+            if paper["reading_status"] != "extracted" or paper["critical_status"] != "critically_reviewed":
+                blockers.append(
+                    {
+                        "reason": "targeted_paper_not_fully_reviewed",
+                        "paper_id": paper_id,
+                        "title": paper["title"],
+                    }
+                )
+            else:
+                critically_reviewed_count += 1
 
         for relation in connection.execute(
             """
@@ -477,6 +517,182 @@ def downstream_completion_readiness(project_root: Path) -> dict[str, Any]:
     }
 
 
+def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
+    blockers: list[dict[str, Any]] = []
+    db_path = database_path(project_root)
+    if not db_path.exists():
+        return {
+            "ready": False,
+            "blockers": [{"reason": "database_missing"}],
+            "hypothesis_set_count": 0,
+            "design_count": 0,
+            "frozen_design_count": 0,
+        }
+
+    with connect(db_path) as connection:
+        tables = {
+            str(row["name"])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+            )
+        }
+        required = {"hypothesis_sets", "research_designs"}
+        missing = sorted(required - tables)
+        if missing:
+            return {
+                "ready": False,
+                "blockers": [{"reason": "planning_schema_missing", "tables": missing}],
+                "hypothesis_set_count": 0,
+                "design_count": 0,
+                "frozen_design_count": 0,
+            }
+
+        hypothesis_count = int(connection.execute("SELECT COUNT(*) FROM hypothesis_sets").fetchone()[0])
+        design_count = int(connection.execute("SELECT COUNT(*) FROM research_designs").fetchone()[0])
+        frozen_design_count = int(
+            connection.execute(
+                "SELECT COUNT(*) FROM research_designs WHERE status IN ('frozen', 'execution_ready')"
+            ).fetchone()[0]
+        )
+
+        registered_hypotheses = {
+            str(row["artifact_path"])
+            for row in connection.execute("SELECT artifact_path FROM hypothesis_sets ORDER BY id")
+        }
+        registered_designs = {
+            str(row["artifact_path"])
+            for row in connection.execute("SELECT artifact_path FROM research_designs ORDER BY id")
+        }
+        for directory_name, registered, reason in (
+            ("hypotheses", registered_hypotheses, "hypothesis_artifacts_unregistered"),
+            ("designs", registered_designs, "design_artifacts_unregistered"),
+        ):
+            directory = project_root / directory_name
+            if not directory.exists():
+                continue
+            actual = {
+                path.relative_to(project_root).as_posix()
+                for path in directory.rglob("*.md")
+                if path.is_file()
+            }
+            orphaned = sorted(actual - registered)
+            if orphaned:
+                blockers.append({"reason": reason, "paths": orphaned})
+
+        for hypothesis in connection.execute(
+            "SELECT id, slug, artifact_path, status, freeze_commit FROM hypothesis_sets ORDER BY id"
+        ):
+            if hypothesis["status"] != "frozen":
+                continue
+            freeze_commit = str(hypothesis["freeze_commit"] or "").strip()
+            if not freeze_commit:
+                blockers.append(
+                    {"reason": "hypothesis_freeze_commit_missing", "hypothesis_set": hypothesis["slug"]}
+                )
+                continue
+            commit_exists = _git(project_root, "cat-file", "-e", f"{freeze_commit}^{{commit}}")
+            if commit_exists.returncode != 0:
+                blockers.append(
+                    {
+                        "reason": "hypothesis_freeze_commit_not_found",
+                        "hypothesis_set": hypothesis["slug"],
+                        "freeze_commit": freeze_commit,
+                    }
+                )
+                continue
+            if _git(project_root, "merge-base", "--is-ancestor", freeze_commit, "HEAD").returncode != 0:
+                blockers.append(
+                    {
+                        "reason": "hypothesis_freeze_commit_not_ancestor",
+                        "hypothesis_set": hypothesis["slug"],
+                        "freeze_commit": freeze_commit,
+                    }
+                )
+            if not _git_commit_has_path(project_root, freeze_commit, str(hypothesis["artifact_path"])):
+                blockers.append(
+                    {
+                        "reason": "hypothesis_artifact_missing_at_freeze",
+                        "hypothesis_set": hypothesis["slug"],
+                        "freeze_commit": freeze_commit,
+                        "path": hypothesis["artifact_path"],
+                    }
+                )
+
+        for design in connection.execute(
+            """
+            SELECT d.id, d.slug, d.artifact_path, d.status, d.freeze_commit,
+                   h.slug AS hypothesis_slug, h.artifact_path AS hypothesis_path,
+                   h.freeze_commit AS hypothesis_freeze_commit
+            FROM research_designs d
+            JOIN hypothesis_sets h ON h.id = d.hypothesis_set_id
+            WHERE d.status IN ('frozen', 'execution_ready')
+            ORDER BY d.id
+            """
+        ):
+            freeze_commit = str(design["freeze_commit"] or "").strip()
+            if not freeze_commit:
+                blockers.append({"reason": "design_freeze_commit_missing", "design": design["slug"]})
+                continue
+            if _git(project_root, "cat-file", "-e", f"{freeze_commit}^{{commit}}").returncode != 0:
+                blockers.append(
+                    {
+                        "reason": "design_freeze_commit_not_found",
+                        "design": design["slug"],
+                        "freeze_commit": freeze_commit,
+                    }
+                )
+                continue
+            if _git(project_root, "merge-base", "--is-ancestor", freeze_commit, "HEAD").returncode != 0:
+                blockers.append(
+                    {
+                        "reason": "design_freeze_commit_not_ancestor",
+                        "design": design["slug"],
+                        "freeze_commit": freeze_commit,
+                    }
+                )
+            missing_at_freeze = [
+                path
+                for path in (str(design["artifact_path"]), str(design["hypothesis_path"]))
+                if not _git_commit_has_path(project_root, freeze_commit, path)
+            ]
+            if missing_at_freeze:
+                blockers.append(
+                    {
+                        "reason": "design_or_hypothesis_missing_at_freeze",
+                        "design": design["slug"],
+                        "freeze_commit": freeze_commit,
+                        "paths": missing_at_freeze,
+                    }
+                )
+            hypothesis_freeze = str(design["hypothesis_freeze_commit"] or "").strip()
+            if not hypothesis_freeze:
+                blockers.append(
+                    {
+                        "reason": "linked_hypothesis_missing_freeze",
+                        "design": design["slug"],
+                        "hypothesis_set": design["hypothesis_slug"],
+                    }
+                )
+            elif _git(
+                project_root, "merge-base", "--is-ancestor", hypothesis_freeze, freeze_commit
+            ).returncode != 0:
+                blockers.append(
+                    {
+                        "reason": "hypothesis_freeze_after_design_freeze",
+                        "design": design["slug"],
+                        "hypothesis_set": design["hypothesis_slug"],
+                    }
+                )
+
+    return {
+        "ready": not blockers,
+        "blockers": blockers,
+        "hypothesis_set_count": hypothesis_count,
+        "design_count": design_count,
+        "frozen_design_count": frozen_design_count,
+    }
+
+
 def validate_completion(project_root: Path) -> dict[str, Any]:
     base = validate(project_root)
     errors = list(base["errors"])
@@ -499,6 +715,10 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
             errors.append(
                 f"相关已获取论文 {blocker.get('paper_id')} 尚未完成 Reconstruction + Critical Audit。"
             )
+        elif reason == "targeted_paper_not_fully_reviewed":
+            errors.append(
+                f"定向直接入库论文 {blocker.get('paper_id')} 处于 active/acquired 状态，但尚未完成 Reconstruction + Critical Audit。"
+            )
         elif reason == "core_acquired_not_deep_extraction":
             errors.append(
                 f"core + acquired 论文 {blocker.get('paper_id')} 未完成 DEEP_EXTRACTION Reconstruction。"
@@ -507,15 +727,26 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
             errors.append(
                 f"相关已获取 Candidate {blocker.get('candidate_id')} 缺少可审计的正文获取记录。"
             )
-        elif reason == "acquired_main_text_access_basis_unverified":
+        elif reason == "acquired_paper_missing_main_text_access_attempt":
             errors.append(
-                f"相关已获取 Candidate {blocker.get('candidate_id')} 的正文来源依据未核验；"
-                "来源不明的网络镜像不能闭合为正式全文。"
+                f"定向直接入库论文 {blocker.get('paper_id')} 缺少可审计的正文获取记录。"
+            )
+        elif reason == "acquired_main_text_access_basis_unverified":
+            identity = (
+                f"Candidate {blocker.get('candidate_id')}"
+                if blocker.get("candidate_id") is not None
+                else f"Paper {blocker.get('paper_id')}"
+            )
+            errors.append(
+                f"{identity} 的正文来源依据未核验；来源不明的网络镜像不能闭合为正式全文。"
             )
         elif reason == "acquired_main_text_access_basis_detail_missing":
-            errors.append(
-                f"相关已获取 Candidate {blocker.get('candidate_id')} 的正文获取记录缺少来源依据说明。"
+            identity = (
+                f"Candidate {blocker.get('candidate_id')}"
+                if blocker.get("candidate_id") is not None
+                else f"Paper {blocker.get('paper_id')}"
             )
+            errors.append(f"{identity} 的正文获取记录缺少来源依据说明。")
         elif reason == "cross_paper_scientific_relation_missing":
             errors.append(
                 "主题型 Literature Discovery 已有多篇完成审阅的论文，但 canonical relation graph "
@@ -565,6 +796,61 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
         elif reason == "downstream_schema_missing":
             errors.append(
                 "下游科研 provenance schema 尚未迁移完成："
+                + ", ".join(str(name) for name in blocker.get("tables", []))
+            )
+
+    planning = planning_completion_readiness(project_root)
+    for blocker in planning["blockers"]:
+        reason = str(blocker.get("reason", "unknown"))
+        if reason == "hypothesis_artifacts_unregistered":
+            errors.append(
+                "hypotheses/ 下存在尚未登记到 research.sqlite 的 canonical Hypothesis Set artifact："
+                + ", ".join(str(path) for path in blocker.get("paths", []))
+            )
+        elif reason == "design_artifacts_unregistered":
+            errors.append(
+                "designs/ 下存在尚未登记到 research.sqlite 的 canonical Research Design artifact："
+                + ", ".join(str(path) for path in blocker.get("paths", []))
+            )
+        elif reason in {"hypothesis_freeze_commit_missing", "hypothesis_freeze_commit_not_found"}:
+            errors.append(
+                f"Hypothesis Set {blocker.get('hypothesis_set')} 缺少有效 freeze commit：{blocker.get('freeze_commit')}。"
+            )
+        elif reason == "hypothesis_freeze_commit_not_ancestor":
+            errors.append(
+                f"Hypothesis Set {blocker.get('hypothesis_set')} 的 freeze commit 不是当前 HEAD 的祖先。"
+            )
+        elif reason == "hypothesis_artifact_missing_at_freeze":
+            errors.append(
+                f"Hypothesis Set {blocker.get('hypothesis_set')} 的 canonical artifact 在所声明 freeze commit 中不存在："
+                f"{blocker.get('path')}"
+            )
+        elif reason in {"design_freeze_commit_missing", "design_freeze_commit_not_found"}:
+            errors.append(
+                f"Research Design {blocker.get('design')} 缺少有效 freeze commit：{blocker.get('freeze_commit')}。"
+            )
+        elif reason == "design_freeze_commit_not_ancestor":
+            errors.append(
+                f"Research Design {blocker.get('design')} 的 freeze commit 不是当前 HEAD 的祖先。"
+            )
+        elif reason == "design_or_hypothesis_missing_at_freeze":
+            errors.append(
+                f"Research Design {blocker.get('design')} 的 freeze commit 未同时冻结 Design 与关联 Hypothesis Set："
+                + ", ".join(str(path) for path in blocker.get("paths", []))
+            )
+        elif reason == "linked_hypothesis_missing_freeze":
+            errors.append(
+                f"Research Design {blocker.get('design')} 已冻结，但关联 Hypothesis Set "
+                f"{blocker.get('hypothesis_set')} 没有可审计 freeze commit。"
+            )
+        elif reason == "hypothesis_freeze_after_design_freeze":
+            errors.append(
+                f"Research Design {blocker.get('design')} 的 freeze 早于关联 Hypothesis Set "
+                f"{blocker.get('hypothesis_set')} 的 freeze；设计不能先于其判别假设冻结。"
+            )
+        elif reason == "planning_schema_missing":
+            errors.append(
+                "Hypothesis/Design provenance schema 尚未迁移完成："
                 + ", ".join(str(name) for name in blocker.get("tables", []))
             )
 
@@ -628,6 +914,7 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
         "discovery": readiness,
         "literature": literature,
         "downstream": downstream,
+        "planning": planning,
         "academic_language": academic_language,
         "git": git_info,
     }
