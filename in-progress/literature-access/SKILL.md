@@ -56,7 +56,11 @@ source_url
 outcome           -- acquired | not_found | access_denied | auth_required | challenge | invalid_artifact | network_error | other_failure
 detail
 attempted_at
+access_basis      -- 成功获取时说明出版社开放、公共/机构知识库、作者公开稿、预印本、用户认证或用户提供
+access_basis_detail
 ```
+
+“能够从互联网下载”不等于“可作为规范科研获取来源”。若只找到来源授权关系不明的个人站点、普通镜像或转载文件，即使 DOI、标题和正文边界匹配，也不得把它作为自动获取成功闭合；继续查找正式开放版本、知识库、作者公开稿或预印本。若正式路径需要权限，则进入用户协同；若用户直接提供全文文件，则按 `user_provided` 记录并做论文身份与完整性核验。
 
 对正文宣称“不可得”前，至少必须完成 **publisher 路径 + 一个独立开放解析路径**（open index / repository / preprint）；有 DOI 时 publisher 路径不可跳过。若 publisher PDF 被拒绝或返回 challenge，还必须另查 publisher article page / HTML full text，而不能把 PDF endpoint 当作整个 publisher route。发现新的 repository/PMCID/full-text URL 后必须实际访问，不能只把它写进失败理由。
 
@@ -91,10 +95,12 @@ identity: DOI / PMID / PMCID / canonical citation
 version: version-of-record / accepted-manuscript / preprint / other
 source: publisher / repository / preprint / other authorized source
 source_url
+access_basis: publisher_open / public_repository / institutional_repository / author_manuscript / preprint / authenticated_user / user_provided
+access_basis_detail
 retrieved_at
 artifact: local path or runtime file reference
 content_type
-access_route: open / authenticated
+access_route: open / authenticated / user_provided
 ```
 
 如果失败，返回停在哪个 Access State、结构化 `attempts[]`、仍未闭合的正向线索，以及下一步需要什么；不要把摘要伪装成全文。只要仍存在尚未跟进的 PMCID/repository/publisher HTML/附件链接，就不得把结果描述为路径已经穷尽。

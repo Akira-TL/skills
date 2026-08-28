@@ -39,7 +39,7 @@ Active Uncertainty
 
 研究启动、问题发现、方法学习与证据综合阶段，不以“摘要看起来足够”作为结束条件。Candidate 的 `relevance_status`、`acquisition_status` 与 `reading_priority` 分开维护：相关性决定是否属于问题空间，获取状态说明全文是否已拿到，优先级只决定阅读顺序；`excluded` 必须留下明确 exclusion reason。相关 Candidate 默认进入 `queued` 全文获取队列，成功 `ingest-paper` 后自动回链正式 Paper。
 
-`unavailable` 不是自由文本结论。每次正文获取尝试必须用 `research-db record-access-attempt` 持久化获取路径类别、资源类别、来源地址、实际结果和获取时间。检索运行（Search Run）不允许直接创建 `unavailable` Candidate；必须先进入待获取状态，实际调用 `literature-access`，记录失败/受限路径后再更新 Candidate。有 DOI 时至少检查出版社路径（publisher route）；同时至少有一个独立开放解析路径（open index / repository / preprint）。单一 PDF 的 403 或访问挑战不能闭合全文获取：必须继续检查出版社论文页面/网页全文以及解析器暴露的 PMCID、机构知识库或其他全文位置。
+`unavailable` 不是自由文本结论。每次正文获取尝试必须用 `research-db record-access-attempt` 持久化获取路径类别、资源类别、来源地址、实际结果和获取时间。对 `outcome=acquired` 还必须保存可审计的**获取依据（access basis）**，说明该全文属于出版社开放版本、公共/机构知识库、作者公开稿、预印本、用户认证访问或用户提供文件中的哪一种。一个互联网上可下载且身份匹配的 PDF 本身不足以证明它是可作为规范科研来源自动获取的全文；来源授权或开放依据无法核验时，不得用 `acquired` 闭合 Candidate，应继续正式开放路径或进入用户协同。检索运行（Search Run）不允许直接创建 `unavailable` Candidate；必须先进入待获取状态，实际调用 `literature-access`，记录失败/受限路径后再更新 Candidate。有 DOI 时至少检查出版社路径（publisher route）；同时至少有一个独立开放解析路径（open index / repository / preprint）。单一 PDF 的 403 或访问挑战不能闭合全文获取：必须继续检查出版社论文页面/网页全文以及解析器暴露的 PMCID、机构知识库或其他全文位置。
 
 **机器侧拿不到全文时必须请求用户协同。** 对核心或高优先级相关论文，只要公开路径、普通 HTTP 或自动化资源解析仍不能取得正文，就进入用户协同访问：优先按 `literature-access → browser-access` 路由打开或复用用户可见的持久浏览器配置，由用户亲自完成其已有机构/订阅权限的登录、验证码或二次认证，再由智能体继续解析和取得全文；若用户能够从其有权使用的其他来源取得论文，则请求用户直接提供文件并重新做身份/完整性核验。Candidate 使用 `user_access_status` 与 `user_access_reason` 记录这一状态。只要 `user_access_status=required`，研究必须停在等待用户协同，不能标记 `unavailable`、不能宣称候选队列闭合，也不能通过完成门禁。只有用户明确完成协同仍无可用权限、无法提供合法副本，或者明确选择不继续协同，且机器侧获取来源也已闭合，才能把核心/高优先级论文记为当前 `unavailable`。
 
@@ -128,19 +128,21 @@ concern
 
 每篇下载论文旁边保留一份短小的人类必读 sidecar，例如 `README.md`。它是精简视图，不是数据库 dump。目标是在 1–3 分钟内让用户恢复“为什么保存这篇、数据真正显示什么、作者怎么解释、哪里有问题、我们能学什么”。
 
-推荐结构：
+中文科研项目推荐使用中文结构：
 
 ```text
-Source
-Why It Matters
-What They Did
-What The Data Directly Show
-What The Authors Claim
-Our Evidence Assessment
-What We Can Reuse
-What Is Wrong / Uncertain
-Bottom Line
+来源
+为什么重要
+研究做了什么
+数据直接显示什么
+作者主张什么
+我们的证据评估
+可复用内容
+主要问题与不确定性
+结论边界
 ```
+
+书目信息中的论文原始英文题名可以保留；科学叙述本身不得为了省事整段改用英文。重要术语首次出现按“中文标准术语（English standard term）”建立对应关系，之后优先使用中文标准术语或领域标准缩写。
 
 `Bottom Line` 必须把“论文直接支持什么”和“尚未建立什么”分开，不用“强烈支持某因果结论”概括一个主要由观察性人群数据加跨物种动物实验组成的证据链。
 

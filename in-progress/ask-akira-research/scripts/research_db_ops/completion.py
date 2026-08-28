@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
 
 from research_db_core import connect, database_path, validate
+from research_db_ops.acquisition import acquired_main_text_access_blockers
 from research_db_ops.candidates import discovery_readiness
 
 
@@ -65,6 +67,55 @@ def _canonical_paths(project_root: Path) -> list[str]:
     return sorted(paths)
 
 
+def _academic_language_paths(project_root: Path) -> list[Path]:
+    paths = [project_root / "RESEARCH.md"]
+    db_path = database_path(project_root)
+    if not db_path.exists():
+        return paths
+    with connect(db_path) as connection:
+        for row in connection.execute(
+            "SELECT sidecar_path FROM papers WHERE sidecar_path IS NOT NULL AND trim(sidecar_path) <> ''"
+        ):
+            path = Path(str(row["sidecar_path"]))
+            if not path.is_absolute():
+                path = project_root / path
+            paths.append(path)
+    return paths
+
+
+def academic_language_readiness(project_root: Path) -> dict[str, Any]:
+    research_path = project_root / "RESEARCH.md"
+    if not research_path.exists():
+        return {"ready": True, "checked": False, "blockers": []}
+    research_text = research_path.read_text(encoding="utf-8", errors="ignore")
+    if len(re.findall(r"[\u3400-\u9fff]", research_text)) < 50:
+        return {"ready": True, "checked": False, "blockers": []}
+
+    blockers: list[dict[str, Any]] = []
+    for path in _academic_language_paths(project_root):
+        if not path.exists() or path.suffix.casefold() not in {".md", ".txt"}:
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
+        for index, paragraph in enumerate(re.split(r"\n\s*\n", text), start=1):
+            stripped = paragraph.strip()
+            if not stripped or stripped.startswith("#") and "\n" not in stripped:
+                continue
+            cjk_count = len(re.findall(r"[\u3400-\u9fff]", stripped))
+            english_words = re.findall(r"\b[A-Za-z][A-Za-z'-]{1,}\b", stripped)
+            if len(english_words) >= 30 and cjk_count < 5:
+                blockers.append(
+                    {
+                        "reason": "english_prose_in_chinese_research_text",
+                        "path": str(path.relative_to(project_root)),
+                        "paragraph": index,
+                        "english_word_count": len(english_words),
+                        "preview": " ".join(stripped.split())[:180],
+                    }
+                )
+    return {"ready": not blockers, "checked": True, "blockers": blockers}
+
+
 def _entity_paper_id(connection, entity_type: str, entity_id: str) -> str | None:
     if entity_type == "paper":
         row = connection.execute("SELECT id FROM papers WHERE id = ?", (entity_id,)).fetchone()
@@ -114,6 +165,7 @@ def literature_completion_readiness(
             paper_id = row["paper_id"]
             if not paper_id:
                 continue
+            blockers.extend(acquired_main_text_access_blockers(connection, int(row["candidate_id"])))
             if row["reading_status"] != "extracted" or row["critical_status"] != "critically_reviewed":
                 blockers.append(
                     {
@@ -215,6 +267,19 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
             errors.append(
                 f"core + acquired 论文 {blocker.get('paper_id')} 未完成 DEEP_EXTRACTION Reconstruction。"
             )
+        elif reason == "acquired_candidate_missing_main_text_access_attempt":
+            errors.append(
+                f"相关已获取 Candidate {blocker.get('candidate_id')} 缺少可审计的正文获取记录。"
+            )
+        elif reason == "acquired_main_text_access_basis_unverified":
+            errors.append(
+                f"相关已获取 Candidate {blocker.get('candidate_id')} 的正文来源依据未核验；"
+                "来源不明的网络镜像不能闭合为正式全文。"
+            )
+        elif reason == "acquired_main_text_access_basis_detail_missing":
+            errors.append(
+                f"相关已获取 Candidate {blocker.get('candidate_id')} 的正文获取记录缺少来源依据说明。"
+            )
         elif reason == "cross_paper_scientific_relation_missing":
             errors.append(
                 "主题型 Literature Discovery 已有多篇完成审阅的论文，但 canonical relation graph "
@@ -222,6 +287,13 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
             )
         elif reason == "database_missing":
             errors.append("research.sqlite 不存在；不能完成 Literature completion gate。")
+
+    academic_language = academic_language_readiness(project_root)
+    for blocker in academic_language["blockers"]:
+        errors.append(
+            f"中文科研项目的人类可读科研文本存在大段英文叙述：{blocker.get('path')} "
+            f"第 {blocker.get('paragraph')} 段。应改为规范中文学术表述；英文仅作为标准术语首次出现时的括注或必要书目信息。"
+        )
 
     git_info: dict[str, Any] = {
         "repository_root": None,
@@ -275,5 +347,6 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
         "warnings": warnings,
         "discovery": readiness,
         "literature": literature,
+        "academic_language": academic_language,
         "git": git_info,
     }

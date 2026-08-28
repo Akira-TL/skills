@@ -21,6 +21,18 @@ OUTCOMES = {
     "other_failure",
 }
 FAILURE_OUTCOMES = OUTCOMES - {"acquired"}
+ACCESS_BASES = {
+    "not_applicable",
+    "publisher_open",
+    "public_repository",
+    "institutional_repository",
+    "author_manuscript",
+    "preprint",
+    "authenticated_user",
+    "user_provided",
+    "unverified",
+}
+ADMISSIBLE_ACQUIRED_BASES = ACCESS_BASES - {"not_applicable", "unverified"}
 
 
 def _optional_int(value: object, *, field: str) -> int | None:
@@ -62,6 +74,32 @@ def record_acquisition_attempt(project_root: Path, bundle: dict[str, Any]) -> di
     target_label = _text(bundle.get("target_label"))
     source_url = _text(bundle.get("source_url"), required=True, field="source_url")
     detail = _text(bundle.get("detail"), required=True, field="detail")
+    inferred_basis: str | None = None
+    if outcome == "acquired" and bundle.get("access_basis") is None:
+        if route_family == "publisher":
+            inferred_basis = "publisher_open"
+        elif route_family == "repository":
+            inferred_basis = "public_repository"
+        elif route_family == "preprint":
+            inferred_basis = "preprint"
+        elif route_family == "authenticated":
+            inferred_basis = "authenticated_user"
+        elif route_family == "open_index" and source_url and any(
+            marker in source_url.casefold()
+            for marker in ("pmc.ncbi.nlm.nih.gov/", "europepmc.org/", "ncbi.nlm.nih.gov/pmc/")
+        ):
+            inferred_basis = "public_repository"
+    access_basis = _enum(
+        bundle.get("access_basis") if bundle.get("access_basis") is not None else inferred_basis,
+        ACCESS_BASES,
+        default="not_applicable" if outcome != "acquired" else "unverified",
+        field="access_basis",
+    )
+    access_basis_detail = _text(bundle.get("access_basis_detail"))
+    if access_basis_detail is None and inferred_basis is not None:
+        access_basis_detail = (
+            f"Access basis inferred from acquisition route {route_family} and source URL {source_url}."
+        )
     attempted_at = _text(bundle.get("attempted_at")) or _now()
     supersedes_attempt_ids = _int_list(
         bundle.get("supersedes_attempt_ids"), field="supersedes_attempt_ids"
@@ -79,6 +117,17 @@ def record_acquisition_attempt(project_root: Path, bundle: dict[str, Any]) -> di
         raise ResearchDbError(
             f"{target_kind} Acquisition Attempt 必须提供 target_label，明确具体附件、数据集或代码资源。"
         )
+    if outcome == "acquired":
+        if access_basis not in ADMISSIBLE_ACQUIRED_BASES:
+            raise ResearchDbError(
+                "outcome=acquired 必须提供可审计的 access_basis；来源依据不明的网络镜像不能闭合为正式全文。"
+            )
+        if not access_basis_detail:
+            raise ResearchDbError(
+                "outcome=acquired 必须提供 access_basis_detail，说明开放、授权或用户提供依据。"
+            )
+    elif access_basis != "not_applicable":
+        raise ResearchDbError("非 acquired Acquisition Attempt 的 access_basis 必须为 not_applicable。")
 
     with connect(_db_path(project_root)) as connection:
         connection.execute("BEGIN IMMEDIATE")
@@ -127,8 +176,9 @@ def record_acquisition_attempt(project_root: Path, bundle: dict[str, Any]) -> di
                 """
                 INSERT INTO acquisition_attempts(
                     candidate_id, paper_id, target_kind, target_label, route_family,
-                    resource_kind, source_url, outcome, detail, attempted_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    resource_kind, source_url, outcome, detail, attempted_at,
+                    access_basis, access_basis_detail
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     candidate_id,
@@ -141,6 +191,8 @@ def record_acquisition_attempt(project_root: Path, bundle: dict[str, Any]) -> di
                     outcome,
                     detail,
                     attempted_at,
+                    access_basis,
+                    access_basis_detail,
                 ),
             )
             attempt_id = int(cursor.lastrowid)
@@ -207,6 +259,8 @@ def record_acquisition_attempt(project_root: Path, bundle: dict[str, Any]) -> di
             "outcome": outcome,
             "detail": detail,
             "attempted_at": attempted_at,
+            "access_basis": access_basis,
+            "access_basis_detail": access_basis_detail,
             "validity_status": "active",
             "supersedes_attempt_ids": supersedes_attempt_ids,
             "supersession_reason": supersession_reason,
@@ -245,6 +299,60 @@ def list_acquisition_attempts(
     with connect(_db_path(project_root)) as connection:
         rows = [dict(row) for row in connection.execute(sql, params)]
     return {"ok": True, "attempts": rows}
+
+
+def acquired_main_text_access_blockers(connection, candidate_id: int) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT id, route_family, source_url, outcome, validity_status,
+               access_basis, access_basis_detail
+        FROM acquisition_attempts
+        WHERE candidate_id = ? AND target_kind = 'main_text'
+        ORDER BY id
+        """,
+        (candidate_id,),
+    ).fetchall()
+    active_acquired = [
+        row
+        for row in rows
+        if row["validity_status"] == "active" and row["outcome"] == "acquired"
+    ]
+    blockers: list[dict[str, Any]] = []
+    if not active_acquired:
+        return [
+            {
+                "candidate_id": candidate_id,
+                "reason": "acquired_candidate_missing_main_text_access_attempt",
+            }
+        ]
+
+    unverified = [
+        row
+        for row in active_acquired
+        if str(row["access_basis"]) not in ADMISSIBLE_ACQUIRED_BASES
+    ]
+    if unverified:
+        blockers.append(
+            {
+                "candidate_id": candidate_id,
+                "reason": "acquired_main_text_access_basis_unverified",
+                "attempt_ids": [int(row["id"]) for row in unverified],
+            }
+        )
+    missing_detail = [
+        row
+        for row in active_acquired
+        if not (row["access_basis_detail"] and str(row["access_basis_detail"]).strip())
+    ]
+    if missing_detail:
+        blockers.append(
+            {
+                "candidate_id": candidate_id,
+                "reason": "acquired_main_text_access_basis_detail_missing",
+                "attempt_ids": [int(row["id"]) for row in missing_detail],
+            }
+        )
+    return blockers
 
 
 def supplement_access_blockers(connection, paper_id: str, attempt_ids: list[int]) -> list[str]:

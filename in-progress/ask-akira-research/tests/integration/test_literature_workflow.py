@@ -11,6 +11,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from research_db_core import init_database, validate  # noqa: E402
 from research_db_critical import ingest_critical  # noqa: E402
 from research_db_ingest import ingest_paper  # noqa: E402
+from research_db_ops.acquisition import record_acquisition_attempt  # noqa: E402
 from research_db_ops.candidates import list_candidates  # noqa: E402
 from research_db_ops.discovery import record_search_run  # noqa: E402
 from research_db_ops.query import evidence_packet  # noqa: E402
@@ -33,6 +34,22 @@ class LiteratureWorkflowIntegrationTests(unittest.TestCase):
     def _acquire(self, title: str, doi: str, filename: str) -> str:
         artifact = self.incoming / filename
         artifact.write_text(f"<html><body>{title}</body></html>", encoding="utf-8")
+        candidate = next(
+            item for item in list_candidates(self.root)["candidates"]
+            if item.get("doi") == doi
+        )
+        record_acquisition_attempt(
+            self.root,
+            {
+                "candidate_id": candidate["id"],
+                "target_kind": "main_text",
+                "route_family": "publisher",
+                "resource_kind": "full_text_html",
+                "source_url": f"https://publisher.example/{doi}",
+                "outcome": "acquired",
+                "detail": "Publisher-hosted full text retrieved and verified for integration test.",
+            },
+        )
         result = ingest_paper(
             self.root,
             {

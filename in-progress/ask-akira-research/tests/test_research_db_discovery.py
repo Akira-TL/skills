@@ -777,6 +777,55 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
                 },
             )
 
+    def test_unverified_mirror_cannot_close_acquired_main_text(self) -> None:
+        result = record_search_run(
+            self.root,
+            {
+                "purpose": "Known paper",
+                "discovery_method": "exact_work",
+                "source": "Crossref",
+                "query": "10.1234/source-basis",
+                "candidates": [
+                    {
+                        "title": "Source basis paper",
+                        "doi": "10.1234/source-basis",
+                        "relevance_status": "relevant",
+                    }
+                ],
+            },
+        )
+        candidate_id = result["persisted_candidates"][0]["id"]
+
+        with self.assertRaisesRegex(ResearchDbError, "来源依据不明"):
+            record_acquisition_attempt(
+                self.root,
+                {
+                    "candidate_id": candidate_id,
+                    "target_kind": "main_text",
+                    "route_family": "other",
+                    "resource_kind": "pdf",
+                    "source_url": "https://mirror.example/paper.pdf",
+                    "outcome": "acquired",
+                    "detail": "Identity and article boundaries match, but source authorization is unknown.",
+                },
+            )
+
+        accepted = record_acquisition_attempt(
+            self.root,
+            {
+                "candidate_id": candidate_id,
+                "target_kind": "main_text",
+                "route_family": "other",
+                "resource_kind": "pdf",
+                "source_url": "file:///user-provided/paper.pdf",
+                "outcome": "acquired",
+                "detail": "User supplied the full text for this research project.",
+                "access_basis": "user_provided",
+                "access_basis_detail": "User explicitly supplied the complete article file; identity was verified against the DOI.",
+            },
+        )["attempt"]
+        self.assertEqual(accepted["access_basis"], "user_provided")
+
     def test_search_run_cannot_create_unavailable_without_attempt_provenance(self) -> None:
         with self.assertRaisesRegex(ResearchDbError, "不能直接创建.*unavailable"):
             record_search_run(

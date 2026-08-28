@@ -181,12 +181,16 @@ source_url
 outcome               -- acquired | not_found | access_denied | auth_required | challenge | invalid_artifact | network_error | other_failure
 detail
 attempted_at
+access_basis          -- not_applicable | publisher_open | public_repository | institutional_repository | author_manuscript | preprint | authenticated_user | user_provided | unverified
+access_basis_detail   -- 为什么该全文具有明确开放、授权或用户提供依据
 validity_status        -- active | superseded
 superseded_by_attempt_id
 supersession_reason
 ```
 
-Candidate 不允许在检索运行（Search Run）中直接创建为 `unavailable`。正文获取失败后先 `record-access-attempt`，再由 `update-candidate` 执行闭合：有 DOI 时必须留下出版社（publisher）获取尝试，同时必须有独立开放解析路径；单一被拒绝的出版社 PDF 还必须检查出版社论文页面/网页全文。核心或高优先级相关论文在机器侧路径失败后必须继续请求用户协同：`user_access_status=required` 表示等待用户在持久可见浏览器中完成已有权限的登录/认证，或等待用户提供其合法取得的全文文件。该状态不能转成 `unavailable`，也不能通过文献发现闭合门禁。只有用户协同已经完成仍无可用全文、用户确认自己没有可用权限，或用户明确选择不继续协同，并且机器侧来源也闭合，才允许把核心/高优先级论文记录为当前 `unavailable`。
+Candidate 不允许在检索运行（Search Run）中直接创建为 `unavailable`。正文获取失败后先 `record-access-attempt`，再由 `update-candidate` 执行闭合：有 DOI 时必须留下出版社（publisher）获取尝试，同时必须有独立开放解析路径；单一被拒绝的出版社 PDF 还必须检查出版社论文页面/网页全文。核心或高优先级相关论文在机器侧路径失败后必须继续请求用户协同：`user_access_status=required` 表示等待用户在持久可见浏览器中完成已有权限的登录/认证，或等待用户提供全文文件。该状态不能转成 `unavailable`，也不能通过文献发现闭合门禁。只有用户协同已经完成仍无可用全文、用户确认自己没有可用权限，或用户明确选择不继续协同，并且机器侧来源也闭合，才允许把核心/高优先级论文记录为当前 `unavailable`。
+
+`outcome=acquired` 同样需要可审计来源依据。正文获取记录必须有可接受的 `access_basis`；来源不明的普通网络镜像不能因为“文件能下载且 DOI 匹配”就闭合为正式全文。出版社开放全文、公共或机构知识库、作者公开稿、正式预印本、用户认证访问以及用户直接提供的全文均可形成合格获取依据；无法确认来源依据时保持 `unverified` 并继续正式开放路径或用户协同。
 
 Attempt 历史不可覆盖。后续核验若发现某条旧 attempt 的 `outcome` 判断错误，新 attempt 使用 `supersedes_attempt_ids` 和强制 `supersession_reason` 把旧记录标记为 `superseded`；旧记录仍保留，但不再参与当前 access closure。`unavailable` Candidate 不允许存在仍为 `active` 的 `outcome=acquired` attempt。
 
@@ -553,4 +557,4 @@ research-db paper-context P000001 --for-sidecar
 
 `research-db discovery-status` 是文献发现（Literature Discovery）的闭合门禁：存在 `relevance_status=pending`、未闭合的 `core + relevant` 或 `high + relevant` Candidate、仍处于 `user_access_status=required` 的用户协同任务，或重复稳定身份时返回 `ready_for_saturation=false`。高优先级 Candidate 的 `defer_reason` 不再构成闭合依据。主题型文献发现若已有至少 2 个相关 Candidate，还必须保留检索策略来源、至少一次后向/前向引用追踪，并覆盖至少两个发现策略家族；否则即使 Candidate 队列表面清空也不能宣称实践性概念饱和（practical conceptual saturation）。
 
-`research-db validate --completion` 是“本轮科研项目已完成”的最终门禁。它先执行普通数据库校验，再检查 Discovery closure 与 Literature semantic completion：所有 `relevant + acquired` Candidate 必须完成 Reconstruction + Critical Audit；所有 `core + acquired` 必须有真实 `DEEP_EXTRACTION` Reconstruction；主题型 Discovery 已有至少两篇完成审阅的论文时，必须存在至少一条连接不同 Paper 的 scientific relation，`SHARES_*`/`CITES` 不计作该门禁。随后还要求项目根目录本身是 Git repository top-level、已经存在至少一个 commit、`RESEARCH.md`、`.research/research.sqlite`、canonical paper artifacts 与 sidecar 已被 Git 跟踪且没有未提交修改。普通 `validate` 通过不能替代这个 completion gate。
+`research-db validate --completion` 是“本轮科研项目已完成”的最终门禁。它先执行普通数据库校验，再检查文献发现闭合与文献语义完成状态：所有相关且已获取全文的候选论文必须有可审计正文获取记录与合格获取依据，并完成论文重建（Reconstruction）和批判性审阅（Critical Audit）；所有核心且已获取论文必须有真实深度抽取（DEEP_EXTRACTION）重建；主题型文献发现已有至少两篇完成审阅的论文时，必须存在至少一条连接不同论文的科学关系，共享样本/共享数据/引用关系不计作该门禁。对于以中文为主体的科研项目，完成验证还会检查 `RESEARCH.md` 与论文侧记中的明显大段英文科研叙述，防止科学判断正确但人类可读产物违反中文学术写作规范。随后还要求项目根目录本身是独立版本仓库（Git repository）顶层、已经存在至少一个提交，且 `RESEARCH.md`、`.research/research.sqlite`、规范化论文文件与侧记均已被版本管理跟踪且没有未提交修改。普通 `validate` 通过不能替代这个完成门禁。

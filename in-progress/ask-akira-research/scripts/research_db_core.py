@@ -620,7 +620,10 @@ def validate(project_root: Path) -> dict[str, Any]:
                         f"与稳定论文身份 {expected_identity!r} 不一致。"
                     )
 
-            from research_db_ops.acquisition import unavailable_candidate_blockers
+            from research_db_ops.acquisition import (
+                acquired_main_text_access_blockers,
+                unavailable_candidate_blockers,
+            )
 
             for attempt in connection.execute(
                 """
@@ -704,6 +707,11 @@ def validate(project_root: Path) -> dict[str, Any]:
                     for blocker in unavailable_candidate_blockers(connection, row):
                         errors.append(
                             f"candidate {candidate_id} unavailable provenance 不完整：{blocker['reason']}。"
+                        )
+                if row["acquisition_status"] == "acquired":
+                    for blocker in acquired_main_text_access_blockers(connection, candidate_id):
+                        errors.append(
+                            f"candidate {candidate_id} acquired provenance 不完整：{blocker['reason']}。"
                         )
                 if row["acquisition_status"] == "acquired" and not row["paper_id"]:
                     errors.append(

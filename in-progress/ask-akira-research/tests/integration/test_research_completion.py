@@ -12,6 +12,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from research_db_core import database_path, init_database  # noqa: E402
 from research_db_ops.completion import (  # noqa: E402
+    academic_language_readiness,
     literature_completion_readiness,
     validate_completion,
 )
@@ -74,6 +75,17 @@ class ResearchCompletionTests(unittest.TestCase):
             )
             connection.execute(
                 """
+                INSERT INTO acquisition_attempts(
+                    candidate_id, target_kind, route_family, resource_kind, source_url,
+                    outcome, detail, attempted_at, access_basis, access_basis_detail
+                ) VALUES (?, 'main_text', 'publisher', 'full_text_html', ?,
+                          'acquired', 'Verified publisher full text.', ?,
+                          'publisher_open', 'Publisher-hosted open full text verified for test.')
+                """,
+                (candidate_id, f"https://publisher.example/{candidate_id}", now),
+            )
+            connection.execute(
+                """
                 INSERT INTO reading_runs(
                     paper_id, pass, depth, started_at, completed_at,
                     artifacts_checked, sections_checked, extraction_checks_json
@@ -91,6 +103,18 @@ class ResearchCompletionTests(unittest.TestCase):
                 """,
                 (paper_id, depth, now, now),
             )
+
+    def test_literature_completion_rejects_unverified_acquired_source(self) -> None:
+        self._insert_reviewed_candidate(1, "P000001")
+        with sqlite3.connect(database_path(self.root)) as connection:
+            connection.execute(
+                "UPDATE acquisition_attempts SET access_basis='unverified', "
+                "access_basis_detail='Legacy mirror with no verified authorization basis' "
+                "WHERE candidate_id=1"
+            )
+        result = literature_completion_readiness(self.root, {"relevant_candidate_count": 1})
+        reasons = {item["reason"] for item in result["blockers"]}
+        self.assertIn("acquired_main_text_access_basis_unverified", reasons)
 
     def test_literature_completion_requires_core_deep_extraction(self) -> None:
         self._insert_reviewed_candidate(1, "P000001", priority="core", depth="full_scan")
@@ -155,6 +179,32 @@ class ResearchCompletionTests(unittest.TestCase):
         second = literature_completion_readiness(self.root, discovery)
         self.assertTrue(second["ready"])
         self.assertEqual(second["cross_paper_scientific_relation_count"], 1)
+
+    def test_chinese_project_rejects_long_english_scientific_prose(self) -> None:
+        (self.root / "RESEARCH.md").write_text(
+            "# 研究\n\n这是一个中文科研项目，用于验证规范中文学术写作要求。"
+            "研究问题、证据边界、方法判断和最终结论均应采用中文表述。"
+            "这里继续补足足够的中文字符，使系统能够明确判断当前项目的人类可读科研语言是中文。\n",
+            encoding="utf-8",
+        )
+        sidecar = self.root / "paper-note.md"
+        sidecar.write_text(
+            "# 论文笔记\n\n"
+            "This paragraph is intentionally written as long English scientific prose to verify that a Chinese research project cannot silently finish with an English narrative sidecar. It contains enough ordinary English words to represent a real paragraph rather than a paper title, identifier, abbreviation, or required terminology annotation.\n",
+            encoding="utf-8",
+        )
+        now = "2026-08-27T00:00:00+00:00"
+        with sqlite3.connect(database_path(self.root)) as connection:
+            connection.execute(
+                """
+                INSERT INTO papers(id, title, status, sidecar_path, created_at, updated_at)
+                VALUES ('P000001', 'Language test paper', 'active', 'paper-note.md', ?, ?)
+                """,
+                (now, now),
+            )
+        result = academic_language_readiness(self.root)
+        self.assertFalse(result["ready"])
+        self.assertEqual(result["blockers"][0]["reason"], "english_prose_in_chinese_research_text")
 
     def test_completion_requires_committed_canonical_research_state(self) -> None:
         subprocess.run(
