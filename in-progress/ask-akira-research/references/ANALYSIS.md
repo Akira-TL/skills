@@ -35,7 +35,7 @@ Result boundary
 
 ## 3. Design alignment
 
-Primary Analysis 先执行 Design 预先定义的 contrast。任何重要偏离都记录为 amendment，并说明它发生在看见什么结果之前/之后。
+Primary Analysis 先执行 Design 预先定义的 contrast。任何重要偏离都记录为 amendment，并说明它发生在看见什么结果之前/之后。若该 Analysis 实现的是已经登记到 `research.sqlite` 的 Research Design，使用 `record-analysis` 时必须通过 `design_slug` 建立显式结构化连接；不能只复制相同的 estimand/uncertainty 文本来假装两者已经对齐。确认性 Analysis 的 Design 必须先冻结，且 Design freeze 必须早于或等于 Analysis 的结果前 freeze。
 
 至少检查：
 
@@ -109,13 +109,13 @@ Exploration 可以用于发现：
 
 真实纵向数据黑盒已经稳定暴露出一组值得进入 `research.sqlite` 的下游对象：Dataset、Analysis Run、Analysis Amendment 与项目自身 Observation。使用 `research-db record-analysis` 持久化它们，但仍保持以下边界：
 
-- 数值结果和图表的文件本身仍是可重建 analysis artifact；SQLite 只保存语义、路径与 provenance；
+- 数值结果和图表的文件本身仍是可重建 analysis artifact；SQLite 只保存语义、路径与 provenance；除主要 `code_path` 外，任何实际生成主要结果、敏感性结果或关键诊断的附加脚本/workflow 也必须作为当前 Analysis artifact（通常 `role=other`）登记，不能因为文件放在 `scripts/` 目录就游离于 completion provenance。结果前已经存在并参与确认性执行的脚本/配置标记 `timing_role=pre_result_support`，真正由分析产生的 estimate/diagnostic/figure/report 标记 `timing_role=result`；前者必须出现在 freeze 中，后者不得出现在 freeze 中；
 - confirmatory Analysis 必须记录结果可见前的 Git `freeze_commit`，该提交应已经包含主要分析计划、代码和输入，但不能已经包含本轮结果 artifact；
 - 结果可见后新增的敏感性分析或规则进入 Analysis Amendment，并标明 `post_result`，不能静默改写冻结的 estimand / primary analysis；
 - 项目自身 Observation 写入 `project_observations`，必须指向当前 Analysis 的具体结果 artifact；不要把项目结果伪装成 literature Observation 写进 paper-bound `observations`；
 - `RESEARCH.md` 仍只更新会改变路线的高层 result boundary，不复制完整结果表。
 
-从 schema v14 起，Hypothesis Set 与 Research Design 已进入最小结构化 provenance，用于保存身份、canonical artifact 与结果可见前的 freeze commit；Analysis 在解释结果时必须回到这些已冻结对象，而不能只依赖结果出现后的叙述。单条 Prediction、Decision Boundary 与项目 Claim 仍不为了“阶段对称”而强制建表；只有更多真实项目显示出稳定的跨会话查询需求后才继续迁移。
+从 schema v14 起，Hypothesis Set 与 Research Design 已进入最小结构化 provenance，用于保存身份、canonical artifact 与结果可见前的 freeze commit。schema v15 进一步把确认性 Analysis 显式连接到其 Research Design，并在结果解释后保存不可覆盖的 Hypothesis Evaluation 事件；Analysis 在解释结果时必须回到这些已冻结对象，而不能只依赖结果出现后的叙述。单条 Prediction、Decision Boundary、单个 hypothesis 的逐项状态与项目 Claim 仍不为了“阶段对称”而强制建表；它们的完整科研语义继续保留在 canonical artifact 中。
 
 ## 9. 完成条件
 

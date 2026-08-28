@@ -433,6 +433,49 @@ def downstream_completion_readiness(project_root: Path) -> dict[str, Any]:
 
             if run["analysis_mode"] != "confirmatory":
                 continue
+
+            design_id = run["design_id"]
+            if design_id is None:
+                matching_designs = connection.execute(
+                    """
+                    SELECT d.id, d.slug
+                    FROM research_designs d
+                    JOIN hypothesis_sets h ON h.id = d.hypothesis_set_id
+                    WHERE d.status <> 'superseded'
+                      AND (
+                        trim(d.target_estimand) = trim(?)
+                        OR trim(h.target_uncertainty) = trim(?)
+                      )
+                    ORDER BY d.id
+                    """,
+                    (run["estimand"], run["target_uncertainty"]),
+                ).fetchall()
+                if matching_designs:
+                    blockers.append(
+                        {
+                            "reason": "confirmatory_analysis_design_link_missing",
+                            "analysis": slug,
+                            "matching_designs": [str(row["slug"]) for row in matching_designs],
+                        }
+                    )
+            else:
+                design = connection.execute(
+                    "SELECT slug, status, freeze_commit FROM research_designs WHERE id = ?",
+                    (int(design_id),),
+                ).fetchone()
+                if design is None:
+                    blockers.append(
+                        {"reason": "analysis_design_missing", "analysis": slug, "design_id": design_id}
+                    )
+                elif design["status"] not in {"frozen", "execution_ready"}:
+                    blockers.append(
+                        {
+                            "reason": "confirmatory_analysis_design_not_frozen",
+                            "analysis": slug,
+                            "design": design["slug"],
+                        }
+                    )
+
             freeze_commit = str(run["freeze_commit"] or "").strip()
             if not freeze_commit:
                 blockers.append(
@@ -459,7 +502,36 @@ def downstream_completion_readiness(project_root: Path) -> dict[str, Any]:
                     }
                 )
 
+            if design_id is not None:
+                design = connection.execute(
+                    "SELECT slug, freeze_commit FROM research_designs WHERE id = ?",
+                    (int(design_id),),
+                ).fetchone()
+                if design is not None:
+                    design_freeze = str(design["freeze_commit"] or "").strip()
+                    if design_freeze and _git(
+                        project_root, "merge-base", "--is-ancestor", design_freeze, freeze_commit
+                    ).returncode != 0:
+                        blockers.append(
+                            {
+                                "reason": "design_freeze_after_analysis_freeze",
+                                "analysis": slug,
+                                "design": design["slug"],
+                            }
+                        )
+
             freeze_required_paths = [str(run["analysis_path"]), str(run["code_path"])]
+            freeze_required_paths.extend(
+                str(row["path"])
+                for row in connection.execute(
+                    """
+                    SELECT path FROM analysis_artifacts
+                    WHERE analysis_id = ? AND timing_role = 'pre_result_support'
+                    ORDER BY id
+                    """,
+                    (analysis_id,),
+                )
+            )
             for dataset in input_rows:
                 freeze_required_paths.append(str(dataset["provenance_path"]))
                 freeze_required_paths.extend(
@@ -491,7 +563,11 @@ def downstream_completion_readiness(project_root: Path) -> dict[str, Any]:
             result_paths = [
                 str(row["path"])
                 for row in connection.execute(
-                    "SELECT path FROM analysis_artifacts WHERE analysis_id = ? ORDER BY id",
+                    """
+                    SELECT path FROM analysis_artifacts
+                    WHERE analysis_id = ? AND timing_role = 'result'
+                    ORDER BY id
+                    """,
                     (analysis_id,),
                 )
             ]
@@ -524,10 +600,11 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
         return {
             "ready": False,
             "blockers": [{"reason": "database_missing"}],
-            "hypothesis_set_count": 0,
-            "design_count": 0,
-            "frozen_design_count": 0,
-        }
+                "hypothesis_set_count": 0,
+                "design_count": 0,
+                "frozen_design_count": 0,
+                "hypothesis_evaluation_count": 0,
+            }
 
     with connect(db_path) as connection:
         tables = {
@@ -536,7 +613,7 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
                 "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
             )
         }
-        required = {"hypothesis_sets", "research_designs"}
+        required = {"hypothesis_sets", "research_designs", "hypothesis_evaluations"}
         missing = sorted(required - tables)
         if missing:
             return {
@@ -553,6 +630,9 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
             connection.execute(
                 "SELECT COUNT(*) FROM research_designs WHERE status IN ('frozen', 'execution_ready')"
             ).fetchone()[0]
+        )
+        hypothesis_evaluation_count = int(
+            connection.execute("SELECT COUNT(*) FROM hypothesis_evaluations").fetchone()[0]
         )
 
         registered_hypotheses = {
@@ -684,12 +764,43 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
                     }
                 )
 
+        for run in connection.execute(
+            """
+            SELECT a.id, a.slug AS analysis_slug, a.design_id,
+                   d.slug AS design_slug, d.hypothesis_set_id,
+                   h.slug AS hypothesis_slug
+            FROM analysis_runs a
+            JOIN research_designs d ON d.id = a.design_id
+            JOIN hypothesis_sets h ON h.id = d.hypothesis_set_id
+            WHERE a.analysis_mode = 'confirmatory' AND a.status = 'completed'
+            ORDER BY a.id
+            """
+        ):
+            evaluation = connection.execute(
+                """
+                SELECT id, resolution_status, decision, summary
+                FROM hypothesis_evaluations
+                WHERE hypothesis_set_id = ? AND analysis_id = ?
+                """,
+                (int(run["hypothesis_set_id"]), int(run["id"])),
+            ).fetchone()
+            if evaluation is None:
+                blockers.append(
+                    {
+                        "reason": "completed_confirmatory_analysis_missing_hypothesis_evaluation",
+                        "analysis": run["analysis_slug"],
+                        "design": run["design_slug"],
+                        "hypothesis_set": run["hypothesis_slug"],
+                    }
+                )
+
     return {
         "ready": not blockers,
         "blockers": blockers,
         "hypothesis_set_count": hypothesis_count,
         "design_count": design_count,
         "frozen_design_count": frozen_design_count,
+        "hypothesis_evaluation_count": hypothesis_evaluation_count,
     }
 
 
@@ -783,6 +894,24 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
             errors.append(
                 f"Analysis {blocker.get('analysis')} 的 freeze commit 不是当前 HEAD 的祖先：{blocker.get('freeze_commit')}。"
             )
+        elif reason == "confirmatory_analysis_design_link_missing":
+            errors.append(
+                f"确认性 Analysis {blocker.get('analysis')} 与已登记 Research Design 匹配，但缺少结构化 design link："
+                + ", ".join(str(value) for value in blocker.get("matching_designs", []))
+            )
+        elif reason == "analysis_design_missing":
+            errors.append(
+                f"Analysis {blocker.get('analysis')} 引用的 Research Design 不存在：{blocker.get('design_id')}。"
+            )
+        elif reason == "confirmatory_analysis_design_not_frozen":
+            errors.append(
+                f"确认性 Analysis {blocker.get('analysis')} 引用的 Research Design {blocker.get('design')} 尚未冻结。"
+            )
+        elif reason == "design_freeze_after_analysis_freeze":
+            errors.append(
+                f"Analysis {blocker.get('analysis')} 的结果前 freeze 早于 Research Design {blocker.get('design')} 的 freeze；"
+                "确认性分析不能先于其设计冻结。"
+            )
         elif reason == "analysis_plan_or_input_missing_at_freeze":
             errors.append(
                 f"Analysis {blocker.get('analysis')} 的 freeze commit 未冻结全部主要计划/代码/输入："
@@ -847,6 +976,11 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
             errors.append(
                 f"Research Design {blocker.get('design')} 的 freeze 早于关联 Hypothesis Set "
                 f"{blocker.get('hypothesis_set')} 的 freeze；设计不能先于其判别假设冻结。"
+            )
+        elif reason == "completed_confirmatory_analysis_missing_hypothesis_evaluation":
+            errors.append(
+                f"确认性 Analysis {blocker.get('analysis')} 已完成并实现 Research Design {blocker.get('design')}，"
+                f"但尚未记录对 Hypothesis Set {blocker.get('hypothesis_set')} 的结果后 Evaluation。"
             )
         elif reason == "planning_schema_missing":
             errors.append(

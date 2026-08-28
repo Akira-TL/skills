@@ -43,6 +43,7 @@ analysis_amendments
 project_observations
 hypothesis_sets
 research_designs
+hypothesis_evaluations
 ```
 
 暂不建立独立 evidence graph、method graph、evidence family 或 contradiction Markdown / tables；能够从现有节点与关系动态查询得到的视图先不物化。未来只有出现稳定的独立领域对象时再通过 migration 增加表。
@@ -180,15 +181,17 @@ Candidate ID 主要供数据库内部使用。
 
 `datasets` 保存数据集身份、来源、版本、接收时间、独立推断单位与人类可读 provenance 路径。`dataset_artifacts` 保存 raw / curated / metadata / manifest 等位置；大型或受控数据允许 `storage_kind=external`，本地文件若不要求 Git 跟踪必须明确 `tracking_reason`。
 
-`analysis_runs` 保存一个可独立解释的分析动作：当前不确定性、估计目标（estimand / target contrast）、独立推断单位、主要分析、分析入口、可重放代码和状态。确认性分析（confirmatory analysis）在进入 `frozen/completed` 时必须记录结果可见前的 `freeze_commit`。
+`analysis_runs` 保存一个可独立解释的分析动作：当前不确定性、估计目标（estimand / target contrast）、独立推断单位、主要分析、分析入口、可重放代码和状态。确认性分析（confirmatory analysis）在进入 `frozen/completed` 时必须记录结果可见前的 `freeze_commit`。从 schema v15 起，Analysis 如果实现已登记的 Research Design，还通过 `design_id` / `design_slug` 建立显式连接；不能只依靠重复的 estimand 文本形成隐式对应。
 
-`analysis_inputs` 连接 Analysis 与 Dataset；`analysis_artifacts` 保存 estimate、diagnostic、figure、table、log 等结果文件；`analysis_amendments` 区分 `pre_result` 与 `post_result` 的分析修改；`project_observations` 保存由项目自身分析直接得到的 Observation，并必须指向具体 Analysis artifact。它与论文绑定的 `observations` 分开，不能用后者伪装项目自己的结果。
+`analysis_inputs` 连接 Analysis 与 Dataset；`analysis_artifacts` 保存 estimate、diagnostic、figure、table、log、附加代码/报告等文件，并用 `timing_role=pre_result_support|result` 区分结果前必须已经存在的支持 artifact 与真正由分析产生的结果 artifact；`analysis_amendments` 区分 `pre_result` 与 `post_result` 的分析修改；`project_observations` 保存由项目自身分析直接得到的 Observation，并必须指向具体 Analysis artifact。它与论文绑定的 `observations` 分开，不能用后者伪装项目自己的结果。
 
-`research-db validate --completion` 会把已登记且需要 Git 跟踪的 data/analysis artifact 纳入 canonical path gate。`data/` 或 `analysis/` 下已经被 Git 跟踪但没有进入上述 provenance 的文件会阻止完成；已完成的确认性 Analysis 还必须证明其 freeze commit 是当前 HEAD 的祖先、主要计划/代码/输入在 freeze 时已经存在、而本轮结果 artifact 在 freeze 时尚不存在。
+`research-db validate --completion` 会把已登记且需要 Git 跟踪的 data/analysis artifact 纳入 canonical path gate。`data/` 或 `analysis/` 下已经被 Git 跟踪但没有进入上述 provenance 的文件会阻止完成；实际生成 curated 数据、主要结果、敏感性结果或关键诊断的项目脚本即使位于 `scripts/`，也应作为 Dataset / Analysis artifact 登记，从而进入同一 canonical Git gate。已完成的确认性 Analysis 还必须证明其 freeze commit 是当前 HEAD 的祖先、主要计划/代码/输入在 freeze 时已经存在、而本轮结果 artifact 在 freeze 时尚不存在。
 
-从 schema v14 起，Hypothesis Set 与 Research Design 经过真实设计黑盒后已经显示出稳定的身份与冻结审计需求，因此进入最小结构化 provenance：`hypothesis_sets` 保存 target uncertainty、canonical `hypotheses/<slug>.md`、状态与 freeze commit；`research_designs` 保存关联 Hypothesis Set、主要 estimand、primary outcome、experimental unit、canonical `designs/<slug>.md`、feasibility 状态与 freeze commit。
+从 schema v14 起，Hypothesis Set 与 Research Design 经过真实设计黑盒后已经显示出稳定的身份与冻结审计需求，因此进入最小结构化 provenance：`hypothesis_sets` 保存 target uncertainty、canonical `hypotheses/<slug>.md`、**artifact 生命周期状态**与 freeze commit；`research_designs` 保存关联 Hypothesis Set、主要 estimand、primary outcome、experimental unit、canonical `designs/<slug>.md`、feasibility 状态与 freeze commit。`hypothesis_sets.status=frozen` 表示结果前版本被冻结，不等于科学上“假设已确认”。
 
-数据库**不**复制每个 H1/H2、Prediction、Discriminator Matrix、Decision Boundary、组别表或完整设计正文；这些仍由 canonical Markdown artifact 承载。当前也不建立 Project Claim 表。只有未来真实项目反复证明某个科研语义对象存在稳定的跨项目查询/关系需求时，才继续迁移，不能为了工作流阶段对称而机械建表。
+从 schema v15 起，完整的 pre-data → Analysis → Interpretation 黑盒进一步稳定暴露出 `hypothesis_evaluations`：一次 Evaluation 连接一个 Hypothesis Set、一个 completed Analysis 和该 Analysis 已登记的具体解释/结果 artifact，并记录本轮总体判别为 `unresolved | partially_resolved | resolved | not_interpretable`、decision、summary 与时间。Evaluation 是追加式科研事件，同一 Hypothesis Set 可以被后续不同 Analysis 继续产生新的 Evaluation；同一 Analysis 对同一 Hypothesis Set 的评价不可覆盖。这样保存证据更新历史，而不把“最新科学状态”错误塞进 Hypothesis Set 的 freeze 生命周期字段。
+
+数据库**不**复制每个 H1/H2、Prediction、Discriminator Matrix、Decision Boundary、组别表、单个 hypothesis 的 `live/favored/weakened/...` 状态或完整设计正文；这些仍由 canonical Markdown artifact 承载。当前也不建立 Project Claim 表。只有未来真实项目反复证明某个科研语义对象存在稳定的跨项目查询/关系需求时，才继续迁移，不能为了工作流阶段对称而机械建表。
 
 ### `acquisition_attempts`
 
@@ -532,6 +535,8 @@ research-db record-hypothesis-set [bundle]
 research-db hypothesis-sets
 research-db record-design [bundle]
 research-db designs
+research-db record-hypothesis-evaluation [bundle]
+research-db hypothesis-evaluations
 research-db status
 research-db validate
 ```
@@ -585,8 +590,9 @@ research-db paper-context P000001 --for-sidecar
 - Method / Experiment / Observation / Claim / Issue / Lead 的 `source_locator` 只有 `Methods`、`Results`、`Discussion` 等模糊顶层 section；
 - Dataset provenance path、本地 Dataset artifact、Analysis 入口/代码/结果 artifact 缺失；
 - Project Observation 指向其他 Analysis 的结果 artifact；
-- confirmatory Analysis 已进入 frozen/completed 却没有记录 freeze commit；
+- confirmatory Analysis 已进入 frozen/completed 却没有记录 freeze commit；Analysis 已结构化关联 Design 时，Design 不存在或 estimand 与 Design 不一致；
 - Hypothesis Set / Research Design 的 canonical artifact 缺失、冻结状态缺少 freeze commit、Design 引用不存在的 Hypothesis Set、未解决 feasibility 没有说明，或 execution-ready 与 feasibility 状态矛盾；
+- Hypothesis Evaluation 引用未完成 Analysis、引用的解释 artifact 不属于同一 Analysis，或其 Hypothesis Set 与 Analysis 所实现 Design 不一致；
 - schema version / migration 状态异常；
 - sidecar pointer 指向不存在文件时给出明确错误或 warning。
 
@@ -596,8 +602,8 @@ research-db paper-context P000001 --for-sidecar
 
 `research-db validate --completion` 是“本轮有边界科研工作流已完成”的最终门禁。它先执行普通数据库校验，再检查文献发现闭合与文献语义完成状态：所有相关且已获取全文的候选论文必须有可审计正文获取记录与合格获取依据，并完成论文重建（Reconstruction）和批判性审阅（Critical Audit）；所有核心且已获取论文必须有真实深度抽取（DEEP_EXTRACTION）重建；主题型文献发现已有至少两篇完成审阅的论文时，必须存在至少一条连接不同论文的科学关系，共享样本/共享数据/引用关系不计作该门禁。对于为当前问题**定向直接入库**、没有经过 Candidate/Discovery 队列的 `active/acquired` Paper，仍必须留下合格的正文获取 provenance 并完成 Reconstruction + Critical Audit；“本轮不是 Literature Discovery”不能成为绕过关键论文阅读闭合的路径。
 
-项目存在 `data/` 或 `analysis/` 科研资产时，完成验证还检查下游 provenance：被 Git 跟踪的数据/分析文件不能游离在数据库之外；已完成 Analysis 必须关联 Dataset、至少一个 estimate artifact 和至少一个项目 Observation；确认性 Analysis 的 freeze commit 必须存在且是当前 HEAD 的祖先，主要计划/代码/输入在 freeze 时已经存在，而本轮结果 artifact 在该 freeze 时尚未出现。这样 `completion=true` 才能说明预先冻结与结果 provenance 真实存在，而不是事后写在 README 里。
+项目存在 `data/` 或 `analysis/` 科研资产时，完成验证还检查下游 provenance：被 Git 跟踪的数据/分析文件不能游离在数据库之外；已完成 Analysis 必须关联 Dataset、至少一个 estimate artifact 和至少一个项目 Observation；确认性 Analysis 的 freeze commit 必须存在且是当前 HEAD 的祖先，主要计划/代码/输入在 freeze 时已经存在，而本轮结果 artifact 在该 freeze 时尚未出现。若确认性 Analysis 与已登记 Research Design 的 estimand/uncertainty 对齐，则必须通过 `design_slug` 显式连接；关联 Design 必须先冻结，且其 freeze 不能晚于 Analysis freeze。这样 `completion=true` 才能说明预先冻结与结果 provenance 真实存在，而不是事后写在 README 里。
 
-项目存在 `hypotheses/` 或 `designs/` canonical artifact 时同样不能游离在数据库之外。冻结的 Hypothesis Set / Design 必须登记有效 Git freeze commit；该提交必须是当前 HEAD 的祖先并真实包含相应 artifact，Design 的 freeze 还必须同时包含其关联 Hypothesis Set，且不能早于 Hypothesis Set 的冻结。`feasibility_status=unresolved` 可以完成“科研设计工作流”，但只表示设计已形成并明确 blocker，不能被解释成实验已经 execution-ready。
+项目存在 `hypotheses/` 或 `designs/` canonical artifact 时同样不能游离在数据库之外。冻结的 Hypothesis Set / Design 必须登记有效 Git freeze commit；该提交必须是当前 HEAD 的祖先并真实包含相应 artifact，Design 的 freeze 还必须同时包含其关联 Hypothesis Set，且不能早于 Hypothesis Set 的冻结。`feasibility_status=unresolved` 可以完成“科研设计工作流”，但只表示设计已形成并明确 blocker，不能被解释成实验已经 execution-ready。一个 linked confirmatory Analysis 完成后，如果它已经被用于更新关联 Hypothesis Set，completion 还要求存在对应 Hypothesis Evaluation，并由 Evaluation 指回当前 Analysis 已登记的解释/结果 artifact；`hypothesis_sets.status=frozen` 本身绝不作为结果后科研判定的替代。
 
 对于以中文为主体的科研项目，完成验证还会检查 `RESEARCH.md`、论文侧记、Dataset provenance 和 Analysis 人类入口中的明显大段英文科研叙述；代码块、内联代码、路径和 URL 不参与该语言比例判断。随后要求项目根目录本身是独立版本仓库（Git repository）顶层、已经存在至少一个提交，且全部声明为规范化并需要 Git 跟踪的科研 artifact 已被版本管理跟踪且没有未提交修改。普通 `validate` 通过不能替代这个完成门禁，也不能把 `completion=true` 解释成科学问题本身已经解决。

@@ -42,7 +42,7 @@ Known missingness / exclusions / anomalies
 Processing entrypoint or pointer
 ```
 
-有 DOI、accession、repository ID、instrument run ID、sample ID 等稳定身份时优先使用它们。日常科研不默认对所有 artifact 计算 SHA；只有来源缺少稳定版本、跨介质传输完整性需要验证、或上游已经提供 checksum 时才记录 checksum。
+有 DOI、accession、repository ID、instrument run ID、sample ID 等稳定身份时优先使用它们。日常科研不默认对所有 artifact 计算 SHA；只有来源缺少稳定版本、跨介质传输完整性需要验证、或上游已经提供 checksum 时才记录 checksum。对能够由明确软件版本/官方对象稳定重导出的公开数据，不要为了“显得严谨”额外计算 checksum；身份、版本、来源和可重复导出路径已经足以承担常规 provenance。
 
 ## 4. Sample identity 与 unit of inference
 
@@ -87,7 +87,7 @@ software / environment version where material
 output artifact
 ```
 
-随机过程记录 seed 或能够重建随机状态；外部 reference database / genome / annotation 的版本必须在会影响结果时固定。
+随机过程记录 seed 或能够重建随机状态；外部 reference database / genome / annotation 的版本必须在会影响结果时固定。若 curated / analysis-ready 数据由项目内脚本或 workflow 生成，该处理入口本身属于 Dataset provenance：使用 `record-dataset` 在核心 Dataset 身份不变的前提下追加 `role=other` 的 artifact，使脚本即使位于 `scripts/` 而非 `data/` 下也进入 canonical Git gate。Dataset 核心身份已经登记后不得借追加 artifact 静默改写；身份/版本变化应建立新 Dataset。
 
 ## 7. QC 不等于删数据
 

@@ -63,7 +63,7 @@ Falsifiers:
 
 `Statement` 必须带 scope。比如“Blautia A causes adaptation”过宽；“在目标人群和暴露定义下，Blautia A 的变化对某个预定义 host adaptation phenotype 具有独立可干预贡献”才是可设计检验的 target。
 
-当 `hypotheses/<slug>.md` 已成为后续 Design / Analysis 将依赖的 canonical hypothesis set 时，使用 `research-db record-hypothesis-set` 登记其身份、target uncertainty 与 artifact path；进入结果判别前的冻结状态时同时记录真实 Git `freeze_commit`。数据库只保存这一最小 provenance，不复制 H1/H2、Prediction 或 Discriminator Matrix 的科研语义正文。
+当 `hypotheses/<slug>.md` 已成为后续 Design / Analysis 将依赖的 canonical hypothesis set 时，使用 `research-db record-hypothesis-set` 登记其身份、target uncertainty 与 artifact path；进入结果判别前的冻结状态时同时记录真实 Git `freeze_commit`。这里 `hypothesis_sets.status=draft/frozen/closed/superseded` 描述的是 **Hypothesis Set artifact 的版本/生命周期状态**，不是结果出现后的科学可信度。数据库只保存这一最小 provenance，不复制 H1/H2、Prediction 或 Discriminator Matrix 的科研语义正文。
 
 ## 4. Prediction discipline
 
@@ -82,14 +82,14 @@ Prediction 必须在看到将用于判别的新结果前写清楚，避免结果
 
 已有论文 Claim 不自动成为本项目 Hypothesis；项目 Hypothesis 是为当前 Active Uncertainty 构造的解释模型。其当前 plausibility 必须通过 `research.sqlite` 中的 Observation / Claim / Issue 或项目自己的分析 artifact 回溯。
 
-Hypothesis 状态只描述当前 evidence boundary：
+单个 hypothesis 的科学状态只描述当前 evidence boundary：
 
 - `live`：尚未被当前证据区分；
 - `favored`：相对竞争解释更符合当前判别证据，但仍保留适用范围；
 - `weakened`：关键预测受到可信 evidence 挑战；
 - `ruled_out_within_scope`：在明确 scope 和 decision boundary 下被足够判别性的 evidence 排除。
 
-不使用 `proven` / `confirmed` 作为常规终态。
+不使用 `proven` / `confirmed` 作为常规终态。一次 completed Analysis 对整个 Hypothesis Set 的结果后判别，使用 `research-db record-hypothesis-evaluation` 保存为不可覆盖的 Evaluation 事件，并区分 `unresolved`、`partially_resolved`、`resolved` 与 `not_interpretable`。Evaluation 必须指回当前 Analysis 已登记的解释/结果 artifact；它记录“这次证据做了什么”，而不是覆盖 Hypothesis Set 的结果前 freeze 历史。单个 H1/H2/H3 的 `live/favored/weakened/...` 仍写在 canonical hypothesis artifact 中，不拆成数据库行。
 
 ## 6. 完成条件
 

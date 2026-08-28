@@ -11,6 +11,12 @@ from research_db_ops.discovery import _db_path, _enum, _now, _text
 HYPOTHESIS_STATUSES = {"draft", "frozen", "superseded", "closed"}
 DESIGN_STATUSES = {"draft", "frozen", "execution_ready", "superseded"}
 FEASIBILITY_STATUSES = {"unresolved", "ready"}
+HYPOTHESIS_RESOLUTION_STATUSES = {
+    "unresolved",
+    "partially_resolved",
+    "resolved",
+    "not_interpretable",
+}
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _HYPOTHESIS_ORDER = {"draft": 0, "frozen": 1, "closed": 2, "superseded": 2}
 _DESIGN_ORDER = {"draft": 0, "frozen": 1, "execution_ready": 2, "superseded": 2}
@@ -346,3 +352,135 @@ def list_designs(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
         ):
             rows.append(dict(row))
     return {"ok": True, "designs": rows}
+
+
+def record_hypothesis_evaluation(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
+    hypothesis_slug = _slug(bundle.get("hypothesis_set_slug"), field="hypothesis_set_slug")
+    analysis_slug = _slug(bundle.get("analysis_slug"), field="analysis_slug")
+    resolution_value = _text(
+        bundle.get("resolution_status"), required=True, field="resolution_status"
+    )
+    resolution_status = _enum(
+        resolution_value,
+        HYPOTHESIS_RESOLUTION_STATUSES,
+        default="unresolved",
+        field="resolution_status",
+    )
+    decision = _text(bundle.get("decision"), required=True, field="decision")
+    summary = _text(bundle.get("summary"), required=True, field="summary")
+    source_path = _local_file(
+        project_root, bundle.get("source_path"), field="evaluation source_path"
+    )
+    evaluated_at = _text(bundle.get("evaluated_at")) or _now()
+    assert decision is not None and summary is not None
+
+    now = _now()
+    with connect(_db_path(project_root)) as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        try:
+            hypothesis = connection.execute(
+                "SELECT id FROM hypothesis_sets WHERE slug = ?", (hypothesis_slug,)
+            ).fetchone()
+            if hypothesis is None:
+                raise ResearchDbError(f"Hypothesis Set 不存在：{hypothesis_slug}")
+            analysis = connection.execute(
+                "SELECT id, status, design_id FROM analysis_runs WHERE slug = ?", (analysis_slug,)
+            ).fetchone()
+            if analysis is None:
+                raise ResearchDbError(f"Analysis 不存在：{analysis_slug}")
+            if analysis["status"] != "completed":
+                raise ResearchDbError("Hypothesis Evaluation 只能引用 completed Analysis。")
+
+            hypothesis_set_id = int(hypothesis["id"])
+            analysis_id = int(analysis["id"])
+            source_artifact = connection.execute(
+                "SELECT id FROM analysis_artifacts WHERE analysis_id = ? AND path = ?",
+                (analysis_id, source_path),
+            ).fetchone()
+            if source_artifact is None:
+                raise ResearchDbError(
+                    "Hypothesis Evaluation 的 source_path 必须已登记为当前 Analysis artifact："
+                    + source_path
+                )
+            source_artifact_id = int(source_artifact["id"])
+            if analysis["design_id"] is not None:
+                design = connection.execute(
+                    "SELECT hypothesis_set_id FROM research_designs WHERE id = ?",
+                    (int(analysis["design_id"]),),
+                ).fetchone()
+                if design is None or int(design["hypothesis_set_id"]) != hypothesis_set_id:
+                    raise ResearchDbError(
+                        "Hypothesis Evaluation 与 Analysis 所实现 Design 的 Hypothesis Set 不一致。"
+                    )
+
+            if connection.execute(
+                "SELECT 1 FROM hypothesis_evaluations WHERE hypothesis_set_id = ? AND analysis_id = ?",
+                (hypothesis_set_id, analysis_id),
+            ).fetchone():
+                raise ResearchDbError(
+                    "同一 Hypothesis Set 与 Analysis 已存在 Evaluation；科研评价事件不可覆盖。"
+                )
+
+            cursor = connection.execute(
+                """
+                INSERT INTO hypothesis_evaluations(
+                    hypothesis_set_id, analysis_id, source_artifact_id, resolution_status,
+                    decision, summary, evaluated_at, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    hypothesis_set_id,
+                    analysis_id,
+                    source_artifact_id,
+                    resolution_status,
+                    decision,
+                    summary,
+                    evaluated_at,
+                    now,
+                ),
+            )
+            evaluation_id = int(cursor.lastrowid)
+            connection.execute(
+                """
+                INSERT INTO change_log(timestamp, action, entity_type, entity_id, reason, summary)
+                VALUES (?, 'hypothesis_evaluated', 'hypothesis_evaluation', ?, ?, ?)
+                """,
+                (
+                    now,
+                    str(evaluation_id),
+                    summary,
+                    f"hypothesis_set={hypothesis_slug}; analysis={analysis_slug}; "
+                    f"resolution={resolution_status}; decision={decision}",
+                ),
+            )
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+
+    return {
+        "ok": True,
+        "hypothesis_evaluation_id": evaluation_id,
+        "hypothesis_set_slug": hypothesis_slug,
+        "analysis_slug": analysis_slug,
+        "resolution_status": resolution_status,
+        "decision": decision,
+    }
+
+
+def list_hypothesis_evaluations(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
+    with connect(_db_path(project_root)) as connection:
+        rows = [
+            dict(row)
+            for row in connection.execute(
+                """
+                SELECT e.*, h.slug AS hypothesis_set_slug, a.slug AS analysis_slug
+                FROM hypothesis_evaluations e
+                JOIN hypothesis_sets h ON h.id = e.hypothesis_set_id
+                JOIN analysis_runs a ON a.id = e.analysis_id
+                ORDER BY e.id LIMIT ?
+                """,
+                (limit,),
+            )
+        ]
+    return {"ok": True, "hypothesis_evaluations": rows}

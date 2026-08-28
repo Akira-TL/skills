@@ -35,6 +35,7 @@ REQUIRED_TABLES = {
     "project_observations",
     "hypothesis_sets",
     "research_designs",
+    "hypothesis_evaluations",
 }
 ENTITY_TABLES = {
     "paper": "papers",
@@ -814,7 +815,14 @@ def validate(project_root: Path) -> dict[str, Any]:
                     errors.append(f"dataset artifact {row['id']} 文件不存在：{path}")
 
             for row in connection.execute(
-                "SELECT id, slug, analysis_path, code_path, analysis_mode, status, freeze_commit FROM analysis_runs ORDER BY id"
+                """
+                SELECT a.id, a.slug, a.analysis_path, a.code_path, a.analysis_mode,
+                       a.status, a.freeze_commit, a.design_id, a.estimand,
+                       d.id AS design_exists, d.target_estimand AS design_estimand
+                FROM analysis_runs a
+                LEFT JOIN research_designs d ON d.id = a.design_id
+                ORDER BY a.id
+                """
             ):
                 for field in ("analysis_path", "code_path"):
                     path = Path(str(row[field]))
@@ -832,6 +840,13 @@ def validate(project_root: Path) -> dict[str, Any]:
                     errors.append(
                         f"confirmatory analysis {row['slug']} 已进入 {row['status']}，但缺少 freeze_commit。"
                     )
+                if row["design_id"] is not None:
+                    if row["design_exists"] is None:
+                        errors.append(f"analysis {row['slug']} 引用不存在的 Research Design。")
+                    elif str(row["estimand"]).strip() != str(row["design_estimand"]).strip():
+                        errors.append(
+                            f"analysis {row['slug']} 的 estimand 与关联 Research Design 不一致。"
+                        )
 
             for row in connection.execute(
                 "SELECT id, analysis_id, path FROM analysis_artifacts ORDER BY id"
@@ -905,6 +920,36 @@ def validate(project_root: Path) -> dict[str, Any]:
                     errors.append(
                         f"research design {row['slug']} 标记 execution_ready，但 feasibility_status 不是 ready。"
                     )
+
+            for row in connection.execute(
+                """
+                SELECT e.id, e.hypothesis_set_id, e.analysis_id, e.source_artifact_id,
+                       e.decision, e.summary, a.status AS analysis_status, a.design_id,
+                       d.hypothesis_set_id AS design_hypothesis_set_id,
+                       aa.analysis_id AS source_artifact_analysis_id
+                FROM hypothesis_evaluations e
+                LEFT JOIN analysis_runs a ON a.id = e.analysis_id
+                LEFT JOIN research_designs d ON d.id = a.design_id
+                LEFT JOIN analysis_artifacts aa ON aa.id = e.source_artifact_id
+                ORDER BY e.id
+                """
+            ):
+                if row["analysis_status"] != "completed":
+                    errors.append(
+                        f"hypothesis evaluation {row['id']} 必须引用 completed Analysis。"
+                    )
+                if row["design_id"] is not None and row["design_hypothesis_set_id"] != row["hypothesis_set_id"]:
+                    errors.append(
+                        f"hypothesis evaluation {row['id']} 与 Analysis 所实现 Design 的 Hypothesis Set 不一致。"
+                    )
+                if row["source_artifact_analysis_id"] != row["analysis_id"]:
+                    errors.append(
+                        f"hypothesis evaluation {row['id']} 的 source artifact 不属于同一 Analysis。"
+                    )
+                if not (row["decision"] and str(row["decision"]).strip()):
+                    errors.append(f"hypothesis evaluation {row['id']} 缺少 decision。")
+                if not (row["summary"] and str(row["summary"]).strip()):
+                    errors.append(f"hypothesis evaluation {row['id']} 缺少 summary。")
 
             for row in connection.execute(
                 "SELECT id, subject_type, subject_id, object_type, object_id FROM relations"

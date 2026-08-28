@@ -15,6 +15,7 @@ GIT_TRACKING = {"required", "not_required"}
 ANALYSIS_MODES = {"confirmatory", "exploratory"}
 ANALYSIS_STATUSES = {"planned", "frozen", "completed", "abandoned"}
 ANALYSIS_ARTIFACT_ROLES = {"estimate", "diagnostic", "figure", "table", "log", "other"}
+ANALYSIS_ARTIFACT_TIMING_ROLES = {"pre_result_support", "result"}
 AMENDMENT_TIMINGS = {"pre_result", "post_result"}
 _STATUS_ORDER = {"planned": 0, "frozen": 1, "completed": 2, "abandoned": 2}
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -98,35 +99,61 @@ def record_dataset(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
     with connect(_db_path(project_root)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         try:
-            if connection.execute("SELECT 1 FROM datasets WHERE slug = ?", (slug,)).fetchone():
-                raise ResearchDbError(f"Dataset slug 已存在：{slug}")
-            cursor = connection.execute(
-                """
-                INSERT INTO datasets(
-                    slug, title, identity, source, source_url, version, received_at,
-                    unit_of_inference, provenance_path, status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    slug,
-                    title,
-                    identity,
-                    source,
-                    source_url,
-                    version,
-                    received_at,
-                    unit,
-                    provenance_path,
-                    status,
-                    now,
-                    now,
-                ),
-            )
-            dataset_id = int(cursor.lastrowid)
+            existing = connection.execute(
+                "SELECT * FROM datasets WHERE slug = ?", (slug,)
+            ).fetchone()
+            if existing is None:
+                cursor = connection.execute(
+                    """
+                    INSERT INTO datasets(
+                        slug, title, identity, source, source_url, version, received_at,
+                        unit_of_inference, provenance_path, status, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        slug,
+                        title,
+                        identity,
+                        source,
+                        source_url,
+                        version,
+                        received_at,
+                        unit,
+                        provenance_path,
+                        status,
+                        now,
+                        now,
+                    ),
+                )
+                dataset_id = int(cursor.lastrowid)
+            else:
+                dataset_id = int(existing["id"])
+                immutable = {
+                    "title": title,
+                    "identity": identity,
+                    "source": source,
+                    "source_url": source_url,
+                    "version": version,
+                    "received_at": received_at,
+                    "unit_of_inference": unit,
+                    "provenance_path": provenance_path,
+                    "status": status,
+                }
+                changed = [
+                    field
+                    for field, value in immutable.items()
+                    if (existing[field] if existing[field] is not None else None) != value
+                ]
+                if changed:
+                    raise ResearchDbError(
+                        "Dataset 已登记后不能通过 record-dataset 静默修改核心身份字段："
+                        + ", ".join(changed)
+                        + "。如数据版本/身份已改变，应建立新的 Dataset。"
+                    )
             for item in parsed_artifacts:
                 connection.execute(
                     """
-                    INSERT INTO dataset_artifacts(
+                    INSERT OR IGNORE INTO dataset_artifacts(
                         dataset_id, role, location, storage_kind, git_tracking,
                         tracking_reason, source_url, version, created_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -211,6 +238,43 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
         try:
             dataset_ids = _dataset_ids(connection, bundle.get("dataset_slugs"))
             existing = connection.execute("SELECT * FROM analysis_runs WHERE slug = ?", (slug,)).fetchone()
+            design_slug = _text(bundle.get("design_slug"))
+            design_id: int | None = None
+            if design_slug is not None:
+                design = connection.execute(
+                    "SELECT id, target_estimand, status FROM research_designs WHERE slug = ?",
+                    (design_slug,),
+                ).fetchone()
+                if design is None:
+                    raise ResearchDbError(f"Analysis 引用不存在的 Research Design：{design_slug}")
+                if analysis_mode == "confirmatory" and design["status"] not in {"frozen", "execution_ready"}:
+                    raise ResearchDbError("confirmatory Analysis 引用的 Research Design 必须先冻结。")
+                if str(design["target_estimand"]).strip() != str(estimand).strip():
+                    raise ResearchDbError("Analysis estimand 与关联 Research Design 的 target_estimand 不一致。")
+                design_id = int(design["id"])
+            elif existing is not None and existing["design_id"] is not None:
+                design_id = int(existing["design_id"])
+            elif analysis_mode == "confirmatory":
+                matching_designs = connection.execute(
+                    """
+                    SELECT d.id
+                    FROM research_designs d
+                    JOIN hypothesis_sets h ON h.id = d.hypothesis_set_id
+                    WHERE d.status <> 'superseded'
+                      AND (
+                        trim(d.target_estimand) = trim(?)
+                        OR trim(h.target_uncertainty) = trim(?)
+                      )
+                    ORDER BY d.id
+                    """,
+                    (estimand, target_uncertainty),
+                ).fetchall()
+                if matching_designs:
+                    raise ResearchDbError(
+                        "confirmatory Analysis 与已登记 Research Design 匹配时必须显式提供 design_slug，"
+                        "不能只靠重复文本形成隐式关联。"
+                    )
+
             immutable = {
                 "title": title,
                 "analysis_mode": analysis_mode,
@@ -220,6 +284,7 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                 "primary_analysis": primary_analysis,
                 "analysis_path": analysis_path,
                 "code_path": code_path,
+                "design_id": design_id,
             }
             if existing is None:
                 cursor = connection.execute(
@@ -227,8 +292,9 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                     INSERT INTO analysis_runs(
                         slug, title, analysis_mode, status, target_uncertainty, estimand,
                         unit_of_inference, primary_analysis, analysis_path, code_path,
-                        freeze_commit, started_at, completed_at, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        freeze_commit, started_at, completed_at, created_at, updated_at,
+                        design_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         slug,
@@ -246,13 +312,23 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                         completed_at,
                         now,
                         now,
+                        design_id,
                     ),
                 )
                 analysis_id = int(cursor.lastrowid)
             else:
                 analysis_id = int(existing["id"])
                 if existing["status"] in {"frozen", "completed"}:
-                    changed = [key for key, value in immutable.items() if str(existing[key]) != str(value)]
+                    changed = [
+                        key
+                        for key, value in immutable.items()
+                        if str(existing[key]) != str(value)
+                        and not (
+                            key == "design_id"
+                            and existing["design_id"] is None
+                            and value is not None
+                        )
+                    ]
                     if changed:
                         raise ResearchDbError(
                             "Analysis 在 frozen/completed 后不能静默修改预先定义字段："
@@ -272,7 +348,7 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                         SET title = ?, analysis_mode = ?, status = ?, target_uncertainty = ?,
                             estimand = ?, unit_of_inference = ?, primary_analysis = ?,
                             analysis_path = ?, code_path = ?, freeze_commit = COALESCE(?, freeze_commit),
-                            completed_at = COALESCE(?, completed_at), updated_at = ?
+                            completed_at = COALESCE(?, completed_at), updated_at = ?, design_id = ?
                         WHERE id = ?
                         """,
                         (
@@ -288,6 +364,7 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                             freeze_commit,
                             completed_at,
                             now,
+                            design_id,
                             analysis_id,
                         ),
                     )
@@ -296,10 +373,11 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                         """
                         UPDATE analysis_runs
                         SET status = ?, freeze_commit = COALESCE(?, freeze_commit),
-                            completed_at = COALESCE(?, completed_at), updated_at = ?
+                            completed_at = COALESCE(?, completed_at), updated_at = ?,
+                            design_id = COALESCE(design_id, ?)
                         WHERE id = ?
                         """,
-                        (status, freeze_commit, completed_at, now, analysis_id),
+                        (status, freeze_commit, completed_at, now, design_id, analysis_id),
                     )
 
             for dataset_id in dataset_ids:
@@ -317,16 +395,23 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                 )
                 path = _local_path(project_root, item.get("path"), field="analysis artifact path")
                 git_tracking = _tracking(item.get("git_tracking"))
+                timing_role = _enum(
+                    item.get("timing_role"),
+                    ANALYSIS_ARTIFACT_TIMING_ROLES,
+                    default="result",
+                    field="analysis artifact timing_role",
+                )
                 tracking_reason = _text(item.get("tracking_reason"))
                 if git_tracking == "not_required" and not tracking_reason:
                     raise ResearchDbError("analysis artifact git_tracking=not_required 时必须说明 tracking_reason。")
                 connection.execute(
                     """
                     INSERT OR IGNORE INTO analysis_artifacts(
-                        analysis_id, role, path, git_tracking, tracking_reason, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?)
+                        analysis_id, role, path, git_tracking, tracking_reason, created_at,
+                        timing_role
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (analysis_id, role, path, git_tracking, tracking_reason, now),
+                    (analysis_id, role, path, git_tracking, tracking_reason, now, timing_role),
                 )
                 row = connection.execute(
                     "SELECT id FROM analysis_artifacts WHERE analysis_id = ? AND path = ?",
@@ -428,6 +513,13 @@ def list_analyses(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
         rows = []
         for row in connection.execute("SELECT * FROM analysis_runs ORDER BY id LIMIT ?", (limit,)):
             item = dict(row)
+            if row["design_id"] is not None:
+                design = connection.execute(
+                    "SELECT slug FROM research_designs WHERE id = ?", (int(row["design_id"]),)
+                ).fetchone()
+                item["design_slug"] = str(design["slug"]) if design else None
+            else:
+                item["design_slug"] = None
             item["dataset_slugs"] = [
                 x["slug"]
                 for x in connection.execute(

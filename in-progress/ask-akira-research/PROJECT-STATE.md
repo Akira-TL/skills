@@ -52,11 +52,11 @@
 
 ## 更新边界
 
-一次科研动作结束后，只把仍然影响当前路线的内容写回 `RESEARCH.md`：新的 Active Uncertainty、Current State、Active Work、Open Threads、仍然有效的 Key Decisions，以及必要 pointer。
+一次科研动作结束后，只把仍然影响当前路线的内容写回 `RESEARCH.md`：新的 Active Uncertainty、Current State、Active Work、Open Threads、仍然有效的 Key Decisions，以及必要 pointer。准备声明本轮工作流完成前，必须在所有分析、解释、数据库写入和提交动作结束后**最后再读一次 `RESEARCH.md`**：`Active Work` 应描述下一条真实尚未完成的动作、明确的等待/blocker 或当前有边界的停止状态，不能继续写“正在提交结果”“正在运行 validation”等事实上已经完成的操作。
 
 详细文献知识、检索历史、方法、实验、观察、声明、批判问题和关系进入项目级 SQLite；原始 PDF 与 supplement 保持为独立 artifact。Git 负责保存 `RESEARCH.md` 与数据库的版本演化，因此不额外维护重复的 research log。每个可独立解释的科研事件完成后提交本轮 owned changes；用户已有、与本轮无关的工作区修改不触碰、不暂存、不重置。
 
-当 Agent 准备向用户声明某个**有边界的科研工作流或里程碑已经完成**时，必须先提交本轮拥有的 canonical research artifacts 和本轮生成的 derived outputs，然后运行 `research-db validate --completion`。普通 `research-db validate` 只证明 SQLite/科研知识库内部一致，不证明 Git provenance 已完成；`--completion` 额外要求科研项目本身是独立 Git repository、已经存在 commit、canonical research artifacts 已被 Git 跟踪且当前没有未提交修改，并对当前已经实现机械门禁的工作流检查其闭合条件。项目存在 `hypotheses/`、`designs/`、`data/` 或 `analysis/` 科研资产时，还必须把 Hypothesis Set、Research Design、Dataset、Analysis Run、结果 artifact 与项目 Observation 中当前已有稳定 provenance 模型的对象登记到数据库；冻结的 Hypothesis/Design 及确认性 Analysis 都需要可核验的结果可见前 Git freeze commit。任何一项失败都不得宣称对应工作流完成。
+当 Agent 准备向用户声明某个**有边界的科研工作流或里程碑已经完成**时，必须先提交本轮拥有的 canonical research artifacts 和本轮生成的 derived outputs，然后运行 `research-db validate --completion`。普通 `research-db validate` 只证明 SQLite/科研知识库内部一致，不证明 Git provenance 已完成；`--completion` 额外要求科研项目本身是独立 Git repository、已经存在 commit、canonical research artifacts 已被 Git 跟踪且当前没有未提交修改，并对当前已经实现机械门禁的工作流检查其闭合条件。项目存在 `hypotheses/`、`designs/`、`data/` 或 `analysis/` 科研资产时，还必须把 Hypothesis Set、Research Design、Dataset、Analysis Run、结果 artifact 与项目 Observation 中当前已有稳定 provenance 模型的对象登记到数据库；冻结的 Hypothesis/Design 及确认性 Analysis 都需要可核验的结果可见前 Git freeze commit。确认性 Analysis 实现已登记 Research Design 时必须显式关联该 Design；completed Analysis 已用于更新其 Hypothesis Set 时还必须保存结果后 Hypothesis Evaluation。任何一项失败都不得宣称对应工作流完成。
 
 `validate --completion` **不是“科学问题已经解决”或“整个科研项目已经结束”的判定器**。例如 Literature Research 可以在明确留下 unresolved scientific question、Active Uncertainty 与下一条判别性证据的情况下完整结束。只有当用户要求的是整个科研目标收口时，Agent 才需要另外判断 Objective 是否已经在当前证据边界内得到足够回答、仍存的 Active Uncertainty 是否会改变核心结论，以及继续取得新证据是否仍具有合理信息增益；若研究因数据、伦理、样本、权限或现实成本停止，也应明确写成停止边界，而不是把 `completion=true` 解释成科学问题已经被证明。
 

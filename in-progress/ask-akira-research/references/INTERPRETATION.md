@@ -95,7 +95,7 @@ Interpretation 明确结论只覆盖实际 study population / experimental syste
 - `Open Threads`：保存重要但当前不追的问题；
 - `Key Decisions`：记录仍影响路线的解释/设计决定。
 
-不要把完整结果表、文献摘要或历史演化堆进 `RESEARCH.md`。
+不要把完整结果表、文献摘要或历史演化堆进 `RESEARCH.md`。如果本轮 completed Analysis 实现了已登记的 Research Design，则在主模型完成上述科研判断后使用 `research-db record-hypothesis-evaluation` 记录一次结果后 Hypothesis Evaluation：它连接 Hypothesis Set、Analysis 与具体解释/结果 artifact，并保存本轮总体判别是否 `unresolved`、`partially_resolved`、`resolved` 或 `not_interpretable`。Evaluation 是不可覆盖的证据事件；未来新的 Analysis 产生新的 Evaluation，不回写抹掉旧判断。
 
 ## 9. 完成条件
 
@@ -108,5 +108,6 @@ Interpretation 完成时必须能清楚回答：
 5. literature 与本项目 evidence 在哪里一致、冲突或只能间接连接？
 6. 当前最窄、最可辩护的结论是什么？
 7. primary Active Uncertainty 是否改变，下一条最有信息增益的 evidence 是什么？
+8. 若本轮由已登记 Research Design 的确认性 Analysis 更新了 Hypothesis Set，Hypothesis Evaluation 是否已写入 canonical provenance 并指回完整解释 artifact？
 
 如果第 7 项仍能由文献、分析或设计动作推进，就继续科研循环；只有确有传播/写作目标时才按 [`COMMUNICATION.md`](COMMUNICATION.md) 进入 Communication，它不是 Interpretation 后的强制下一阶段。

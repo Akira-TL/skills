@@ -34,8 +34,10 @@ from research_db_ops.downstream import (
 )
 from research_db_ops.planning import (
     list_designs,
+    list_hypothesis_evaluations,
     list_hypothesis_sets,
     record_design,
+    record_hypothesis_evaluation,
     record_hypothesis_set,
 )
 from research_db_ingest import PaperIngestBundle, ingest_paper
@@ -63,6 +65,7 @@ BUNDLE_DEFAULTS = {
     "record-analysis": "analysis.json",
     "record-hypothesis-set": "hypothesis-set.json",
     "record-design": "design.json",
+    "record-hypothesis-evaluation": "hypothesis-evaluation.json",
 }
 
 
@@ -402,6 +405,23 @@ def cmd_designs(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_record_hypothesis_evaluation(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(
+        record_hypothesis_evaluation(
+            project_root,
+            _load_json_object(project_root, "record-hypothesis-evaluation", args.bundle),
+        )
+    )
+    return 0
+
+
+def cmd_hypothesis_evaluations(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(list_hypothesis_evaluations(project_root, limit=args.limit))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="research-db",
@@ -566,6 +586,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("datasets", "列出项目级 Dataset provenance。", cmd_datasets),
         ("analyses", "列出项目级 Analysis Run、artifact、修订与项目 Observation。", cmd_analyses),
         ("hypothesis-sets", "列出项目级 Hypothesis Set provenance。", cmd_hypothesis_sets),
+        ("hypothesis-evaluations", "列出结果后 Hypothesis Evaluation 历史。", cmd_hypothesis_evaluations),
         ("designs", "列出项目级 Research Design provenance。", cmd_designs),
     ):
         downstream_parser = subparsers.add_parser(name, help=help_text)
@@ -584,6 +605,12 @@ def build_parser() -> argparse.ArgumentParser:
             "登记或冻结 Research Design、主要 estimand 与 feasibility 状态。",
             "Design JSON bundle；默认 .research/bundles/design.json；传 '-' 从 stdin 读取。",
             cmd_record_design,
+        ),
+        (
+            "record-hypothesis-evaluation",
+            "记录 completed Analysis 对已冻结 Hypothesis Set 的结果后科研评价事件。",
+            "Hypothesis Evaluation JSON bundle；默认 .research/bundles/hypothesis-evaluation.json；传 '-' 从 stdin 读取。",
+            cmd_record_hypothesis_evaluation,
         ),
         (
             "record-dataset",
