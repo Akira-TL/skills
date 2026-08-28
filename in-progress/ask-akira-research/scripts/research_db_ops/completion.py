@@ -46,6 +46,12 @@ def _canonical_paths(project_root: Path) -> list[str]:
         return sorted(paths)
 
     with connect(db_path) as connection:
+        tables = {
+            str(row["name"])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+            )
+        }
         for row in connection.execute("SELECT path FROM artifacts ORDER BY id"):
             path = Path(str(row["path"]))
             if path.is_absolute():
@@ -64,6 +70,27 @@ def _canonical_paths(project_root: Path) -> list[str]:
                 except ValueError:
                     continue
             paths.add(path.as_posix())
+        if "datasets" in tables:
+            for row in connection.execute("SELECT provenance_path FROM datasets ORDER BY id"):
+                paths.add(Path(str(row["provenance_path"])).as_posix())
+        if "dataset_artifacts" in tables:
+            for row in connection.execute(
+                """
+                SELECT location FROM dataset_artifacts
+                WHERE storage_kind = 'local' AND git_tracking = 'required'
+                ORDER BY id
+                """
+            ):
+                paths.add(Path(str(row["location"])).as_posix())
+        if "analysis_runs" in tables:
+            for row in connection.execute("SELECT analysis_path, code_path FROM analysis_runs ORDER BY id"):
+                paths.add(Path(str(row["analysis_path"])).as_posix())
+                paths.add(Path(str(row["code_path"])).as_posix())
+        if "analysis_artifacts" in tables:
+            for row in connection.execute(
+                "SELECT path FROM analysis_artifacts WHERE git_tracking = 'required' ORDER BY id"
+            ):
+                paths.add(Path(str(row["path"])).as_posix())
     return sorted(paths)
 
 
@@ -73,6 +100,12 @@ def _academic_language_paths(project_root: Path) -> list[Path]:
     if not db_path.exists():
         return paths
     with connect(db_path) as connection:
+        tables = {
+            str(row["name"])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+            )
+        }
         for row in connection.execute(
             "SELECT sidecar_path FROM papers WHERE sidecar_path IS NOT NULL AND trim(sidecar_path) <> ''"
         ):
@@ -80,6 +113,14 @@ def _academic_language_paths(project_root: Path) -> list[Path]:
             if not path.is_absolute():
                 path = project_root / path
             paths.append(path)
+        if "datasets" in tables:
+            for row in connection.execute("SELECT provenance_path FROM datasets ORDER BY id"):
+                path = Path(str(row["provenance_path"]))
+                paths.append(path if path.is_absolute() else project_root / path)
+        if "analysis_runs" in tables:
+            for row in connection.execute("SELECT analysis_path FROM analysis_runs ORDER BY id"):
+                path = Path(str(row["analysis_path"]))
+                paths.append(path if path.is_absolute() else project_root / path)
     return paths
 
 
@@ -101,8 +142,10 @@ def academic_language_readiness(project_root: Path) -> dict[str, Any]:
             stripped = paragraph.strip()
             if not stripped or stripped.startswith("#") and "\n" not in stripped:
                 continue
-            cjk_count = len(re.findall(r"[\u3400-\u9fff]", stripped))
-            english_words = re.findall(r"\b[A-Za-z][A-Za-z'-]{1,}\b", stripped)
+            prose_for_language_check = re.sub(r"`[^`]*`", "", stripped)
+            prose_for_language_check = re.sub(r"https?://\S+", "", prose_for_language_check)
+            cjk_count = len(re.findall(r"[\u3400-\u9fff]", prose_for_language_check))
+            english_words = re.findall(r"\b[A-Za-z][A-Za-z'-]{1,}\b", prose_for_language_check)
             if len(english_words) >= 30 and cjk_count < 5:
                 blockers.append(
                     {
@@ -241,6 +284,199 @@ def literature_completion_readiness(
     }
 
 
+def _git_commit_has_path(project_root: Path, commit: str, path: str) -> bool:
+    result = _git(project_root, "cat-file", "-e", f"{commit}:{path}")
+    return result.returncode == 0
+
+
+def downstream_completion_readiness(project_root: Path) -> dict[str, Any]:
+    blockers: list[dict[str, Any]] = []
+    db_path = database_path(project_root)
+    if not db_path.exists():
+        return {
+            "ready": False,
+            "blockers": [{"reason": "database_missing"}],
+            "dataset_count": 0,
+            "analysis_count": 0,
+            "completed_analysis_count": 0,
+        }
+
+    with connect(db_path) as connection:
+        tables = {
+            str(row["name"])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+            )
+        }
+        required = {
+            "datasets",
+            "dataset_artifacts",
+            "analysis_runs",
+            "analysis_inputs",
+            "analysis_artifacts",
+            "analysis_amendments",
+            "project_observations",
+        }
+        missing = sorted(required - tables)
+        if missing:
+            return {
+                "ready": False,
+                "blockers": [{"reason": "downstream_schema_missing", "tables": missing}],
+                "dataset_count": 0,
+                "analysis_count": 0,
+                "completed_analysis_count": 0,
+            }
+
+        dataset_count = int(connection.execute("SELECT COUNT(*) FROM datasets").fetchone()[0])
+        analysis_count = int(connection.execute("SELECT COUNT(*) FROM analysis_runs").fetchone()[0])
+        completed_analysis_count = int(
+            connection.execute("SELECT COUNT(*) FROM analysis_runs WHERE status = 'completed'").fetchone()[0]
+        )
+
+        tracked = _git(project_root, "ls-files", "--", "data", "analysis")
+        tracked_paths = {line.strip() for line in tracked.stdout.splitlines() if line.strip()}
+        registered_paths = set(_canonical_paths(project_root))
+        orphaned = sorted(tracked_paths - registered_paths)
+        if orphaned:
+            blockers.append(
+                {
+                    "reason": "tracked_downstream_artifacts_unregistered",
+                    "paths": orphaned,
+                }
+            )
+
+        data_dir = project_root / "data"
+        if data_dir.exists() and any(path.is_file() for path in data_dir.rglob("*")) and dataset_count == 0:
+            blockers.append({"reason": "data_assets_present_without_dataset_record"})
+        analysis_dir = project_root / "analysis"
+        if analysis_dir.exists() and any(path.is_file() for path in analysis_dir.rglob("*")) and analysis_count == 0:
+            blockers.append({"reason": "analysis_assets_present_without_analysis_record"})
+
+        for run in connection.execute(
+            "SELECT * FROM analysis_runs WHERE status = 'completed' ORDER BY id"
+        ):
+            analysis_id = int(run["id"])
+            slug = str(run["slug"])
+            input_rows = connection.execute(
+                """
+                SELECT d.id, d.slug, d.provenance_path
+                FROM analysis_inputs ai
+                JOIN datasets d ON d.id = ai.dataset_id
+                WHERE ai.analysis_id = ? ORDER BY d.id
+                """,
+                (analysis_id,),
+            ).fetchall()
+            if not input_rows:
+                blockers.append(
+                    {"reason": "completed_analysis_missing_dataset_input", "analysis": slug}
+                )
+            estimate_count = int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM analysis_artifacts WHERE analysis_id = ? AND role = 'estimate'",
+                    (analysis_id,),
+                ).fetchone()[0]
+            )
+            if estimate_count == 0:
+                blockers.append(
+                    {"reason": "completed_analysis_missing_estimate_artifact", "analysis": slug}
+                )
+            observation_count = int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM project_observations WHERE analysis_id = ?",
+                    (analysis_id,),
+                ).fetchone()[0]
+            )
+            if observation_count == 0:
+                blockers.append(
+                    {"reason": "completed_analysis_missing_project_observation", "analysis": slug}
+                )
+
+            if run["analysis_mode"] != "confirmatory":
+                continue
+            freeze_commit = str(run["freeze_commit"] or "").strip()
+            if not freeze_commit:
+                blockers.append(
+                    {"reason": "confirmatory_analysis_missing_freeze_commit", "analysis": slug}
+                )
+                continue
+            commit_exists = _git(project_root, "cat-file", "-e", f"{freeze_commit}^{{commit}}")
+            if commit_exists.returncode != 0:
+                blockers.append(
+                    {
+                        "reason": "analysis_freeze_commit_missing",
+                        "analysis": slug,
+                        "freeze_commit": freeze_commit,
+                    }
+                )
+                continue
+            ancestor = _git(project_root, "merge-base", "--is-ancestor", freeze_commit, "HEAD")
+            if ancestor.returncode != 0:
+                blockers.append(
+                    {
+                        "reason": "analysis_freeze_commit_not_ancestor",
+                        "analysis": slug,
+                        "freeze_commit": freeze_commit,
+                    }
+                )
+
+            freeze_required_paths = [str(run["analysis_path"]), str(run["code_path"])]
+            for dataset in input_rows:
+                freeze_required_paths.append(str(dataset["provenance_path"]))
+                freeze_required_paths.extend(
+                    str(row["location"])
+                    for row in connection.execute(
+                        """
+                        SELECT location FROM dataset_artifacts
+                        WHERE dataset_id = ? AND storage_kind = 'local' AND git_tracking = 'required'
+                        ORDER BY id
+                        """,
+                        (dataset["id"],),
+                    )
+                )
+            missing_at_freeze = sorted(
+                path
+                for path in dict.fromkeys(freeze_required_paths)
+                if not _git_commit_has_path(project_root, freeze_commit, path)
+            )
+            if missing_at_freeze:
+                blockers.append(
+                    {
+                        "reason": "analysis_plan_or_input_missing_at_freeze",
+                        "analysis": slug,
+                        "freeze_commit": freeze_commit,
+                        "paths": missing_at_freeze,
+                    }
+                )
+
+            result_paths = [
+                str(row["path"])
+                for row in connection.execute(
+                    "SELECT path FROM analysis_artifacts WHERE analysis_id = ? ORDER BY id",
+                    (analysis_id,),
+                )
+            ]
+            result_present_at_freeze = sorted(
+                path for path in result_paths if _git_commit_has_path(project_root, freeze_commit, path)
+            )
+            if result_present_at_freeze:
+                blockers.append(
+                    {
+                        "reason": "analysis_result_artifact_present_at_freeze",
+                        "analysis": slug,
+                        "freeze_commit": freeze_commit,
+                        "paths": result_present_at_freeze,
+                    }
+                )
+
+    return {
+        "ready": not blockers,
+        "blockers": blockers,
+        "dataset_count": dataset_count,
+        "analysis_count": analysis_count,
+        "completed_analysis_count": completed_analysis_count,
+    }
+
+
 def validate_completion(project_root: Path) -> dict[str, Any]:
     base = validate(project_root)
     errors = list(base["errors"])
@@ -287,6 +523,50 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
             )
         elif reason == "database_missing":
             errors.append("research.sqlite 不存在；不能完成 Literature completion gate。")
+
+    downstream = downstream_completion_readiness(project_root)
+    for blocker in downstream["blockers"]:
+        reason = str(blocker.get("reason", "unknown"))
+        if reason == "tracked_downstream_artifacts_unregistered":
+            errors.append(
+                "data/analysis 下存在已被 Git 跟踪但未登记到 research.sqlite 的科研 artifact："
+                + ", ".join(str(path) for path in blocker.get("paths", []))
+            )
+        elif reason == "data_assets_present_without_dataset_record":
+            errors.append("项目存在 data/ 科研资产，但 research.sqlite 尚未登记 Dataset。")
+        elif reason == "analysis_assets_present_without_analysis_record":
+            errors.append("项目存在 analysis/ 科研资产，但 research.sqlite 尚未登记 Analysis Run。")
+        elif reason == "completed_analysis_missing_dataset_input":
+            errors.append(f"已完成 Analysis {blocker.get('analysis')} 没有关联输入 Dataset。")
+        elif reason == "completed_analysis_missing_estimate_artifact":
+            errors.append(f"已完成 Analysis {blocker.get('analysis')} 没有登记主要 estimate artifact。")
+        elif reason == "completed_analysis_missing_project_observation":
+            errors.append(f"已完成 Analysis {blocker.get('analysis')} 没有登记项目自身 Observation。")
+        elif reason == "confirmatory_analysis_missing_freeze_commit":
+            errors.append(f"确认性 Analysis {blocker.get('analysis')} 缺少结果可见前 freeze commit。")
+        elif reason == "analysis_freeze_commit_missing":
+            errors.append(
+                f"Analysis {blocker.get('analysis')} 记录的 freeze commit 不存在：{blocker.get('freeze_commit')}。"
+            )
+        elif reason == "analysis_freeze_commit_not_ancestor":
+            errors.append(
+                f"Analysis {blocker.get('analysis')} 的 freeze commit 不是当前 HEAD 的祖先：{blocker.get('freeze_commit')}。"
+            )
+        elif reason == "analysis_plan_or_input_missing_at_freeze":
+            errors.append(
+                f"Analysis {blocker.get('analysis')} 的 freeze commit 未冻结全部主要计划/代码/输入："
+                + ", ".join(str(path) for path in blocker.get("paths", []))
+            )
+        elif reason == "analysis_result_artifact_present_at_freeze":
+            errors.append(
+                f"Analysis {blocker.get('analysis')} 的结果 artifact 已存在于所声明的 pre-result freeze："
+                + ", ".join(str(path) for path in blocker.get("paths", []))
+            )
+        elif reason == "downstream_schema_missing":
+            errors.append(
+                "下游科研 provenance schema 尚未迁移完成："
+                + ", ".join(str(name) for name in blocker.get("tables", []))
+            )
 
     academic_language = academic_language_readiness(project_root)
     for blocker in academic_language["blockers"]:
@@ -347,6 +627,7 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
         "warnings": warnings,
         "discovery": readiness,
         "literature": literature,
+        "downstream": downstream,
         "academic_language": academic_language,
         "git": git_info,
     }

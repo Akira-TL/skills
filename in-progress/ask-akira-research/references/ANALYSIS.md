@@ -77,6 +77,8 @@ Primary result 进入解释前应检查会改变结论的主要 model / data fai
 
 Sensitivity analysis 的目的不是寻找能变显著的版本，而是判断结论在哪些合理分析选择下稳定、在哪些边界下改变。
 
+如果科研问题**明确询问某个函数形式是否足够**（例如线性时间趋势是否足以描述轨迹），必须直接检验该函数形式，而不是只展示一个更灵活模型后凭肉眼判断。比较线性、二次项、分类时间、样条等替代形式时，应尽可能保持数据窗口、独立推断单位和 dependence / random-effects structure 一致，使比较主要反映函数形式本身；若结构无法保持一致，必须说明比较同时改变了哪些假设，不能把差异全部归因于“非线性”。
+
 ## 6. Prediction test
 
 每个用于更新 Hypothesis 状态的主要结果都必须回到 discriminator matrix：
@@ -103,15 +105,17 @@ Exploration 可以用于发现：
 
 但探索后形成的新 prediction 进入下一轮 Hypothesis / Design，不回写成当前 confirmatory target。高维筛选、feature selection、模型调参和 subgroup discovery 必须避免训练/测试泄漏，并对发现与验证数据的独立性保持明确。
 
-## 8. Result artifact 与科研 Observation
+## 8. Analysis Run、Result artifact 与项目 Observation
 
-当前项目自身 Analysis 的结构化 Observation 尚未固化进 `research.sqlite`（现有 `observations` 仍绑定 Paper）。因此真实数据工作流验证完成前：
+真实纵向数据黑盒已经稳定暴露出一组值得进入 `research.sqlite` 的下游对象：Dataset、Analysis Run、Analysis Amendment 与项目自身 Observation。使用 `research-db record-analysis` 持久化它们，但仍保持以下边界：
 
-- 数值结果和图表的 canonical source 保持为可重建 analysis artifact；
-- `RESEARCH.md` 只更新会改变当前路线的高层 result boundary；
-- 不把项目结果伪装成 literature Observation 写进 paper-bound tables。
+- 数值结果和图表的文件本身仍是可重建 analysis artifact；SQLite 只保存语义、路径与 provenance；
+- confirmatory Analysis 必须记录结果可见前的 Git `freeze_commit`，该提交应已经包含主要分析计划、代码和输入，但不能已经包含本轮结果 artifact；
+- 结果可见后新增的敏感性分析或规则进入 Analysis Amendment，并标明 `post_result`，不能静默改写冻结的 estimand / primary analysis；
+- 项目自身 Observation 写入 `project_observations`，必须指向当前 Analysis 的具体结果 artifact；不要把项目结果伪装成 literature Observation 写进 paper-bound `observations`；
+- `RESEARCH.md` 仍只更新会改变路线的高层 result boundary，不复制完整结果表。
 
-当多项目实践表明 project Observation / analysis run 的稳定字段后，再通过 migration 扩展数据库，而不是现在提前复制 literature schema。
+Hypothesis、Design 和项目 Claim 目前仍不为了“阶段对称”而强制建表；等更多真实项目显示它们存在稳定、需要跨会话查询的字段后再迁移。
 
 ## 9. 完成条件
 

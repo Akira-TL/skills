@@ -26,6 +26,13 @@ REQUIRED_TABLES = {
     "relations",
     "change_log",
     "acquisition_attempts",
+    "datasets",
+    "dataset_artifacts",
+    "analysis_runs",
+    "analysis_inputs",
+    "analysis_artifacts",
+    "analysis_amendments",
+    "project_observations",
 }
 ENTITY_TABLES = {
     "paper": "papers",
@@ -781,6 +788,71 @@ def validate(project_root: Path) -> dict[str, Any]:
                     sidecar_path = project_root / sidecar_path
                 if not sidecar_path.exists():
                     warnings.append(f"{row['id']} 的 sidecar 不存在：{sidecar_path}")
+
+            for row in connection.execute(
+                "SELECT id, slug, provenance_path FROM datasets ORDER BY id"
+            ):
+                path = Path(str(row["provenance_path"]))
+                if not path.is_absolute():
+                    path = project_root / path
+                if not path.exists():
+                    errors.append(
+                        f"dataset {row['slug']} 的 provenance_path 文件不存在：{path}"
+                    )
+
+            for row in connection.execute(
+                "SELECT id, dataset_id, location, storage_kind FROM dataset_artifacts ORDER BY id"
+            ):
+                if row["storage_kind"] != "local":
+                    continue
+                path = Path(str(row["location"]))
+                if not path.is_absolute():
+                    path = project_root / path
+                if not path.exists():
+                    errors.append(f"dataset artifact {row['id']} 文件不存在：{path}")
+
+            for row in connection.execute(
+                "SELECT id, slug, analysis_path, code_path, analysis_mode, status, freeze_commit FROM analysis_runs ORDER BY id"
+            ):
+                for field in ("analysis_path", "code_path"):
+                    path = Path(str(row[field]))
+                    if not path.is_absolute():
+                        path = project_root / path
+                    if not path.exists():
+                        errors.append(
+                            f"analysis {row['slug']} 的 {field} 文件不存在：{path}"
+                        )
+                if (
+                    row["analysis_mode"] == "confirmatory"
+                    and row["status"] in {"frozen", "completed"}
+                    and not (row["freeze_commit"] and str(row["freeze_commit"]).strip())
+                ):
+                    errors.append(
+                        f"confirmatory analysis {row['slug']} 已进入 {row['status']}，但缺少 freeze_commit。"
+                    )
+
+            for row in connection.execute(
+                "SELECT id, analysis_id, path FROM analysis_artifacts ORDER BY id"
+            ):
+                path = Path(str(row["path"]))
+                if not path.is_absolute():
+                    path = project_root / path
+                if not path.exists():
+                    errors.append(f"analysis artifact {row['id']} 文件不存在：{path}")
+
+            for row in connection.execute(
+                """
+                SELECT o.id, o.analysis_id, a.analysis_id AS artifact_analysis_id
+                FROM project_observations o
+                LEFT JOIN analysis_artifacts a ON a.id = o.source_artifact_id
+                WHERE o.source_artifact_id IS NOT NULL
+                ORDER BY o.id
+                """
+            ):
+                if row["artifact_analysis_id"] != row["analysis_id"]:
+                    errors.append(
+                        f"project observation {row['id']} 的 source artifact 不属于同一 Analysis。"
+                    )
 
             for row in connection.execute(
                 "SELECT id, subject_type, subject_id, object_type, object_id FROM relations"

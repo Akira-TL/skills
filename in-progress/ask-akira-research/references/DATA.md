@@ -23,7 +23,7 @@ Data 阶段的任务是把真实 observation source 以可追溯、可重建且�
 
 ## 3. 数据集 identity 与 provenance
 
-当前 Data 模型尚未固化进 `research.sqlite` schema；在真实项目验证前，按需使用 `data/<dataset-slug>/README.md` 保存该数据集的人类可读 provenance，文件本身或外部存储保持独立 artifact。
+经过真实纵向数据黑盒验证后，稳定的数据集身份与 provenance 已进入 `research.sqlite`：使用 `research-db record-dataset` 登记 Dataset，并把 `data/<dataset-slug>/README.md` 作为人类可读 provenance 入口。原始/整理数据本身仍是独立 artifact，不把文件内容塞进 SQLite；大型或受控数据允许保留在外部存储，只记录位置、版本和为什么不要求 Git 跟踪。
 
 至少记录：
 
@@ -104,7 +104,7 @@ QC 至少考虑当前 assay 的关键失败模式；例如 sequencing 的 read q
 - primary analysis 使用哪个 freeze 必须明确；
 - freeze 后发现的数据问题记录 amendment，并判断是否影响 confirmatory status。
 
-大型或受控数据是否进入 Git、外部存储或远程仓库由项目实际约束决定；Skill 不默认要求把所有 raw binary 纳入 Git。
+大型或受控数据是否进入 Git、外部存储或远程仓库由项目实际约束决定；Skill 不默认要求把所有 raw binary 纳入 Git。对本地且声明 `git_tracking=required` 的 Dataset artifact，`validate --completion` 会把它纳入 canonical Git provenance；声明 `not_required` 时必须给出具体理由。
 
 ## 9. 安全与受控数据
 

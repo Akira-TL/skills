@@ -206,6 +206,44 @@ class ResearchCompletionTests(unittest.TestCase):
         self.assertFalse(result["ready"])
         self.assertEqual(result["blockers"][0]["reason"], "english_prose_in_chinese_research_text")
 
+    def test_academic_language_ignores_inline_code_paths(self) -> None:
+        (self.root / "RESEARCH.md").write_text(
+            "# 研究\n\n这是一个中文科研项目，用于验证分析文件路径不会被误判为英文科研叙述。"
+            "这里补足中文上下文，确保语言检查处于启用状态，并保留规范中文学术表述。\n",
+            encoding="utf-8",
+        )
+        analysis_dir = self.root / "analysis" / "example"
+        analysis_dir.mkdir(parents=True)
+        analysis_note = analysis_dir / "README.md"
+        analysis_note.write_text(
+            "# 分析输出\n\n"
+            "以下为结果文件：\n"
+            "- `outputs/estimates/primary_estimates.csv`\n"
+            "- `outputs/estimates/random_effect_summary.csv`\n"
+            "- `outputs/diagnostics/primary_model.txt`\n"
+            "- `outputs/figures/residual_vs_fitted.png`\n"
+            "- `outputs/figures/residual_qq.png`\n",
+            encoding="utf-8",
+        )
+        now = "2026-08-27T00:00:00+00:00"
+        with sqlite3.connect(database_path(self.root)) as connection:
+            connection.execute(
+                """
+                INSERT INTO analysis_runs(
+                    slug, title, analysis_mode, status, target_uncertainty, estimand,
+                    unit_of_inference, primary_analysis, analysis_path, code_path,
+                    started_at, created_at, updated_at
+                ) VALUES (
+                    'example', '示例分析', 'exploratory', 'planned', '测试问题', '测试估计量',
+                    'participant', '测试分析', 'analysis/example/README.md',
+                    'analysis/example/README.md', ?, ?, ?
+                )
+                """,
+                (now, now, now),
+            )
+        result = academic_language_readiness(self.root)
+        self.assertTrue(result["ready"], result["blockers"])
+
     def test_completion_requires_committed_canonical_research_state(self) -> None:
         subprocess.run(
             [

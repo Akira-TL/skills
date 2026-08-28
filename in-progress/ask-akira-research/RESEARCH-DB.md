@@ -34,6 +34,13 @@ issues
 leads
 relations
 change_log
+datasets
+dataset_artifacts
+analysis_runs
+analysis_inputs
+analysis_artifacts
+analysis_amendments
+project_observations
 ```
 
 暂不建立独立 evidence graph、method graph、evidence family 或 contradiction Markdown / tables；能够从现有节点与关系动态查询得到的视图先不物化。未来只有出现稳定的独立领域对象时再通过 migration 增加表。
@@ -164,6 +171,20 @@ updated_at
 同一 Candidate 可以由多次 Search Run 独立发现；`search_run_candidates` 保存 `search_run_id + candidate_id + result_rank + source_result_id/source_url`，避免把重复发现误当独立论文。DOI/PMID 已解析时优先按稳定身份复用 Candidate；没有稳定身份时对规范化后的 title/year 做保守 identity enrichment，以吸收标点、大小写和连字符差异。发现历史上已经存在的重复 Candidate 时使用 `research-db merge-candidates`，把 Search Run provenance 合并到一条 canonical Candidate；不要用 `relevance_status=excluded` 代替 identity reconciliation。论文经 `ingest-paper` 获取后，匹配 Candidate 自动回链 `paper_id` 并更新为 `acquired`。
 
 Candidate ID 主要供数据库内部使用。
+
+### 项目自身数据与分析
+
+从 schema v13 起，项目自身的数据与分析不再只存在于 Markdown/Git 中；数据库保存最小、稳定的 provenance 对象，而文件仍保持为独立 artifact。
+
+`datasets` 保存数据集身份、来源、版本、接收时间、独立推断单位与人类可读 provenance 路径。`dataset_artifacts` 保存 raw / curated / metadata / manifest 等位置；大型或受控数据允许 `storage_kind=external`，本地文件若不要求 Git 跟踪必须明确 `tracking_reason`。
+
+`analysis_runs` 保存一个可独立解释的分析动作：当前不确定性、估计目标（estimand / target contrast）、独立推断单位、主要分析、分析入口、可重放代码和状态。确认性分析（confirmatory analysis）在进入 `frozen/completed` 时必须记录结果可见前的 `freeze_commit`。
+
+`analysis_inputs` 连接 Analysis 与 Dataset；`analysis_artifacts` 保存 estimate、diagnostic、figure、table、log 等结果文件；`analysis_amendments` 区分 `pre_result` 与 `post_result` 的分析修改；`project_observations` 保存由项目自身分析直接得到的 Observation，并必须指向具体 Analysis artifact。它与论文绑定的 `observations` 分开，不能用后者伪装项目自己的结果。
+
+`research-db validate --completion` 会把已登记且需要 Git 跟踪的 data/analysis artifact 纳入 canonical path gate。`data/` 或 `analysis/` 下已经被 Git 跟踪但没有进入上述 provenance 的文件会阻止完成；已完成的确认性 Analysis 还必须证明其 freeze commit 是当前 HEAD 的祖先、主要计划/代码/输入在 freeze 时已经存在、而本轮结果 artifact 在 freeze 时尚不存在。
+
+当前**不**因为工作流阶段对称而建立独立 Hypothesis、Design 或 Project Claim 表。它们继续由 `RESEARCH.md` 与必要的 `hypotheses/`、`designs/` artifact 承载，等更多真实项目验证出稳定查询需求后再迁移。
 
 ### `acquisition_attempts`
 
@@ -499,6 +520,10 @@ research-db claims [query]
 research-db evidence <query>
 research-db related P000001
 research-db history P000001
+research-db record-dataset [bundle]
+research-db datasets
+research-db record-analysis [bundle]
+research-db analyses
 research-db status
 research-db validate
 ```
@@ -550,6 +575,9 @@ research-db paper-context P000001 --for-sidecar
 - critically reviewed 状态缺少已完成 critical audit run；
 - Issue 缺少 `basis_rationale`，或 `not_reported` issue 缺少足够 artifact / source inspection 记录；
 - Method / Experiment / Observation / Claim / Issue / Lead 的 `source_locator` 只有 `Methods`、`Results`、`Discussion` 等模糊顶层 section；
+- Dataset provenance path、本地 Dataset artifact、Analysis 入口/代码/结果 artifact 缺失；
+- Project Observation 指向其他 Analysis 的结果 artifact；
+- confirmatory Analysis 已进入 frozen/completed 却没有记录 freeze commit；
 - schema version / migration 状态异常；
 - sidecar pointer 指向不存在文件时给出明确错误或 warning。
 
@@ -557,4 +585,8 @@ research-db paper-context P000001 --for-sidecar
 
 `research-db discovery-status` 是文献发现（Literature Discovery）的闭合门禁：存在 `relevance_status=pending`、未闭合的 `core + relevant` 或 `high + relevant` Candidate、仍处于 `user_access_status=required` 的用户协同任务，或重复稳定身份时返回 `ready_for_saturation=false`。高优先级 Candidate 的 `defer_reason` 不再构成闭合依据。主题型文献发现若已有至少 2 个相关 Candidate，还必须保留检索策略来源、至少一次后向/前向引用追踪，并覆盖至少两个发现策略家族；否则即使 Candidate 队列表面清空也不能宣称实践性概念饱和（practical conceptual saturation）。
 
-`research-db validate --completion` 是“本轮科研项目已完成”的最终门禁。它先执行普通数据库校验，再检查文献发现闭合与文献语义完成状态：所有相关且已获取全文的候选论文必须有可审计正文获取记录与合格获取依据，并完成论文重建（Reconstruction）和批判性审阅（Critical Audit）；所有核心且已获取论文必须有真实深度抽取（DEEP_EXTRACTION）重建；主题型文献发现已有至少两篇完成审阅的论文时，必须存在至少一条连接不同论文的科学关系，共享样本/共享数据/引用关系不计作该门禁。对于以中文为主体的科研项目，完成验证还会检查 `RESEARCH.md` 与论文侧记中的明显大段英文科研叙述，防止科学判断正确但人类可读产物违反中文学术写作规范。随后还要求项目根目录本身是独立版本仓库（Git repository）顶层、已经存在至少一个提交，且 `RESEARCH.md`、`.research/research.sqlite`、规范化论文文件与侧记均已被版本管理跟踪且没有未提交修改。普通 `validate` 通过不能替代这个完成门禁。
+`research-db validate --completion` 是“本轮有边界科研工作流已完成”的最终门禁。它先执行普通数据库校验，再检查文献发现闭合与文献语义完成状态：所有相关且已获取全文的候选论文必须有可审计正文获取记录与合格获取依据，并完成论文重建（Reconstruction）和批判性审阅（Critical Audit）；所有核心且已获取论文必须有真实深度抽取（DEEP_EXTRACTION）重建；主题型文献发现已有至少两篇完成审阅的论文时，必须存在至少一条连接不同论文的科学关系，共享样本/共享数据/引用关系不计作该门禁。
+
+项目存在 `data/` 或 `analysis/` 科研资产时，完成验证还检查下游 provenance：被 Git 跟踪的数据/分析文件不能游离在数据库之外；已完成 Analysis 必须关联 Dataset、至少一个 estimate artifact 和至少一个项目 Observation；确认性 Analysis 的 freeze commit 必须存在且是当前 HEAD 的祖先，主要计划/代码/输入在 freeze 时已经存在，而本轮结果 artifact 在该 freeze 时尚未出现。这样 `completion=true` 才能说明预先冻结与结果 provenance 真实存在，而不是事后写在 README 里。
+
+对于以中文为主体的科研项目，完成验证还会检查 `RESEARCH.md`、论文侧记、Dataset provenance 和 Analysis 人类入口中的明显大段英文科研叙述；代码块、内联代码、路径和 URL 不参与该语言比例判断。随后要求项目根目录本身是独立版本仓库（Git repository）顶层、已经存在至少一个提交，且全部声明为规范化并需要 Git 跟踪的科研 artifact 已被版本管理跟踪且没有未提交修改。普通 `validate` 通过不能替代这个完成门禁，也不能把 `completion=true` 解释成科学问题本身已经解决。

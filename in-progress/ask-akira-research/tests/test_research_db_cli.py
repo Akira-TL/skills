@@ -108,6 +108,23 @@ class ResearchDbCliTests(unittest.TestCase):
         self.assertEqual(merge_args.keep_id, 1)
         self.assertEqual(merge_args.merge_id, 2)
 
+        dataset_args = build_parser().parse_args(
+            ["--project", str(self.root), "record-dataset"]
+        )
+        self.assertIsNone(dataset_args.bundle)
+        analysis_args = build_parser().parse_args(
+            ["--project", str(self.root), "record-analysis"]
+        )
+        self.assertIsNone(analysis_args.bundle)
+        self.assertEqual(
+            build_parser().parse_args(["--project", str(self.root), "datasets"]).command,
+            "datasets",
+        )
+        self.assertEqual(
+            build_parser().parse_args(["--project", str(self.root), "analyses"]).command,
+            "analyses",
+        )
+
     def test_candidate_queue_filters_are_exposed(self) -> None:
         args = build_parser().parse_args(
             [

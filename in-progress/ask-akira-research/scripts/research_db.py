@@ -26,6 +26,12 @@ from research_db_ops.candidates import (
 )
 from research_db_ops.completion import validate_completion
 from research_db_ops.discovery import list_search_runs, record_search_run
+from research_db_ops.downstream import (
+    list_analyses,
+    list_datasets,
+    record_analysis,
+    record_dataset,
+)
 from research_db_ingest import PaperIngestBundle, ingest_paper
 from research_db_ops.query import (
     evidence_packet,
@@ -47,6 +53,8 @@ BUNDLE_DEFAULTS = {
     "ingest-paper": "paper.json",
     "ingest-reading": "reconstruction.json",
     "ingest-critical": "critical.json",
+    "record-dataset": "dataset.json",
+    "record-analysis": "analysis.json",
 }
 
 
@@ -318,6 +326,40 @@ def cmd_evidence(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_record_dataset(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(
+        record_dataset(
+            project_root,
+            _load_json_object(project_root, "record-dataset", args.bundle),
+        )
+    )
+    return 0
+
+
+def cmd_record_analysis(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(
+        record_analysis(
+            project_root,
+            _load_json_object(project_root, "record-analysis", args.bundle),
+        )
+    )
+    return 0
+
+
+def cmd_datasets(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(list_datasets(project_root, limit=args.limit))
+    return 0
+
+
+def cmd_analyses(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(list_analyses(project_root, limit=args.limit))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="research-db",
@@ -478,7 +520,27 @@ def build_parser() -> argparse.ArgumentParser:
     evidence_parser.add_argument("--limit", type=int, default=20)
     evidence_parser.set_defaults(handler=cmd_evidence)
 
+    for name, help_text, handler in (
+        ("datasets", "列出项目级 Dataset provenance。", cmd_datasets),
+        ("analyses", "列出项目级 Analysis Run、artifact、修订与项目 Observation。", cmd_analyses),
+    ):
+        downstream_parser = subparsers.add_parser(name, help=help_text)
+        downstream_parser.add_argument("--limit", type=int, default=100)
+        downstream_parser.set_defaults(handler=handler)
+
     bundle_commands = [
+        (
+            "record-dataset",
+            "登记项目自身数据集的身份、推断单位和 artifact provenance。",
+            "Dataset JSON bundle；默认 .research/bundles/dataset.json；传 '-' 从 stdin 读取。",
+            cmd_record_dataset,
+        ),
+        (
+            "record-analysis",
+            "登记或推进 Analysis Run，并持久化结果 artifact、修订与项目 Observation。",
+            "Analysis JSON bundle；默认 .research/bundles/analysis.json；传 '-' 从 stdin 读取。",
+            cmd_record_analysis,
+        ),
         (
             "ingest-paper",
             "登记一篇已获取论文及其 artifact provenance。",
