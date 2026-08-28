@@ -36,6 +36,8 @@ REQUIRED_TABLES = {
     "hypothesis_sets",
     "research_designs",
     "hypothesis_evaluations",
+    "communication_products",
+    "communication_artifacts",
 }
 ENTITY_TABLES = {
     "paper": "papers",
@@ -950,6 +952,22 @@ def validate(project_root: Path) -> dict[str, Any]:
                     errors.append(f"hypothesis evaluation {row['id']} 缺少 decision。")
                 if not (row["summary"] and str(row["summary"]).strip()):
                     errors.append(f"hypothesis evaluation {row['id']} 缺少 summary。")
+
+            for row in connection.execute(
+                """
+                SELECT a.id, a.product_id, a.path, p.id AS product_exists
+                FROM communication_artifacts a
+                LEFT JOIN communication_products p ON p.id = a.product_id
+                ORDER BY a.id
+                """
+            ):
+                if row["product_exists"] is None:
+                    errors.append(f"communication artifact {row['id']} 引用不存在的 Communication Product。")
+                path = Path(str(row["path"]))
+                if not path.is_absolute():
+                    path = project_root / path
+                if not path.is_file():
+                    errors.append(f"communication artifact {row['id']} 文件不存在：{path}")
 
             for row in connection.execute(
                 "SELECT id, subject_type, subject_id, object_type, object_id FROM relations"

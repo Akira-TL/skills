@@ -31,6 +31,23 @@ RELATION_ENTITY_TABLES = {
     "issue": "issues",
     "lead": "leads",
 }
+BARE_ENGLISH_TERMS_IN_CHINESE_COMMUNICATION = {
+    "treatment",
+    "outcome",
+    "provenance",
+    "confirmatory",
+    "exploratory",
+    "sensitivity",
+    "pairwise",
+    "claim",
+    "dataset",
+    "analysis",
+    "artifact",
+    "raw",
+    "curated",
+    "freeze",
+    "randomization",
+}
 
 
 def _git(project_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -100,6 +117,11 @@ def _canonical_paths(project_root: Path) -> list[str]:
         if "research_designs" in tables:
             for row in connection.execute("SELECT artifact_path FROM research_designs ORDER BY id"):
                 paths.add(Path(str(row["artifact_path"])).as_posix())
+        if "communication_artifacts" in tables:
+            for row in connection.execute(
+                "SELECT path FROM communication_artifacts WHERE git_tracking = 'required' ORDER BY id"
+            ):
+                paths.add(Path(str(row["path"])).as_posix())
     return sorted(paths)
 
 
@@ -138,6 +160,16 @@ def _academic_language_paths(project_root: Path) -> list[Path]:
             for row in connection.execute("SELECT artifact_path FROM research_designs ORDER BY id"):
                 path = Path(str(row["artifact_path"]))
                 paths.append(path if path.is_absolute() else project_root / path)
+        if "communication_artifacts" in tables:
+            for row in connection.execute(
+                """
+                SELECT path FROM communication_artifacts
+                WHERE role IN ('title_abstract', 'methods', 'results', 'discussion', 'figure_legend', 'lay_summary', 'traceability', 'other')
+                ORDER BY id
+                """
+            ):
+                path = Path(str(row["path"]))
+                paths.append(path if path.is_absolute() else project_root / path)
     return paths
 
 
@@ -163,16 +195,35 @@ def academic_language_readiness(project_root: Path) -> dict[str, Any]:
             prose_for_language_check = re.sub(r"https?://\S+", "", prose_for_language_check)
             cjk_count = len(re.findall(r"[\u3400-\u9fff]", prose_for_language_check))
             english_words = re.findall(r"\b[A-Za-z][A-Za-z'-]{1,}\b", prose_for_language_check)
+            relative_path = str(path.relative_to(project_root))
             if len(english_words) >= 30 and cjk_count < 5:
                 blockers.append(
                     {
                         "reason": "english_prose_in_chinese_research_text",
-                        "path": str(path.relative_to(project_root)),
+                        "path": relative_path,
                         "paragraph": index,
                         "english_word_count": len(english_words),
                         "preview": " ".join(stripped.split())[:180],
                     }
                 )
+            if relative_path.startswith("communication/"):
+                communication_prose = re.sub(r"（[^）]*[A-Za-z][^）]*）", "", prose_for_language_check)
+                communication_prose = re.sub(r"\([^)]*[A-Za-z][^)]*\)", "", communication_prose)
+                found_terms = sorted(
+                    term
+                    for term in BARE_ENGLISH_TERMS_IN_CHINESE_COMMUNICATION
+                    if re.search(rf"\b{re.escape(term)}\b", communication_prose, flags=re.IGNORECASE)
+                )
+                if found_terms:
+                    blockers.append(
+                        {
+                            "reason": "bare_english_term_in_chinese_communication",
+                            "path": relative_path,
+                            "paragraph": index,
+                            "terms": found_terms,
+                            "preview": " ".join(stripped.split())[:180],
+                        }
+                    )
     return {"ready": not blockers, "checked": True, "blockers": blockers}
 
 
@@ -804,6 +855,129 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
     }
 
 
+def communication_completion_readiness(project_root: Path) -> dict[str, Any]:
+    blockers: list[dict[str, Any]] = []
+    db_path = database_path(project_root)
+    communication_dir = project_root / "communication"
+    has_assets = communication_dir.exists() and any(path.is_file() for path in communication_dir.rglob("*"))
+    if not db_path.exists():
+        return {
+            "ready": not has_assets,
+            "blockers": ([{"reason": "communication_assets_present_without_database"}] if has_assets else []),
+            "product_count": 0,
+            "completed_product_count": 0,
+        }
+
+    with connect(db_path) as connection:
+        tables = {
+            str(row["name"])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+            )
+        }
+        required = {"communication_products", "communication_artifacts"}
+        missing = sorted(required - tables)
+        if missing:
+            return {
+                "ready": not has_assets,
+                "blockers": ([{"reason": "communication_schema_missing", "tables": missing}] if has_assets else []),
+                "product_count": 0,
+                "completed_product_count": 0,
+            }
+
+        product_count = int(connection.execute("SELECT COUNT(*) FROM communication_products").fetchone()[0])
+        completed_product_count = int(
+            connection.execute("SELECT COUNT(*) FROM communication_products WHERE status = 'completed'").fetchone()[0]
+        )
+        actual_paths = {
+            path.relative_to(project_root).as_posix()
+            for path in communication_dir.rglob("*")
+            if path.is_file()
+        } if communication_dir.exists() else set()
+        registered_paths = {
+            str(row["path"])
+            for row in connection.execute("SELECT path FROM communication_artifacts ORDER BY id")
+        }
+        orphaned = sorted(actual_paths - registered_paths)
+        if orphaned:
+            blockers.append({"reason": "communication_artifacts_unregistered", "paths": orphaned})
+        if has_assets and product_count == 0:
+            blockers.append({"reason": "communication_assets_present_without_product_record"})
+
+        scientific_paths = [
+            path
+            for path in _canonical_paths(project_root)
+            if path not in {"RESEARCH.md", ".research/research.sqlite"}
+            and not path.startswith("communication/")
+        ]
+        for product in connection.execute(
+            "SELECT * FROM communication_products WHERE status = 'completed' ORDER BY id"
+        ):
+            product_id = int(product["id"])
+            slug = str(product["slug"])
+            source_commit = str(product["source_commit"] or "").strip()
+            artifacts = connection.execute(
+                "SELECT * FROM communication_artifacts WHERE product_id = ? ORDER BY id",
+                (product_id,),
+            ).fetchall()
+            if not artifacts:
+                blockers.append({"reason": "completed_communication_missing_artifacts", "communication": slug})
+                continue
+            if not source_commit:
+                blockers.append({"reason": "communication_source_commit_missing", "communication": slug})
+                continue
+            if _git(project_root, "cat-file", "-e", f"{source_commit}^{{commit}}").returncode != 0:
+                blockers.append(
+                    {"reason": "communication_source_commit_not_found", "communication": slug, "source_commit": source_commit}
+                )
+                continue
+            if _git(project_root, "merge-base", "--is-ancestor", source_commit, "HEAD").returncode != 0:
+                blockers.append(
+                    {"reason": "communication_source_commit_not_ancestor", "communication": slug, "source_commit": source_commit}
+                )
+                continue
+
+            wrong_timing: list[str] = []
+            for artifact in artifacts:
+                path = str(artifact["path"])
+                existed = _git_commit_has_path(project_root, source_commit, path)
+                if artifact["timing_role"] == "derived_output" and existed:
+                    wrong_timing.append(path)
+                if artifact["timing_role"] == "source_support" and not existed:
+                    wrong_timing.append(path)
+            if wrong_timing:
+                blockers.append(
+                    {
+                        "reason": "communication_artifact_timing_mismatch",
+                        "communication": slug,
+                        "source_commit": source_commit,
+                        "paths": sorted(wrong_timing),
+                    }
+                )
+
+            changed_science = [
+                path
+                for path in scientific_paths
+                if _git(project_root, "diff", "--quiet", source_commit, "HEAD", "--", path).returncode != 0
+            ]
+            if changed_science:
+                blockers.append(
+                    {
+                        "reason": "scientific_source_changed_after_communication_freeze",
+                        "communication": slug,
+                        "source_commit": source_commit,
+                        "paths": changed_science,
+                    }
+                )
+
+    return {
+        "ready": not blockers,
+        "blockers": blockers,
+        "product_count": product_count,
+        "completed_product_count": completed_product_count,
+    }
+
+
 def validate_completion(project_root: Path) -> dict[str, Any]:
     base = validate(project_root)
     errors = list(base["errors"])
@@ -988,12 +1162,53 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
                 + ", ".join(str(name) for name in blocker.get("tables", []))
             )
 
+    communication = communication_completion_readiness(project_root)
+    for blocker in communication["blockers"]:
+        reason = str(blocker.get("reason", "unknown"))
+        if reason == "communication_artifacts_unregistered":
+            errors.append(
+                "communication/ 下存在未登记到 research.sqlite 的传播 artifact："
+                + ", ".join(str(path) for path in blocker.get("paths", []))
+            )
+        elif reason == "communication_assets_present_without_product_record":
+            errors.append("项目存在 communication/ 传播产物，但 research.sqlite 尚未登记 Communication Product。")
+        elif reason in {"communication_source_commit_missing", "communication_source_commit_not_found"}:
+            errors.append(
+                f"Communication Product {blocker.get('communication')} 缺少有效的 pre-communication source commit。"
+            )
+        elif reason == "communication_source_commit_not_ancestor":
+            errors.append(
+                f"Communication Product {blocker.get('communication')} 的 source commit 不是当前 HEAD 的祖先。"
+            )
+        elif reason == "communication_artifact_timing_mismatch":
+            errors.append(
+                f"Communication Product {blocker.get('communication')} 的 artifact 与 pre-communication source commit 时序不一致："
+                + ", ".join(str(path) for path in blocker.get("paths", []))
+            )
+        elif reason == "scientific_source_changed_after_communication_freeze":
+            errors.append(
+                f"Communication Product {blocker.get('communication')} 所依据的科研 source commit 之后仍有科学 canonical artifact 变化；"
+                "传播稿必须基于最新稳定证据重新审阅："
+                + ", ".join(str(path) for path in blocker.get("paths", []))
+            )
+        elif reason == "completed_communication_missing_artifacts":
+            errors.append(f"Communication Product {blocker.get('communication')} 已完成但没有登记传播 artifact。")
+        elif reason in {"communication_assets_present_without_database", "communication_schema_missing"}:
+            errors.append("Communication provenance schema 尚未迁移完成，但项目已经存在传播产物。")
+
     academic_language = academic_language_readiness(project_root)
     for blocker in academic_language["blockers"]:
-        errors.append(
-            f"中文科研项目的人类可读科研文本存在大段英文叙述：{blocker.get('path')} "
-            f"第 {blocker.get('paragraph')} 段。应改为规范中文学术表述；英文仅作为标准术语首次出现时的括注或必要书目信息。"
-        )
+        if blocker.get("reason") == "bare_english_term_in_chinese_communication":
+            errors.append(
+                f"中文传播稿存在已有成熟中文表述却直接裸用的英文术语：{blocker.get('path')} "
+                f"第 {blocker.get('paragraph')} 段（{', '.join(blocker.get('terms', []))}）。"
+                "首次出现应优先使用规范的“中文标准术语（English term）”，后续使用中文术语或标准缩写。"
+            )
+        else:
+            errors.append(
+                f"中文科研项目的人类可读科研文本存在大段英文叙述：{blocker.get('path')} "
+                f"第 {blocker.get('paragraph')} 段。应改为规范中文学术表述；英文仅作为标准术语首次出现时的括注或必要书目信息。"
+            )
 
     git_info: dict[str, Any] = {
         "repository_root": None,
@@ -1049,6 +1264,7 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
         "literature": literature,
         "downstream": downstream,
         "planning": planning,
+        "communication": communication,
         "academic_language": academic_language,
         "git": git_info,
     }

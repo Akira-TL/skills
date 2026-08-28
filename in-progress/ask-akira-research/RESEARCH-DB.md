@@ -44,6 +44,8 @@ project_observations
 hypothesis_sets
 research_designs
 hypothesis_evaluations
+communication_products
+communication_artifacts
 ```
 
 暂不建立独立 evidence graph、method graph、evidence family 或 contradiction Markdown / tables；能够从现有节点与关系动态查询得到的视图先不物化。未来只有出现稳定的独立领域对象时再通过 migration 增加表。
@@ -191,7 +193,11 @@ Candidate ID 主要供数据库内部使用。
 
 从 schema v15 起，完整的 pre-data → Analysis → Interpretation 黑盒进一步稳定暴露出 `hypothesis_evaluations`：一次 Evaluation 连接一个 Hypothesis Set、一个 completed Analysis 和该 Analysis 已登记的具体解释/结果 artifact，并记录本轮总体判别为 `unresolved | partially_resolved | resolved | not_interpretable`、decision、summary 与时间。Evaluation 是追加式科研事件，同一 Hypothesis Set 可以被后续不同 Analysis 继续产生新的 Evaluation；同一 Analysis 对同一 Hypothesis Set 的评价不可覆盖。这样保存证据更新历史，而不把“最新科学状态”错误塞进 Hypothesis Set 的 freeze 生命周期字段。
 
-数据库**不**复制每个 H1/H2、Prediction、Discriminator Matrix、Decision Boundary、组别表、单个 hypothesis 的 `live/favored/weakened/...` 状态或完整设计正文；这些仍由 canonical Markdown artifact 承载。当前也不建立 Project Claim 表。只有未来真实项目反复证明某个科研语义对象存在稳定的跨项目查询/关系需求时，才继续迁移，不能为了工作流阶段对称而机械建表。
+从 schema v16 起，科研传播黑盒进一步稳定暴露出 `communication_products` 与 `communication_artifacts`。Communication Product 只保存传播目标、受众、状态以及传播开始前的 `source_commit`；artifact 保存题目/摘要、方法、结果、讨论、图、图注、大众摘要、追溯文件和生成脚本等路径，并用 `timing_role=source_support|derived_output` 约束其相对 source commit 的时序。传播文件进入 Git 完整性门禁，但它们仍是 canonical scientific evidence 的派生输出，不会因为进入数据库而成为第四类科研事实源。
+
+完成的 Communication Product 会检查 `source_commit` 是否真实存在并属于当前历史、派生产物是否晚于 source commit，以及 source commit 后 Hypothesis / Design / Data / Analysis 等已登记科学 artifact 是否又发生变化。若科学源发生变化，传播稿必须基于新的稳定 evidence commit 重新审阅。该门禁可以审计版本关系，却不能自动判断一句标题或 Discussion Claim 是否在语义上过强；这种科研语义仍由主模型审查。
+
+数据库**不**复制每个 H1/H2、Prediction、Discriminator Matrix、Decision Boundary、传播稿逐句 Claim、组别表、单个 hypothesis 的 `live/favored/weakened/...` 状态或完整设计正文；这些仍由 canonical Markdown artifact 或派生传播文件承载。当前也不建立 Project Claim / Communication Claim 表。只有未来真实项目反复证明某个科研语义对象存在稳定的跨项目查询/关系需求时，才继续迁移，不能为了工作流阶段对称而机械建表。
 
 ### `acquisition_attempts`
 
@@ -537,6 +543,8 @@ research-db record-design [bundle]
 research-db designs
 research-db record-hypothesis-evaluation [bundle]
 research-db hypothesis-evaluations
+research-db record-communication [bundle]
+research-db communications
 research-db status
 research-db validate
 ```
@@ -593,6 +601,7 @@ research-db paper-context P000001 --for-sidecar
 - confirmatory Analysis 已进入 frozen/completed 却没有记录 freeze commit；Analysis 已结构化关联 Design 时，Design 不存在或 estimand 与 Design 不一致；
 - Hypothesis Set / Research Design 的 canonical artifact 缺失、冻结状态缺少 freeze commit、Design 引用不存在的 Hypothesis Set、未解决 feasibility 没有说明，或 execution-ready 与 feasibility 状态矛盾；
 - Hypothesis Evaluation 引用未完成 Analysis、引用的解释 artifact 不属于同一 Analysis，或其 Hypothesis Set 与 Analysis 所实现 Design 不一致；
+- Communication artifact 指向不存在文件或不存在的 Communication Product；
 - schema version / migration 状态异常；
 - sidecar pointer 指向不存在文件时给出明确错误或 warning。
 
@@ -606,4 +615,6 @@ research-db paper-context P000001 --for-sidecar
 
 项目存在 `hypotheses/` 或 `designs/` canonical artifact 时同样不能游离在数据库之外。冻结的 Hypothesis Set / Design 必须登记有效 Git freeze commit；该提交必须是当前 HEAD 的祖先并真实包含相应 artifact，Design 的 freeze 还必须同时包含其关联 Hypothesis Set，且不能早于 Hypothesis Set 的冻结。`feasibility_status=unresolved` 可以完成“科研设计工作流”，但只表示设计已形成并明确 blocker，不能被解释成实验已经 execution-ready。一个 linked confirmatory Analysis 完成后，如果它已经被用于更新关联 Hypothesis Set，completion 还要求存在对应 Hypothesis Evaluation，并由 Evaluation 指回当前 Analysis 已登记的解释/结果 artifact；`hypothesis_sets.status=frozen` 本身绝不作为结果后科研判定的替代。
 
-对于以中文为主体的科研项目，完成验证还会检查 `RESEARCH.md`、论文侧记、Dataset provenance 和 Analysis 人类入口中的明显大段英文科研叙述；代码块、内联代码、路径和 URL 不参与该语言比例判断。随后要求项目根目录本身是独立版本仓库（Git repository）顶层、已经存在至少一个提交，且全部声明为规范化并需要 Git 跟踪的科研 artifact 已被版本管理跟踪且没有未提交修改。普通 `validate` 通过不能替代这个完成门禁，也不能把 `completion=true` 解释成科学问题本身已经解决。
+项目存在 `communication/` 传播产物时，完成验证还要求这些文件登记到 Communication Product，并记录其 pre-communication `source_commit`。已登记传播 artifact 会进入 Git 完整性检查；`derived_output` 不能在 source commit 中已经存在，`source_support` 必须在 source commit 中已经存在。若 source commit 之后 Hypothesis / Design / Data / Analysis 等已登记科学 artifact 又发生变化，旧传播稿必须基于新的稳定 evidence commit 重新审阅。这个 Git path 集合只承担完整性门禁，不把 Communication artifact 提升为 canonical scientific source。
+
+对于以中文为主体的科研项目，完成验证还会检查 `RESEARCH.md`、论文侧记、Dataset provenance、Analysis 人类入口以及已登记 Communication 文本中的明显大段英文科研叙述；对 Communication 还会识别一小组已有成熟中文表述却裸用的常见英文术语。代码块、内联代码、路径和 URL 不参与该语言比例判断。随后要求项目根目录本身是独立版本仓库（Git repository）顶层、已经存在至少一个提交，且全部声明为需要 Git 跟踪的科研/传播 artifact 已被版本管理跟踪且没有未提交修改。普通 `validate` 通过不能替代这个完成门禁，也不能把 `completion=true` 解释成科学问题本身已经解决。

@@ -25,6 +25,7 @@ from research_db_ops.candidates import (
     update_candidate,
 )
 from research_db_ops.completion import validate_completion
+from research_db_ops.communication import list_communications, record_communication
 from research_db_ops.discovery import list_search_runs, record_search_run
 from research_db_ops.downstream import (
     list_analyses,
@@ -66,6 +67,7 @@ BUNDLE_DEFAULTS = {
     "record-hypothesis-set": "hypothesis-set.json",
     "record-design": "design.json",
     "record-hypothesis-evaluation": "hypothesis-evaluation.json",
+    "record-communication": "communication.json",
 }
 
 
@@ -422,6 +424,23 @@ def cmd_hypothesis_evaluations(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_record_communication(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(
+        record_communication(
+            project_root,
+            _load_json_object(project_root, "record-communication", args.bundle),
+        )
+    )
+    return 0
+
+
+def cmd_communications(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    emit(list_communications(project_root, limit=args.limit))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="research-db",
@@ -588,6 +607,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("hypothesis-sets", "列出项目级 Hypothesis Set provenance。", cmd_hypothesis_sets),
         ("hypothesis-evaluations", "列出结果后 Hypothesis Evaluation 历史。", cmd_hypothesis_evaluations),
         ("designs", "列出项目级 Research Design provenance。", cmd_designs),
+        ("communications", "列出项目级 Communication Product provenance。", cmd_communications),
     ):
         downstream_parser = subparsers.add_parser(name, help=help_text)
         downstream_parser.add_argument("--limit", type=int, default=100)
@@ -611,6 +631,12 @@ def build_parser() -> argparse.ArgumentParser:
             "记录 completed Analysis 对已冻结 Hypothesis Set 的结果后科研评价事件。",
             "Hypothesis Evaluation JSON bundle；默认 .research/bundles/hypothesis-evaluation.json；传 '-' 从 stdin 读取。",
             cmd_record_hypothesis_evaluation,
+        ),
+        (
+            "record-communication",
+            "登记传播产物、pre-communication source commit 与派生 artifact provenance。",
+            "Communication JSON bundle；默认 .research/bundles/communication.json；传 '-' 从 stdin 读取。",
+            cmd_record_communication,
         ),
         (
             "record-dataset",

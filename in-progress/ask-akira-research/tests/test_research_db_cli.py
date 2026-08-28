@@ -150,6 +150,14 @@ class ResearchDbCliTests(unittest.TestCase):
             ).command,
             "hypothesis-evaluations",
         )
+        communication_args = build_parser().parse_args(
+            ["--project", str(self.root), "record-communication"]
+        )
+        self.assertIsNone(communication_args.bundle)
+        self.assertEqual(
+            build_parser().parse_args(["--project", str(self.root), "communications"]).command,
+            "communications",
+        )
 
     def test_candidate_queue_filters_are_exposed(self) -> None:
         args = build_parser().parse_args(
