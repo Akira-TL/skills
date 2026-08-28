@@ -176,3 +176,5 @@ Evidence Map 不再人工维护为大量 Markdown，而是由 SQLite 中的 Obse
 证据视图由脚本检索和展开关系，主模型负责科学解释；脚本不得用硬编码评分替代 evidence-to-claim 判断。
 
 主题型 Literature Discovery 在形成项目级综合时，关键的跨论文判断也必须进入 canonical relation graph，而不能只存在 derived synthesis Markdown。至少把真正改变项目判断的跨论文 `INDIRECTLY_SUPPORTS / QUALIFIES / CONTRADICTS / DOES_NOT_TEST / LIMITS / CHALLENGES / WEAKENS` 等关系落库，并在 `note` 中说明 inference gap 或限定。`SHARES_SAMPLES_WITH`、`SHARES_DATA_WITH` 与 `CITES` 只描述来源关系，不能替代跨论文 Evidence Synthesis。已有至少两篇完成 Critical Audit 的论文、且执行了主题型 Discovery 时，`validate --completion` 要求至少存在一条跨不同 Paper 的 scientific relation。
+
+Literature Research 完成后必须把最重要的 `unresolved`、竞争解释与最有判别力的下一条证据写回 `RESEARCH.md`，再由总 Router 重新选择下一动作。文献工作流 `completion=true` 只表示本轮文献发现、获取、阅读、批判和综合已经闭合；它不意味着整个科研 Objective 已经解决，也不构成机械进入 `HYPOTHESIS` 或 `DESIGN` 的理由。若现有项目数据已经能取得下一条判别性证据，应直接路由到 `ANALYSIS`；只有确实需要把竞争解释转成不同预测或取得新的 sampling / measurement / intervention 时才进入对应环节。
