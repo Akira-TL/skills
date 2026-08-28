@@ -115,7 +115,7 @@ Exploration 可以用于发现：
 - 项目自身 Observation 写入 `project_observations`，必须指向当前 Analysis 的具体结果 artifact；不要把项目结果伪装成 literature Observation 写进 paper-bound `observations`；
 - `RESEARCH.md` 仍只更新会改变路线的高层 result boundary，不复制完整结果表。
 
-Hypothesis、Design 和项目 Claim 目前仍不为了“阶段对称”而强制建表；等更多真实项目显示它们存在稳定、需要跨会话查询的字段后再迁移。
+从 schema v14 起，Hypothesis Set 与 Research Design 已进入最小结构化 provenance，用于保存身份、canonical artifact 与结果可见前的 freeze commit；Analysis 在解释结果时必须回到这些已冻结对象，而不能只依赖结果出现后的叙述。单条 Prediction、Decision Boundary 与项目 Claim 仍不为了“阶段对称”而强制建表；只有更多真实项目显示出稳定的跨会话查询需求后才继续迁移。
 
 ## 9. 完成条件
 
