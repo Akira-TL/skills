@@ -72,6 +72,8 @@ class CommunicationProvenanceTests(unittest.TestCase):
         self._commit("DOCS: add unregistered communication")
         result = validate_completion(self.root)
         self.assertFalse(result["ok"])
+        self.assertTrue(result["completion_checked"])
+        self.assertFalse(result["completion"])
         reasons = {item["reason"] for item in result["communication"]["blockers"]}
         self.assertIn("communication_artifacts_unregistered", reasons)
         self.assertIn("communication_assets_present_without_product_record", reasons)
@@ -83,8 +85,27 @@ class CommunicationProvenanceTests(unittest.TestCase):
         self._commit("DOCS: record communication")
         result = validate_completion(self.root)
         self.assertTrue(result["ok"], result["errors"])
+        self.assertTrue(result["completion_checked"])
+        self.assertTrue(result["completion"])
         self.assertTrue(result["communication"]["ready"])
         self.assertIn("communication/RESULTS.md", result["git"]["canonical_paths"])
+
+    def test_completion_flag_is_false_when_schema_is_outdated(self) -> None:
+        source_commit = self._commit("RESEARCH: freeze scientific source")
+        self._write_communication()
+        self._record_completed(source_commit)
+        self._commit("DOCS: record communication")
+        import sqlite3
+
+        with sqlite3.connect(self.root / ".research" / "research.sqlite") as connection:
+            connection.execute("PRAGMA user_version = 15")
+            connection.execute("UPDATE meta SET value = '15' WHERE key = 'schema_version'")
+
+        result = validate_completion(self.root)
+        self.assertFalse(result["ok"])
+        self.assertTrue(result["completion_checked"])
+        self.assertFalse(result["completion"])
+        self.assertTrue(any("schema version" in error for error in result["errors"]))
 
     def test_completion_rejects_scientific_source_change_after_communication_freeze(self) -> None:
         data_dir = self.root / "data" / "example"

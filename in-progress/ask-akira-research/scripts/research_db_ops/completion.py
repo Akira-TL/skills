@@ -1254,9 +1254,11 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
             if dirty:
                 errors.append("canonical research artifacts 仍有未提交修改：" + " | ".join(dirty))
 
+    completion_passed = not errors
     return {
-        "ok": not errors,
-        "completion": True,
+        "ok": completion_passed,
+        "completion_checked": True,
+        "completion": completion_passed,
         "database": base["database"],
         "errors": errors,
         "warnings": warnings,

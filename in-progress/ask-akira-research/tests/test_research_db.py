@@ -59,6 +59,27 @@ class ResearchDbTests(unittest.TestCase):
             ).fetchone()
         self.assertIsNotNone(fts_table)
 
+    def test_status_reports_migration_needed_without_mutating_database(self) -> None:
+        init_database(self.root)
+        db_path = database_path(self.root)
+        with sqlite3.connect(db_path) as connection:
+            connection.execute("PRAGMA user_version = 15")
+            connection.execute("UPDATE meta SET value = '15' WHERE key = 'schema_version'")
+
+        db_status = status(self.root)
+        self.assertEqual(db_status["schema_version"], 15)
+        self.assertEqual(db_status["latest_schema_version"], 16)
+        self.assertTrue(db_status["migration_needed"])
+
+        with sqlite3.connect(db_path) as connection:
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 15)
+            self.assertEqual(
+                connection.execute(
+                    "SELECT value FROM meta WHERE key = 'schema_version'"
+                ).fetchone()[0],
+                "15",
+            )
+
     def test_migrate_v1_to_v2_preserves_artifacts_and_maps_issue_model(self) -> None:
         db_path = database_path(self.root)
         db_path.parent.mkdir(parents=True)
