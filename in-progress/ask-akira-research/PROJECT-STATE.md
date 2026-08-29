@@ -66,7 +66,7 @@
 
 一次科研动作结束后，只把仍然影响当前路线的内容写回 `RESEARCH.md`：新的 Active Uncertainty、Current State、Active Work、Open Threads、仍然有效的 Key Decisions，以及必要 pointer。准备声明本轮工作流完成前，必须在所有分析、解释、数据库写入和提交动作结束后**最后再读一次 `RESEARCH.md`**：`Active Work` 应描述下一条真实尚未完成的动作、明确的等待/blocker 或当前有边界的停止状态，不能继续写“正在提交结果”“正在运行 validation”等事实上已经完成的操作。
 
-`validate --completion` 对这一 current-state contract 只做保守的机械检查：`Objective`、`Current Loop`、`Active Uncertainty`、`Current State`、`Active Work`、`Open Threads`、`Key Decisions`、`References` 八个二级 section 必须存在；`Current Loop` 必须是本文件定义的八个定位词之一；`Active Work` 不能为空，也不能仍把 `git commit`、`research-db validate --completion`、`clean-tree` 等完成门禁本身写成当前工作。这个检查用于捕获“最终提交后状态地图仍停留在收尾过程”的陈旧状态，不替代主模型判断 Objective、Active Uncertainty、Current State 或下一条 evidence 在科学上是否准确。
+`validate --completion` 对这一 current-state contract 只做保守的机械检查：`Objective`、`Current Loop`、`Active Uncertainty`、`Current State`、`Active Work`、`Open Threads`、`Key Decisions`、`References` 八个二级 section 必须存在；`Current Loop` 必须是本文件定义的八个定位词之一；`Active Work` 不能为空，也不能仍把项目 `bootstrap`、`git commit`、`research-db validate --completion`、`clean-tree` 等已经完成的基础设施/收尾动作写成当前工作。这个检查用于捕获“最终提交后状态地图仍停留在收尾过程”的陈旧状态，不替代主模型判断 Objective、Active Uncertainty、Current State 或下一条 evidence 在科学上是否准确。
 
 详细文献知识、检索历史、方法、实验、观察、声明、批判问题和关系进入项目级 SQLite；原始 PDF 与 supplement 保持为独立 artifact。Git 负责保存 `RESEARCH.md` 与数据库的版本演化，因此不额外维护重复的 research log。每个可独立解释的科研事件完成后提交本轮 owned changes；用户已有、与本轮无关的工作区修改不触碰、不暂存、不重置。
 

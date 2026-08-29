@@ -28,6 +28,7 @@ CURRENT_LOOPS = {
 }
 
 _STALE_COMPLETION_MARKERS = (
+    "bootstrap",
     "validate --completion",
     "research-db validate",
     "completion validation",

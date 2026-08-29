@@ -148,6 +148,23 @@ class ResearchCompletionTests(unittest.TestCase):
             )
         )
 
+    def test_project_state_rejects_stale_bootstrap_active_work(self) -> None:
+        stale = VALID_RESEARCH_MD.replace(
+            "等待下一条能够区分竞争解释的证据。",
+            "正在执行项目 bootstrap：初始化 Git 仓库、科研知识数据库与 RESEARCH.md。",
+        )
+        (self.root / "RESEARCH.md").write_text(stale, encoding="utf-8")
+
+        result = project_state_readiness(self.root)
+
+        self.assertFalse(result["ready"])
+        blocker = next(
+            item
+            for item in result["blockers"]
+            if item["reason"] == "research_state_active_work_stale_completion"
+        )
+        self.assertIn("bootstrap", blocker["markers"])
+
     def _insert_reviewed_candidate(
         self,
         candidate_id: int,
