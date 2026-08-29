@@ -7,6 +7,7 @@ Active Uncertainty 是当前科研路线的控制变量：它不是“还有哪�
 从 Evidence Synthesis 的 `unresolved` 与 `Most Discriminating Next Evidence` 出发，选择一个满足以下条件的问题：
 
 - **单一**：可以由同一类 evidence / analysis / experiment 实质推进；若不同子问题需要不同下一动作，拆开并把非 primary 项移入 `Open Threads`。
+- **科学对象明确**：Question 直接询问 Objective 中待判别的效应、关系、机制或其他科学状态；“如何开展研究”“如何建立路线”“项目是否准备好”属于工作流问题，应写入 `Active Work` / `Current State`，不替代科学 uncertainty。
 - **可判别**：至少存在两个当前证据尚不能区分的 plausible explanations / states；仅仅“我们还不知道更多细节”不是充分理由。
 - **决策相关**：不同答案会改变后续研究路线、解释或设计；即使解决也不会改变任何动作的问题不应成为 primary。
 - **可行动**：能够指出现实可获得的下一条 discriminating evidence；若当前没有任何可行信息增益，记录为 Open Thread，而不是占据 primary。
@@ -35,7 +36,9 @@ Best next evidence: <最能改变当前判断的一条 observation / analysis / 
 
 ## 3. Competing explanations
 
-Competing explanations 是当前问题的替代解释模型，还不是必须持久化成独立 Hypothesis 实体。每个 explanation 至少应满足：
+Competing explanations 是当前科学对象的替代解释模型或互斥状态，还不是必须持久化成独立 Hypothesis 实体。它们描述“世界可能是哪一种”，而不是“我们目前知道多少”。例如阈值问题可以比较 `τ < 5` 与 `τ ≥ 5`；“尚无证据”“尚未设计”“当前无法判断”属于证据/工作状态，应进入 `Discriminating gap` 或 `Current State`，不能作为第三个 competing explanation。
+
+每个 explanation 至少应满足：
 
 - 与当前已知 evidence 相容到尚未被排除的程度；
 - 与至少另一个 explanation 对某个可观测结果给出不同预测；
