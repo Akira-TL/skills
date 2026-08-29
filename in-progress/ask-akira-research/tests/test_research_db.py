@@ -13,6 +13,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from research_db_core import (  # noqa: E402
     MIGRATION_DIR,
     apply_migrations,
+    connect,
     database_path,
     init_database,
     status,
@@ -66,6 +67,14 @@ class ResearchDbTests(unittest.TestCase):
                 "SELECT name FROM sqlite_master WHERE name = 'knowledge_fts'"
             ).fetchone()
         self.assertIsNotNone(fts_table)
+
+    def test_connect_context_closes_database_after_transaction(self) -> None:
+        init_database(self.root)
+        with connect(database_path(self.root)) as connection:
+            self.assertEqual(connection.execute("SELECT 1").fetchone()[0], 1)
+
+        with self.assertRaisesRegex(sqlite3.ProgrammingError, "closed database"):
+            connection.execute("SELECT 1")
 
     def test_status_reports_migration_needed_without_mutating_database(self) -> None:
         init_database(self.root)

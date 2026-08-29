@@ -8,12 +8,20 @@ class ResearchDbError(RuntimeError):
     pass
 
 
+class _ManagedConnection(sqlite3.Connection):
+    def __exit__(self, exc_type, exc_value, traceback) -> bool:
+        try:
+            return bool(super().__exit__(exc_type, exc_value, traceback))
+        finally:
+            self.close()
+
+
 def database_path(project_root: Path) -> Path:
     return project_root / ".research" / "research.sqlite"
 
 
 def connect(db_path: Path) -> sqlite3.Connection:
-    connection = sqlite3.connect(db_path)
+    connection = sqlite3.connect(db_path, factory=_ManagedConnection)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     return connection
