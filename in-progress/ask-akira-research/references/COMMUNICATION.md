@@ -50,7 +50,7 @@ Results 优先报告：
 - key negative / null result；
 - measurement / scope boundary。
 
-不要用“显著改善”“明显促进”掩盖 effect magnitude 或 proxy nature。非显著结果不写成“没有差异”，除非 precision 足以支撑对应 absence boundary。
+不要用“显著改善”“明显促进”掩盖效应量（effect magnitude）或替代指标（proxy）性质。没有预定义分级阈值或可核验领域标准时，也不要把连续效应、相关系数或异质性自行分级为“强”“弱”“明显”“较强”等；直接报告估计值与不确定性。非显著结果不写成“没有差异”，除非精度足以支撑对应的缺失效应边界（absence boundary）。
 
 ## 5. Discussion / Conclusions gate
 

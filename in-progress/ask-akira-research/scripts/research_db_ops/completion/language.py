@@ -5,8 +5,9 @@ from pathlib import Path
 from typing import Any
 
 from research_db_support.storage import connect, database_path
+from .state import CURRENT_LOOPS
 
-BARE_ENGLISH_TERMS_IN_CHINESE_COMMUNICATION = {
+BARE_ENGLISH_TERMS_IN_CHINESE_RESEARCH_TEXT = {
     "treatment",
     "outcome",
     "provenance",
@@ -23,6 +24,9 @@ BARE_ENGLISH_TERMS_IN_CHINESE_COMMUNICATION = {
     "freeze",
     "randomization",
 }
+
+# Backward-compatible alias for callers that imported the older, narrower name.
+BARE_ENGLISH_TERMS_IN_CHINESE_COMMUNICATION = BARE_ENGLISH_TERMS_IN_CHINESE_RESEARCH_TEXT
 
 
 def canonical_paths(project_root: Path) -> list[str]:
@@ -136,7 +140,7 @@ def _academic_language_paths(project_root: Path) -> list[Path]:
             ):
                 path = Path(str(row["path"]))
                 paths.append(path if path.is_absolute() else project_root / path)
-    return paths
+    return list(dict.fromkeys(paths))
 
 
 def academic_language_readiness(project_root: Path) -> dict[str, Any]:
@@ -157,6 +161,8 @@ def academic_language_readiness(project_root: Path) -> dict[str, Any]:
             stripped = paragraph.strip()
             if not stripped or stripped.startswith("#") and "\n" not in stripped:
                 continue
+            if stripped in CURRENT_LOOPS:
+                continue
             prose_for_language_check = re.sub(r"`[^`]*`", "", stripped)
             prose_for_language_check = re.sub(r"https?://\S+", "", prose_for_language_check)
             cjk_count = len(re.findall(r"[\u3400-\u9fff]", prose_for_language_check))
@@ -172,22 +178,25 @@ def academic_language_readiness(project_root: Path) -> dict[str, Any]:
                         "preview": " ".join(stripped.split())[:180],
                     }
                 )
-            if relative_path.startswith("communication/"):
-                communication_prose = re.sub(r"（[^）]*[A-Za-z][^）]*）", "", prose_for_language_check)
-                communication_prose = re.sub(r"\([^)]*[A-Za-z][^)]*\)", "", communication_prose)
-                found_terms = sorted(
-                    term
-                    for term in BARE_ENGLISH_TERMS_IN_CHINESE_COMMUNICATION
-                    if re.search(rf"\b{re.escape(term)}\b", communication_prose, flags=re.IGNORECASE)
+            term_check_prose = re.sub(r"（[^）]*[A-Za-z][^）]*）", "", prose_for_language_check)
+            term_check_prose = re.sub(r"\([^)]*[A-Za-z][^)]*\)", "", term_check_prose)
+            found_terms = sorted(
+                term
+                for term in BARE_ENGLISH_TERMS_IN_CHINESE_RESEARCH_TEXT
+                if re.search(rf"\b{re.escape(term)}\b", term_check_prose, flags=re.IGNORECASE)
+            )
+            if found_terms:
+                blockers.append(
+                    {
+                        "reason": (
+                            "bare_english_term_in_chinese_communication"
+                            if relative_path.startswith("communication/")
+                            else "bare_english_term_in_chinese_research_text"
+                        ),
+                        "path": relative_path,
+                        "paragraph": index,
+                        "terms": found_terms,
+                        "preview": " ".join(stripped.split())[:180],
+                    }
                 )
-                if found_terms:
-                    blockers.append(
-                        {
-                            "reason": "bare_english_term_in_chinese_communication",
-                            "path": relative_path,
-                            "paragraph": index,
-                            "terms": found_terms,
-                            "preview": " ".join(stripped.split())[:180],
-                        }
-                    )
     return {"ready": not blockers, "checked": True, "blockers": blockers}

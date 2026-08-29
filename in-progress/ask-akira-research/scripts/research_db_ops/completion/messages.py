@@ -251,9 +251,14 @@ def append_project_state_errors(errors: list[str], blockers: list[dict[str, Any]
 
 def append_academic_language_errors(errors: list[str], blockers: list[dict[str, Any]]) -> None:
     for blocker in blockers:
-        if blocker.get("reason") == "bare_english_term_in_chinese_communication":
+        reason = blocker.get("reason")
+        if reason in {
+            "bare_english_term_in_chinese_communication",
+            "bare_english_term_in_chinese_research_text",
+        }:
+            surface = "中文传播稿" if reason == "bare_english_term_in_chinese_communication" else "中文科研文本"
             errors.append(
-                f"中文传播稿存在已有成熟中文表述却直接裸用的英文术语：{blocker.get('path')} "
+                f"{surface}存在已有成熟中文表述却直接裸用的英文术语：{blocker.get('path')} "
                 f"第 {blocker.get('paragraph')} 段（{', '.join(blocker.get('terms', []))}）。"
                 "首次出现应优先使用规范的“中文标准术语（English term）”，后续使用中文术语或标准缩写。"
             )

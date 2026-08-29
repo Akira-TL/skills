@@ -23,7 +23,7 @@ class DownstreamResearchProvenanceTests(unittest.TestCase):
 
 ## Objective
 
-验证项目数据、确认性分析与结果 provenance 的完成门禁。
+验证项目数据、确认性分析与结果溯源的完成门禁。
 
 ## Current Loop
 
@@ -35,7 +35,7 @@ ANALYSIS
 
 ## Current State
 
-当前测试按步骤登记 Dataset、Analysis、结果 artifact 与 Project Observation。
+当前测试按步骤登记数据集、分析、结果产物与项目观察。
 
 ## Active Work
 
@@ -47,7 +47,7 @@ ANALYSIS
 
 ## Key Decisions
 
-结果前计划与输入保持冻结，结果后信息只追加 provenance。
+结果前计划与输入保持冻结，结果后信息只追加溯源记录。
 
 ## References
 

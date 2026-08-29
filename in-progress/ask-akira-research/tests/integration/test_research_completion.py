@@ -347,6 +347,27 @@ class ResearchCompletionTests(unittest.TestCase):
         self.assertFalse(result["ready"])
         self.assertEqual(result["blockers"][0]["reason"], "english_prose_in_chinese_research_text")
 
+    def test_chinese_research_state_rejects_bare_mature_english_terms(self) -> None:
+        (self.root / "RESEARCH.md").write_text(
+            "# 研究\n\n这是一个中文科研项目，用于验证规范中文学术术语要求。"
+            "当前科研状态、证据边界和后续工作均应采用已有的中文学术表述，"
+            "不能因为内部工作流方便就把成熟术语长期保留为裸英文。\n\n"
+            "## Current State\n\n当前 exploratory analysis 只用于生成后续研究线索。\n",
+            encoding="utf-8",
+        )
+
+        result = academic_language_readiness(self.root)
+
+        self.assertFalse(result["ready"])
+        blockers = [
+            item
+            for item in result["blockers"]
+            if item["reason"] == "bare_english_term_in_chinese_research_text"
+        ]
+        self.assertEqual(len(blockers), 1)
+        self.assertEqual(blockers[0]["path"], "RESEARCH.md")
+        self.assertEqual(blockers[0]["terms"], ["analysis", "exploratory"])
+
     def test_academic_language_ignores_inline_code_paths(self) -> None:
         (self.root / "RESEARCH.md").write_text(
             "# 研究\n\n这是一个中文科研项目，用于验证分析文件路径不会被误判为英文科研叙述。"
