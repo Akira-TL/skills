@@ -329,6 +329,84 @@ class DownstreamResearchProvenanceTests(unittest.TestCase):
         self.assertEqual(len(blockers), 1)
         self.assertEqual(blockers[0]["paths"], ["data/sleep/preexisting-provenance.md"])
 
+    def test_post_result_context_cannot_predate_first_result_artifact(self) -> None:
+        self._write_plan_assets()
+        self._record_dataset()
+        self._record_planned_analysis()
+        freeze_commit = self._commit("ANALYSIS: freeze primary plan")
+
+        provenance_path = self.root / "data" / "sleep" / "premature-context.md"
+        provenance_path.write_text(
+            "# 来源核验\n\n该文件晚于 freeze，但早于首次结果 artifact。\n",
+            encoding="utf-8",
+        )
+        record_dataset(
+            self.root,
+            {
+                "slug": "sleep-data",
+                "title": "Sleep repeated measures",
+                "identity": "example:sleep",
+                "source": "test fixture",
+                "received_at": "2026-08-28T00:00:00+00:00",
+                "unit_of_inference": "participant",
+                "provenance_path": "data/sleep/README.md",
+                "artifacts": [
+                    {"role": "raw", "location": "data/sleep/raw.csv"},
+                    {"role": "metadata", "location": "data/sleep/premature-context.md"},
+                ],
+            },
+        )
+        self._commit("DATA: add context before result artifact")
+
+        outputs = self.root / "analysis" / "trajectory" / "outputs"
+        outputs.mkdir()
+        (outputs / "primary.csv").write_text("term,estimate\nslope,11.4\n", encoding="utf-8")
+        record_analysis(
+            self.root,
+            {
+                "slug": "sleep-trajectory",
+                "title": "Sleep trajectory analysis",
+                "analysis_mode": "confirmatory",
+                "status": "completed",
+                "target_uncertainty": "Is there a stable positive longitudinal trend?",
+                "estimand": "Population-average change per study day",
+                "unit_of_inference": "participant",
+                "primary_analysis": "Mixed model with participant random intercept and slope",
+                "analysis_path": "analysis/trajectory/README.md",
+                "code_path": "analysis/trajectory/run.py",
+                "dataset_slugs": ["sleep-data"],
+                "freeze_commit": freeze_commit,
+                "dataset_artifact_timing": [
+                    {
+                        "dataset_slug": "sleep-data",
+                        "location": "data/sleep/premature-context.md",
+                        "timing_role": "post_result_context",
+                        "reason": "Incorrectly labeled as if it followed result visibility.",
+                    }
+                ],
+                "artifacts": [
+                    {"role": "estimate", "path": "analysis/trajectory/outputs/primary.csv"}
+                ],
+                "observations": [
+                    {
+                        "statement": "A result exists.",
+                        "source_path": "analysis/trajectory/outputs/primary.csv",
+                    }
+                ],
+            },
+        )
+        self._commit("ANALYSIS: record result after premature context")
+
+        result = validate_completion(self.root)
+        self.assertFalse(result["ok"])
+        blockers = [
+            item
+            for item in result["downstream"]["blockers"]
+            if item["reason"] == "analysis_post_result_context_predates_results"
+        ]
+        self.assertEqual(len(blockers), 1)
+        self.assertEqual(blockers[0]["paths"], ["data/sleep/premature-context.md"])
+
     def test_post_result_context_scope_is_specific_to_each_analysis(self) -> None:
         self._write_plan_assets()
         self._record_dataset()
@@ -522,6 +600,61 @@ class DownstreamResearchProvenanceTests(unittest.TestCase):
             set(blockers[0]["paths"]),
             {"data/sleep/raw.csv", "analysis/trajectory/run.py"},
         )
+
+    def test_completion_rejects_reverted_history_changes_to_frozen_input(self) -> None:
+        self._write_plan_assets()
+        self._record_dataset()
+        self._record_planned_analysis()
+        freeze_commit = self._commit("ANALYSIS: freeze primary plan")
+
+        raw_path = self.root / "data" / "sleep" / "raw.csv"
+        original = raw_path.read_text(encoding="utf-8")
+        raw_path.write_text("subject,day,y\n1,0,10\n1,1,99\n", encoding="utf-8")
+        self._commit("ANALYSIS: mutate frozen input")
+        raw_path.write_text(original, encoding="utf-8")
+        self._commit("ANALYSIS: revert frozen input content")
+
+        outputs = self.root / "analysis" / "trajectory" / "outputs"
+        outputs.mkdir()
+        estimate_path = outputs / "primary.csv"
+        estimate_path.write_text("term,estimate\nslope,11.4\n", encoding="utf-8")
+        record_analysis(
+            self.root,
+            {
+                "slug": "sleep-trajectory",
+                "title": "Sleep trajectory analysis",
+                "analysis_mode": "confirmatory",
+                "status": "completed",
+                "target_uncertainty": "Is there a stable positive longitudinal trend?",
+                "estimand": "Population-average change per study day",
+                "unit_of_inference": "participant",
+                "primary_analysis": "Mixed model with participant random intercept and slope",
+                "analysis_path": "analysis/trajectory/README.md",
+                "code_path": "analysis/trajectory/run.py",
+                "dataset_slugs": ["sleep-data"],
+                "freeze_commit": freeze_commit,
+                "artifacts": [
+                    {"role": "estimate", "path": "analysis/trajectory/outputs/primary.csv"}
+                ],
+                "observations": [
+                    {
+                        "statement": "A result exists.",
+                        "source_path": "analysis/trajectory/outputs/primary.csv",
+                    }
+                ],
+            },
+        )
+        self._commit("ANALYSIS: record result after reverted input history")
+
+        result = validate_completion(self.root)
+        self.assertFalse(result["ok"])
+        blockers = [
+            item
+            for item in result["downstream"]["blockers"]
+            if item["reason"] == "analysis_frozen_artifact_changed_after_freeze"
+        ]
+        self.assertEqual(len(blockers), 1)
+        self.assertEqual(blockers[0]["paths"], ["data/sleep/raw.csv"])
 
     def test_result_artifact_cannot_exist_in_declared_pre_result_freeze(self) -> None:
         self._write_plan_assets()

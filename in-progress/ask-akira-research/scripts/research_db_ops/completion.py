@@ -380,6 +380,26 @@ def _git_commit_has_path(project_root: Path, commit: str, path: str) -> bool:
     return result.returncode == 0
 
 
+def _git_path_changed_after(project_root: Path, commit: str, path: str) -> bool:
+    result = _git(project_root, "log", "--format=%H", f"{commit}..HEAD", "--", path)
+    return result.returncode != 0 or bool(result.stdout.strip())
+
+
+def _git_first_path_change_after(project_root: Path, commit: str, path: str) -> str | None:
+    result = _git(
+        project_root,
+        "log",
+        "--reverse",
+        "--format=%H",
+        f"{commit}..HEAD",
+        "--",
+        path,
+    )
+    if result.returncode != 0:
+        return None
+    return next((line.strip() for line in result.stdout.splitlines() if line.strip()), None)
+
+
 def downstream_completion_readiness(project_root: Path) -> dict[str, Any]:
     blockers: list[dict[str, Any]] = []
     db_path = database_path(project_root)
@@ -622,10 +642,7 @@ def downstream_completion_readiness(project_root: Path) -> dict[str, Any]:
                 path
                 for path in dict.fromkeys(freeze_required_paths)
                 if _git_commit_has_path(project_root, freeze_commit, path)
-                and _git(
-                    project_root, "diff", "--quiet", freeze_commit, "HEAD", "--", path
-                ).returncode
-                != 0
+                and _git_path_changed_after(project_root, freeze_commit, path)
             )
             if changed_after_freeze:
                 blockers.append(
@@ -636,6 +653,18 @@ def downstream_completion_readiness(project_root: Path) -> dict[str, Any]:
                         "paths": changed_after_freeze,
                     }
                 )
+
+            result_paths = [
+                str(row["path"])
+                for row in connection.execute(
+                    """
+                    SELECT path FROM analysis_artifacts
+                    WHERE analysis_id = ? AND timing_role = 'result'
+                    ORDER BY id
+                    """,
+                    (analysis_id,),
+                )
+            ]
 
             context_present_at_freeze = sorted(
                 path
@@ -652,17 +681,27 @@ def downstream_completion_readiness(project_root: Path) -> dict[str, Any]:
                     }
                 )
 
-            result_paths = [
-                str(row["path"])
-                for row in connection.execute(
-                    """
-                    SELECT path FROM analysis_artifacts
-                    WHERE analysis_id = ? AND timing_role = 'result'
-                    ORDER BY id
-                    """,
-                    (analysis_id,),
+            premature_context_paths: list[str] = []
+            for path in dict.fromkeys(post_result_context_paths):
+                if path in context_present_at_freeze:
+                    continue
+                first_context_commit = _git_first_path_change_after(
+                    project_root, freeze_commit, path
                 )
-            ]
+                if first_context_commit is None or not any(
+                    _git_commit_has_path(project_root, first_context_commit, result_path)
+                    for result_path in result_paths
+                ):
+                    premature_context_paths.append(path)
+            if premature_context_paths:
+                blockers.append(
+                    {
+                        "reason": "analysis_post_result_context_predates_results",
+                        "analysis": slug,
+                        "freeze_commit": freeze_commit,
+                        "paths": sorted(premature_context_paths),
+                    }
+                )
             result_present_at_freeze = sorted(
                 path for path in result_paths if _git_commit_has_path(project_root, freeze_commit, path)
             )
@@ -1143,6 +1182,12 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
                 f"Analysis {blocker.get('analysis')} 把 freeze 时已存在的 Dataset artifact 标成 post_result_context："
                 + ", ".join(str(path) for path in blocker.get("paths", []))
                 + "；post_result_context 只用于结果可见后新增、未参与该执行快照的 provenance/context artifact。"
+            )
+        elif reason == "analysis_post_result_context_predates_results":
+            errors.append(
+                f"Analysis {blocker.get('analysis')} 的 post_result_context 早于任何已登记 result artifact 进入 Git 历史："
+                + ", ".join(str(path) for path in blocker.get("paths", []))
+                + "；无法机械证明该 context 是结果可见后才形成的。"
             )
         elif reason == "analysis_result_artifact_present_at_freeze":
             errors.append(
