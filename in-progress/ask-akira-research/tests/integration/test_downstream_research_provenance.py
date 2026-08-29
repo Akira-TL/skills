@@ -11,7 +11,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from research_db_core import ResearchDbError, init_database  # noqa: E402
 from research_db_ops.completion import validate_completion  # noqa: E402
-from research_db_ops.downstream import record_analysis, record_dataset  # noqa: E402
+from research_db_ops.downstream import list_analyses, record_analysis, record_dataset  # noqa: E402
 
 
 class DownstreamResearchProvenanceTests(unittest.TestCase):
@@ -696,6 +696,194 @@ class DownstreamResearchProvenanceTests(unittest.TestCase):
         result = validate_completion(self.root)
         reasons = {item["reason"] for item in result["downstream"]["blockers"]}
         self.assertIn("analysis_result_artifact_present_at_freeze", reasons)
+
+    def test_completed_analysis_preserves_completed_at_when_appending_provenance(self) -> None:
+        self._write_plan_assets()
+        self._record_dataset()
+        self._record_planned_analysis()
+        freeze_commit = self._commit("ANALYSIS: freeze primary plan")
+
+        outputs = self.root / "analysis" / "trajectory" / "outputs"
+        outputs.mkdir()
+        (outputs / "primary.csv").write_text("term,estimate\nslope,11.4\n", encoding="utf-8")
+        completed_at = "2026-08-28T01:00:00+00:00"
+        record_analysis(
+            self.root,
+            {
+                "slug": "sleep-trajectory",
+                "title": "Sleep trajectory analysis",
+                "analysis_mode": "confirmatory",
+                "status": "completed",
+                "target_uncertainty": "Is there a stable positive longitudinal trend?",
+                "estimand": "Population-average change per study day",
+                "unit_of_inference": "participant",
+                "primary_analysis": "Mixed model with participant random intercept and slope",
+                "analysis_path": "analysis/trajectory/README.md",
+                "code_path": "analysis/trajectory/run.py",
+                "dataset_slugs": ["sleep-data"],
+                "freeze_commit": freeze_commit,
+                "completed_at": completed_at,
+                "artifacts": [
+                    {"role": "estimate", "path": "analysis/trajectory/outputs/primary.csv"}
+                ],
+                "observations": [
+                    {
+                        "statement": "A result exists.",
+                        "source_path": "analysis/trajectory/outputs/primary.csv",
+                    }
+                ],
+            },
+        )
+        self._commit("ANALYSIS: record primary result")
+
+        context_path = self.root / "data" / "sleep" / "post-result-context.md"
+        context_path.write_text("# 后验来源核验\n\n结果后补充。\n", encoding="utf-8")
+        record_dataset(
+            self.root,
+            {
+                "slug": "sleep-data",
+                "title": "Sleep repeated measures",
+                "identity": "example:sleep",
+                "source": "test fixture",
+                "received_at": "2026-08-28T00:00:00+00:00",
+                "unit_of_inference": "participant",
+                "provenance_path": "data/sleep/README.md",
+                "artifacts": [
+                    {"role": "raw", "location": "data/sleep/raw.csv"},
+                    {"role": "metadata", "location": "data/sleep/post-result-context.md"},
+                ],
+            },
+        )
+        self._commit("DATA: add post-result context")
+
+        record_analysis(
+            self.root,
+            {
+                "slug": "sleep-trajectory",
+                "title": "Sleep trajectory analysis",
+                "analysis_mode": "confirmatory",
+                "status": "completed",
+                "target_uncertainty": "Is there a stable positive longitudinal trend?",
+                "estimand": "Population-average change per study day",
+                "unit_of_inference": "participant",
+                "primary_analysis": "Mixed model with participant random intercept and slope",
+                "analysis_path": "analysis/trajectory/README.md",
+                "code_path": "analysis/trajectory/run.py",
+                "dataset_slugs": ["sleep-data"],
+                "freeze_commit": freeze_commit,
+                "dataset_artifact_timing": [
+                    {
+                        "dataset_slug": "sleep-data",
+                        "location": "data/sleep/post-result-context.md",
+                        "timing_role": "post_result_context",
+                        "reason": "Source context was added after the result artifact was committed.",
+                    }
+                ],
+            },
+        )
+
+        analysis = list_analyses(self.root)["analyses"][0]
+        self.assertEqual(analysis["completed_at"], completed_at)
+
+    def test_completed_analysis_cannot_silently_change_completed_at(self) -> None:
+        self._write_plan_assets()
+        self._record_dataset()
+        self._record_planned_analysis()
+        freeze_commit = self._commit("ANALYSIS: freeze primary plan")
+
+        outputs = self.root / "analysis" / "trajectory" / "outputs"
+        outputs.mkdir()
+        (outputs / "primary.csv").write_text("term,estimate\nslope,11.4\n", encoding="utf-8")
+        record_analysis(
+            self.root,
+            {
+                "slug": "sleep-trajectory",
+                "title": "Sleep trajectory analysis",
+                "analysis_mode": "confirmatory",
+                "status": "completed",
+                "target_uncertainty": "Is there a stable positive longitudinal trend?",
+                "estimand": "Population-average change per study day",
+                "unit_of_inference": "participant",
+                "primary_analysis": "Mixed model with participant random intercept and slope",
+                "analysis_path": "analysis/trajectory/README.md",
+                "code_path": "analysis/trajectory/run.py",
+                "dataset_slugs": ["sleep-data"],
+                "freeze_commit": freeze_commit,
+                "completed_at": "2026-08-28T01:00:00+00:00",
+                "artifacts": [
+                    {"role": "estimate", "path": "analysis/trajectory/outputs/primary.csv"}
+                ],
+                "observations": [
+                    {
+                        "statement": "A result exists.",
+                        "source_path": "analysis/trajectory/outputs/primary.csv",
+                    }
+                ],
+            },
+        )
+
+        with self.assertRaisesRegex(ResearchDbError, "completed_at"):
+            record_analysis(
+                self.root,
+                {
+                    "slug": "sleep-trajectory",
+                    "title": "Sleep trajectory analysis",
+                    "analysis_mode": "confirmatory",
+                    "status": "completed",
+                    "target_uncertainty": "Is there a stable positive longitudinal trend?",
+                    "estimand": "Population-average change per study day",
+                    "unit_of_inference": "participant",
+                    "primary_analysis": "Mixed model with participant random intercept and slope",
+                    "analysis_path": "analysis/trajectory/README.md",
+                    "code_path": "analysis/trajectory/run.py",
+                    "dataset_slugs": ["sleep-data"],
+                    "freeze_commit": freeze_commit,
+                    "completed_at": "2026-08-29T01:00:00+00:00",
+                },
+            )
+
+    def test_frozen_analysis_cannot_silently_change_freeze_commit(self) -> None:
+        self._write_plan_assets()
+        self._record_dataset()
+        self._record_planned_analysis()
+        freeze_commit = self._commit("ANALYSIS: freeze primary plan")
+        record_analysis(
+            self.root,
+            {
+                "slug": "sleep-trajectory",
+                "title": "Sleep trajectory analysis",
+                "analysis_mode": "confirmatory",
+                "status": "frozen",
+                "target_uncertainty": "Is there a stable positive longitudinal trend?",
+                "estimand": "Population-average change per study day",
+                "unit_of_inference": "participant",
+                "primary_analysis": "Mixed model with participant random intercept and slope",
+                "analysis_path": "analysis/trajectory/README.md",
+                "code_path": "analysis/trajectory/run.py",
+                "dataset_slugs": ["sleep-data"],
+                "freeze_commit": freeze_commit,
+            },
+        )
+        later_commit = self._commit("CHORE: persist frozen analysis record")
+
+        with self.assertRaisesRegex(ResearchDbError, "不能静默修改"):
+            record_analysis(
+                self.root,
+                {
+                    "slug": "sleep-trajectory",
+                    "title": "Sleep trajectory analysis",
+                    "analysis_mode": "confirmatory",
+                    "status": "frozen",
+                    "target_uncertainty": "Is there a stable positive longitudinal trend?",
+                    "estimand": "Population-average change per study day",
+                    "unit_of_inference": "participant",
+                    "primary_analysis": "Mixed model with participant random intercept and slope",
+                    "analysis_path": "analysis/trajectory/README.md",
+                    "code_path": "analysis/trajectory/run.py",
+                    "dataset_slugs": ["sleep-data"],
+                    "freeze_commit": later_commit,
+                },
+            )
 
     def test_frozen_analysis_cannot_silently_change_estimand(self) -> None:
         self._write_plan_assets()

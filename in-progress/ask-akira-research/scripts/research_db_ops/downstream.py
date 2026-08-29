@@ -222,8 +222,6 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
     freeze_commit = _text(bundle.get("freeze_commit"))
     started_at = _text(bundle.get("started_at")) or _now()
     completed_at = _text(bundle.get("completed_at"))
-    if status == "completed" and not completed_at:
-        completed_at = _now()
     if analysis_mode == "confirmatory" and status in {"frozen", "completed"} and not freeze_commit:
         raise ResearchDbError("confirmatory analysis 进入 frozen/completed 时必须记录结果可见前的 freeze_commit。")
 
@@ -291,9 +289,12 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                 "primary_analysis": primary_analysis,
                 "analysis_path": analysis_path,
                 "code_path": code_path,
+                "freeze_commit": freeze_commit,
                 "design_id": design_id,
             }
             if existing is None:
+                if status == "completed" and not completed_at:
+                    completed_at = now
                 cursor = connection.execute(
                     """
                     INSERT INTO analysis_runs(
@@ -325,6 +326,14 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                 analysis_id = int(cursor.lastrowid)
             else:
                 analysis_id = int(existing["id"])
+                if existing["status"] == "completed":
+                    if completed_at is not None and str(completed_at) != str(existing["completed_at"]):
+                        raise ResearchDbError(
+                            "completed Analysis 不能静默修改 completed_at。"
+                        )
+                    completed_at = existing["completed_at"]
+                elif status == "completed" and not completed_at:
+                    completed_at = now
                 if existing["status"] in {"frozen", "completed"}:
                     changed = [
                         key
