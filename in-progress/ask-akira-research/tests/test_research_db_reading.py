@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import closing
 import sqlite3
 import sys
 import tempfile
@@ -140,7 +141,7 @@ class ResearchDbReadingTests(unittest.TestCase):
         self.assertEqual(result["counts"]["relations"], 2)
         self.assertIn("claim:claim-1", result["refs"])
 
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             paper = connection.execute(
                 "SELECT status, read_depth, reading_status, critical_status FROM papers"
             ).fetchone()
@@ -167,7 +168,7 @@ class ResearchDbReadingTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "未知 bundle ref"):
             ingest_reading(self.root, bundle)
 
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             counts = tuple(
                 connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
                 for table in ("methods", "experiments", "observations", "claims", "leads", "relations", "reading_runs")
@@ -357,7 +358,7 @@ class ResearchDbReadingTests(unittest.TestCase):
             "</p></sec></article>",
             encoding="utf-8",
         )
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute(
                 """
                 UPDATE artifacts
@@ -524,7 +525,7 @@ class ResearchDbReadingTests(unittest.TestCase):
         self.assertEqual(result["counts"], {"issues": 1, "relations": 1})
         self.assertEqual(result["sidecar_path"], "literature/papers/P000001/README.md")
 
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             paper = connection.execute(
                 "SELECT read_depth, reading_status, critical_status, sidecar_path FROM papers"
             ).fetchone()

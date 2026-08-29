@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import closing
 import sqlite3
 import sys
 import tempfile
@@ -30,7 +31,7 @@ class ResearchDbQueryTests(unittest.TestCase):
         now = datetime.now(timezone.utc).isoformat()
         artifact_path = self.root / "paper.html"
         artifact_path.write_text("paper", encoding="utf-8")
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute("PRAGMA foreign_keys = ON")
             connection.execute(
                 """
@@ -164,7 +165,7 @@ class ResearchDbQueryTests(unittest.TestCase):
 
     def test_evidence_packet_marks_shared_data_as_one_evidence_family(self) -> None:
         now = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute(
                 """
                 INSERT INTO papers(
@@ -195,7 +196,7 @@ class ResearchDbQueryTests(unittest.TestCase):
 
     def test_related_papers_returns_cross_paper_relation(self) -> None:
         now = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute(
                 """
                 INSERT INTO papers(

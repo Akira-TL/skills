@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import closing
 import sqlite3
 import sys
 import tempfile
@@ -22,7 +23,7 @@ class ResearchDbRelationTests(unittest.TestCase):
         (self.root / "RESEARCH.md").write_text("# Research\n", encoding="utf-8")
         init_database(self.root)
         now = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             for paper_id, title, doi in (
                 ("P000001", "Paper one", "10.1234/one"),
                 ("P000002", "Paper two", "10.1234/two"),

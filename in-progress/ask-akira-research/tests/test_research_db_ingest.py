@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import closing
 import sqlite3
 import sys
 import tempfile
@@ -61,7 +62,7 @@ class ResearchDbIngestPaperTests(unittest.TestCase):
         self.assertEqual(canonical_pdf.read_bytes(), self.pdf_bytes)
         self.assertTrue(self.pdf_path.exists(), "ingest should copy, not move, the source artifact")
 
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             paper = connection.execute(
                 "SELECT id, doi, canonical_identity, status FROM papers"
             ).fetchone()
@@ -107,7 +108,7 @@ class ResearchDbIngestPaperTests(unittest.TestCase):
         result = ingest_paper(self.root, bundle)
 
         self.assertEqual(result["canonical_identity"], "doi:10.1234/test.paper")
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             canonical = connection.execute(
                 "SELECT canonical_identity FROM papers WHERE id = 'P000001'"
             ).fetchone()[0]
@@ -160,7 +161,7 @@ class ResearchDbIngestPaperTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "论文身份已存在"):
             ingest_paper(self.root, duplicate)
 
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             paper_count = connection.execute("SELECT COUNT(*) FROM papers").fetchone()[0]
             artifact_count = connection.execute("SELECT COUNT(*) FROM artifacts").fetchone()[0]
             log_count = connection.execute("SELECT COUNT(*) FROM change_log").fetchone()[0]
@@ -174,7 +175,7 @@ class ResearchDbIngestPaperTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "文件不存在"):
             ingest_paper(self.root, bundle)
 
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             paper_count = connection.execute("SELECT COUNT(*) FROM papers").fetchone()[0]
             artifact_count = connection.execute("SELECT COUNT(*) FROM artifacts").fetchone()[0]
         self.assertEqual((paper_count, artifact_count), (0, 0))

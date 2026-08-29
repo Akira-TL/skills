@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import closing
 import sqlite3
 import subprocess
 import sys
@@ -55,7 +56,7 @@ class ResearchCompletionTests(unittest.TestCase):
         depth: str = "full_scan",
     ) -> None:
         now = "2026-08-27T00:00:00+00:00"
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute("PRAGMA foreign_keys = ON")
             connection.execute(
                 """
@@ -108,7 +109,7 @@ class ResearchCompletionTests(unittest.TestCase):
 
     def test_literature_completion_rejects_unverified_acquired_source(self) -> None:
         self._insert_reviewed_candidate(1, "P000001")
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute(
                 "UPDATE acquisition_attempts SET access_basis='unverified', "
                 "access_basis_detail='Legacy mirror with no verified authorization basis' "
@@ -120,7 +121,7 @@ class ResearchCompletionTests(unittest.TestCase):
 
     def test_targeted_direct_ingest_paper_requires_full_review(self) -> None:
         now = "2026-08-27T00:00:00+00:00"
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute(
                 """
                 INSERT INTO papers(
@@ -147,7 +148,7 @@ class ResearchCompletionTests(unittest.TestCase):
         reasons = {item["reason"] for item in first["blockers"]}
         self.assertIn("targeted_paper_not_fully_reviewed", reasons)
 
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute(
                 "UPDATE papers SET reading_status='extracted', critical_status='critically_reviewed' "
                 "WHERE id='P000001'"
@@ -162,7 +163,7 @@ class ResearchCompletionTests(unittest.TestCase):
         reasons = {item["reason"] for item in first["blockers"]}
         self.assertIn("core_acquired_not_deep_extraction", reasons)
 
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute(
                 "UPDATE papers SET read_depth = 'deep_extraction' WHERE id = 'P000001'"
             )
@@ -175,7 +176,7 @@ class ResearchCompletionTests(unittest.TestCase):
     def test_literature_completion_requires_cross_paper_scientific_relation(self) -> None:
         self._insert_reviewed_candidate(1, "P000001")
         self._insert_reviewed_candidate(2, "P000002")
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute(
                 "INSERT INTO claims(paper_id, statement, claim_type) VALUES ('P000001', 'Claim A', 'descriptive')"
             )
@@ -204,7 +205,7 @@ class ResearchCompletionTests(unittest.TestCase):
             )
         )
 
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             claim_ids = [row[0] for row in connection.execute("SELECT id FROM claims ORDER BY id")]
             connection.execute(
                 """
@@ -233,7 +234,7 @@ class ResearchCompletionTests(unittest.TestCase):
             encoding="utf-8",
         )
         now = "2026-08-27T00:00:00+00:00"
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute(
                 """
                 INSERT INTO papers(id, title, status, sidecar_path, created_at, updated_at)
@@ -265,7 +266,7 @@ class ResearchCompletionTests(unittest.TestCase):
             encoding="utf-8",
         )
         now = "2026-08-27T00:00:00+00:00"
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute(
                 """
                 INSERT INTO analysis_runs(

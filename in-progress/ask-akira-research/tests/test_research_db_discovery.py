@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import closing
 import sqlite3
 import sys
 import tempfile
@@ -194,7 +195,7 @@ class ResearchDbDiscoveryTests(unittest.TestCase):
 
     def test_existing_paper_marks_discovered_candidate_acquired(self) -> None:
         now = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute(
                 """
                 INSERT INTO papers(

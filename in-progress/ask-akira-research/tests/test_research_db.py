@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import closing
 import sqlite3
 import sys
 import tempfile
@@ -45,7 +46,7 @@ class ResearchDbTests(unittest.TestCase):
         self.assertEqual(db_status["tables"]["papers"], 0)
         self.assertTrue(validate(self.root)["ok"])
 
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             artifact_columns = {
                 row[1] for row in connection.execute("PRAGMA table_info(artifacts)")
             }
@@ -62,7 +63,7 @@ class ResearchDbTests(unittest.TestCase):
         self.assertIn("nature", issue_columns)
         self.assertIn("dataset_artifact_id", dataset_timing_columns)
         self.assertIn("timing_role", dataset_timing_columns)
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             fts_table = connection.execute(
                 "SELECT name FROM sqlite_master WHERE name = 'knowledge_fts'"
             ).fetchone()
@@ -79,7 +80,7 @@ class ResearchDbTests(unittest.TestCase):
     def test_status_reports_migration_needed_without_mutating_database(self) -> None:
         init_database(self.root)
         db_path = database_path(self.root)
-        with sqlite3.connect(db_path) as connection:
+        with closing(sqlite3.connect(db_path)) as connection, connection:
             connection.execute("PRAGMA user_version = 15")
             connection.execute("UPDATE meta SET value = '15' WHERE key = 'schema_version'")
 
@@ -88,7 +89,7 @@ class ResearchDbTests(unittest.TestCase):
         self.assertEqual(db_status["latest_schema_version"], 17)
         self.assertTrue(db_status["migration_needed"])
 
-        with sqlite3.connect(db_path) as connection:
+        with closing(sqlite3.connect(db_path)) as connection, connection:
             self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 15)
             self.assertEqual(
                 connection.execute(
@@ -102,7 +103,7 @@ class ResearchDbTests(unittest.TestCase):
         db_path.parent.mkdir(parents=True)
         v1_sql = (next(MIGRATION_DIR.rglob("001_initial.sql"))).read_text(encoding="utf-8")
         now = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(db_path) as connection:
+        with closing(sqlite3.connect(db_path)) as connection, connection:
             connection.executescript(v1_sql)
             connection.execute("PRAGMA user_version = 1")
             connection.execute(
@@ -130,7 +131,7 @@ class ResearchDbTests(unittest.TestCase):
             )
 
         self.assertEqual(apply_migrations(db_path), [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17])
-        with sqlite3.connect(db_path) as connection:
+        with closing(sqlite3.connect(db_path)) as connection, connection:
             connection.row_factory = sqlite3.Row
             artifact_columns = {
                 row["name"] for row in connection.execute("PRAGMA table_info(artifacts)")
@@ -149,7 +150,7 @@ class ResearchDbTests(unittest.TestCase):
     def test_candidate_link_is_backfilled_when_migrating_from_v4(self) -> None:
         db_path = database_path(self.root)
         db_path.parent.mkdir(parents=True)
-        with sqlite3.connect(db_path) as connection:
+        with closing(sqlite3.connect(db_path)) as connection, connection:
             for migration_name in (
                 "001_initial.sql",
                 "002_provenance_and_issue_model.sql",
@@ -183,7 +184,7 @@ class ResearchDbTests(unittest.TestCase):
             )
 
         self.assertEqual(apply_migrations(db_path), [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17])
-        with sqlite3.connect(db_path) as connection:
+        with closing(sqlite3.connect(db_path)) as connection, connection:
             row = connection.execute(
                 "SELECT acquisition_status, identity_status FROM candidates"
             ).fetchone()
@@ -192,7 +193,7 @@ class ResearchDbTests(unittest.TestCase):
     def test_validate_requires_reconstruction_run_for_reconstructed_paper(self) -> None:
         init_database(self.root)
         now = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute(
                 """
                 INSERT INTO papers(
@@ -210,7 +211,7 @@ class ResearchDbTests(unittest.TestCase):
     def test_validate_detects_missing_artifact_file(self) -> None:
         init_database(self.root)
         now = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute("PRAGMA foreign_keys = ON")
             connection.execute(
                 "INSERT INTO papers(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
@@ -232,7 +233,7 @@ class ResearchDbTests(unittest.TestCase):
     def test_validate_rejects_canonical_identity_that_conflicts_with_doi(self) -> None:
         init_database(self.root)
         now = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute(
                 """
                 INSERT INTO papers(
@@ -259,7 +260,7 @@ class ResearchDbTests(unittest.TestCase):
         paper_dir = self.root / "literature" / "papers" / "P000001"
         paper_dir.mkdir(parents=True)
         (paper_dir / "paper").write_text("<html></html>", encoding="utf-8")
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute("PRAGMA foreign_keys = ON")
             connection.execute(
                 "INSERT INTO papers(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
@@ -281,7 +282,7 @@ class ResearchDbTests(unittest.TestCase):
     def test_validate_rejects_excluded_candidate_without_reason(self) -> None:
         init_database(self.root)
         now = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute(
                 """
                 INSERT INTO candidates(
@@ -300,7 +301,7 @@ class ResearchDbTests(unittest.TestCase):
     def test_validate_rejects_duplicate_candidate_stable_identity(self) -> None:
         init_database(self.root)
         now = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             for title in ("Index title A", "Index title B"):
                 connection.execute(
                     """
@@ -320,7 +321,7 @@ class ResearchDbTests(unittest.TestCase):
     def test_validate_rejects_acquired_candidate_without_paper(self) -> None:
         init_database(self.root)
         now = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute(
                 """
                 INSERT INTO candidates(
@@ -339,7 +340,7 @@ class ResearchDbTests(unittest.TestCase):
     def test_validate_rejects_candidate_paper_identity_conflict(self) -> None:
         init_database(self.root)
         now = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute(
                 """
                 INSERT INTO papers(
@@ -367,7 +368,7 @@ class ResearchDbTests(unittest.TestCase):
     def test_validate_warns_when_critical_review_has_no_issue(self) -> None:
         init_database(self.root)
         now = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute("PRAGMA foreign_keys = ON")
             connection.execute(
                 """
@@ -397,7 +398,7 @@ class ResearchDbTests(unittest.TestCase):
     def test_not_reported_issue_still_requires_locator(self) -> None:
         init_database(self.root)
         now = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(database_path(self.root)) as connection:
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             connection.execute("PRAGMA foreign_keys = ON")
             connection.execute(
                 "INSERT INTO papers(id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",

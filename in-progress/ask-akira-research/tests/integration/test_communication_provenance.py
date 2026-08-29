@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import closing
 import subprocess
 import sys
 import tempfile
@@ -97,7 +98,7 @@ class CommunicationProvenanceTests(unittest.TestCase):
         self._commit("DOCS: record communication")
         import sqlite3
 
-        with sqlite3.connect(self.root / ".research" / "research.sqlite") as connection:
+        with closing(sqlite3.connect(self.root / ".research" / "research.sqlite")) as connection, connection:
             connection.execute("PRAGMA user_version = 15")
             connection.execute("UPDATE meta SET value = '15' WHERE key = 'schema_version'")
 
