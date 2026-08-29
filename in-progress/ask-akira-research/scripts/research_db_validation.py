@@ -4,19 +4,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from research_db_core import (
-    ENTITY_TABLES,
-    REQUIRED_TABLES,
-    _entity_exists,
-    _source_locator_is_specific,
-    connect,
-    current_version,
-    database_path,
-    latest_version,
-    main_text_exposes_code_data_locator,
-    read_meta_version,
-    table_names,
-)
+from research_db_support.checks import main_text_exposes_code_data_locator, source_locator_is_specific
+from research_db_support.schema import ENTITY_TABLES, REQUIRED_TABLES, entity_exists, latest_version
+from research_db_support.storage import connect, current_version, database_path, read_meta_version, table_names
 
 
 def validate(project_root: Path) -> dict[str, Any]:
@@ -714,11 +704,11 @@ def validate(project_root: Path) -> dict[str, Any]:
             ):
                 if row["subject_type"] not in ENTITY_TABLES:
                     errors.append(f"relation {row['id']} 使用未知 subject_type={row['subject_type']!r}。")
-                elif not _entity_exists(connection, row["subject_type"], row["subject_id"]):
+                elif not entity_exists(connection, row["subject_type"], row["subject_id"]):
                     errors.append(f"relation {row['id']} 的 subject 不存在。")
                 if row["object_type"] not in ENTITY_TABLES:
                     errors.append(f"relation {row['id']} 使用未知 object_type={row['object_type']!r}。")
-                elif not _entity_exists(connection, row["object_type"], row["object_id"]):
+                elif not entity_exists(connection, row["object_type"], row["object_id"]):
                     errors.append(f"relation {row['id']} 的 object 不存在。")
 
             for row in connection.execute(
@@ -729,7 +719,7 @@ def validate(project_root: Path) -> dict[str, Any]:
                     continue
                 if row["target_type"] not in ENTITY_TABLES:
                     errors.append(f"issue {row['id']} 使用未知 target_type={row['target_type']!r}。")
-                elif not _entity_exists(connection, row["target_type"], row["target_id"]):
+                elif not entity_exists(connection, row["target_type"], row["target_id"]):
                     errors.append(f"issue {row['id']} 指向不存在的 target。")
 
             for row in connection.execute(
@@ -762,7 +752,7 @@ def validate(project_root: Path) -> dict[str, Any]:
                 for row in connection.execute(
                     f"SELECT id, paper_id, source_locator FROM {table} ORDER BY id"
                 ):
-                    if not _source_locator_is_specific(row["source_locator"]):
+                    if not source_locator_is_specific(row["source_locator"]):
                         errors.append(
                             f"{entity} {row['id']} ({row['paper_id']}) 的 source_locator="
                             f"{row['source_locator']!r} 过于模糊；需要具体 subsection/page/figure/table/supplement 定位。"
