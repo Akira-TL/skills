@@ -20,6 +20,8 @@ from research_db_core import (  # noqa: E402
     status,
     validate,
 )
+from research_db_ops.downstream import list_analyses  # noqa: E402
+from research_db_support.schema import list_migrations  # noqa: E402
 
 
 class ResearchDbTests(unittest.TestCase):
@@ -97,6 +99,66 @@ class ResearchDbTests(unittest.TestCase):
                 ).fetchone()[0],
                 "15",
             )
+
+    def test_list_analyses_reads_v14_without_newer_schema_fields(self) -> None:
+        db_path = database_path(self.root)
+        db_path.parent.mkdir(parents=True)
+        with closing(sqlite3.connect(db_path)) as connection, connection:
+            for migration in list_migrations():
+                if migration.version > 14:
+                    break
+                connection.executescript(migration.path.read_text(encoding="utf-8"))
+                connection.execute(f"PRAGMA user_version = {migration.version}")
+                connection.execute(
+                    """
+                    INSERT INTO meta(key, value) VALUES('schema_version', ?)
+                    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                    """,
+                    (str(migration.version),),
+                )
+
+            now = datetime.now(timezone.utc).isoformat()
+            connection.execute(
+                """
+                INSERT INTO datasets(
+                    slug, title, source, received_at, unit_of_inference,
+                    provenance_path, created_at, updated_at
+                ) VALUES ('legacy-data', 'Legacy data', 'fixture', ?, 'pot',
+                          'data/README.md', ?, ?)
+                """,
+                (now, now, now),
+            )
+            dataset_id = int(connection.execute("SELECT id FROM datasets").fetchone()[0])
+            connection.execute(
+                """
+                INSERT INTO analysis_runs(
+                    slug, title, analysis_mode, status, target_uncertainty,
+                    estimand, unit_of_inference, primary_analysis, analysis_path,
+                    code_path, freeze_commit, started_at, completed_at, created_at, updated_at
+                ) VALUES (
+                    'legacy-analysis', 'Legacy analysis', 'confirmatory', 'completed',
+                    'Is the effect at least 5 g?', 'A minus control mean difference', 'pot',
+                    'Welch mean difference', 'analysis/README.md', 'analysis/run.py',
+                    'freeze-commit', ?, ?, ?, ?
+                )
+                """,
+                (now, now, now, now),
+            )
+            analysis_id = int(connection.execute("SELECT id FROM analysis_runs").fetchone()[0])
+            connection.execute(
+                "INSERT INTO analysis_inputs(analysis_id, dataset_id, role) VALUES (?, ?, 'primary')",
+                (analysis_id, dataset_id),
+            )
+
+        result = list_analyses(self.root)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["schema_capabilities"]["analysis_design_link"], False)
+        self.assertEqual(result["schema_capabilities"]["dataset_artifact_timing"], False)
+        self.assertEqual(result["analyses"][0]["slug"], "legacy-analysis")
+        self.assertEqual(result["analyses"][0]["dataset_slugs"], ["legacy-data"])
+        self.assertIsNone(result["analyses"][0]["design_slug"])
+        self.assertIsNone(result["analyses"][0]["dataset_artifact_timing"])
 
     def test_migrate_v1_to_v2_preserves_artifacts_and_maps_issue_model(self) -> None:
         db_path = database_path(self.root)

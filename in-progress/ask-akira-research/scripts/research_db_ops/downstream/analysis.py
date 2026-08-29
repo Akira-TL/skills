@@ -511,10 +511,20 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
 
 def list_analyses(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
     with connect(common.db_path(project_root)) as connection:
+        analysis_columns = {
+            str(column["name"])
+            for column in connection.execute("PRAGMA table_info(analysis_runs)")
+        }
+        tables = {
+            str(row["name"])
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        }
+        has_design_link = "design_id" in analysis_columns
+        has_dataset_artifact_timing = "analysis_dataset_artifact_timing" in tables
         rows = []
         for row in connection.execute("SELECT * FROM analysis_runs ORDER BY id LIMIT ?", (limit,)):
             item = dict(row)
-            if row["design_id"] is not None:
+            if has_design_link and row["design_id"] is not None:
                 design = connection.execute(
                     "SELECT slug FROM research_designs WHERE id = ?", (int(row["design_id"]),)
                 ).fetchone()
@@ -532,21 +542,24 @@ def list_analyses(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
                     (row["id"],),
                 )
             ]
-            item["dataset_artifact_timing"] = [
-                dict(x)
-                for x in connection.execute(
-                    """
-                    SELECT d.slug AS dataset_slug, da.location, t.timing_role, t.reason,
-                           t.created_at
-                    FROM analysis_dataset_artifact_timing t
-                    JOIN dataset_artifacts da ON da.id = t.dataset_artifact_id
-                    JOIN datasets d ON d.id = da.dataset_id
-                    WHERE t.analysis_id = ?
-                    ORDER BY da.id
-                    """,
-                    (row["id"],),
-                )
-            ]
+            if has_dataset_artifact_timing:
+                item["dataset_artifact_timing"] = [
+                    dict(x)
+                    for x in connection.execute(
+                        """
+                        SELECT d.slug AS dataset_slug, da.location, t.timing_role, t.reason,
+                               t.created_at
+                        FROM analysis_dataset_artifact_timing t
+                        JOIN dataset_artifacts da ON da.id = t.dataset_artifact_id
+                        JOIN datasets d ON d.id = da.dataset_id
+                        WHERE t.analysis_id = ?
+                        ORDER BY da.id
+                        """,
+                        (row["id"],),
+                    )
+                ]
+            else:
+                item["dataset_artifact_timing"] = None
             item["artifacts"] = [
                 dict(x)
                 for x in connection.execute(
@@ -566,4 +579,11 @@ def list_analyses(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
                 )
             ]
             rows.append(item)
-    return {"ok": True, "analyses": rows}
+    return {
+        "ok": True,
+        "analyses": rows,
+        "schema_capabilities": {
+            "analysis_design_link": has_design_link,
+            "dataset_artifact_timing": has_dataset_artifact_timing,
+        },
+    }
