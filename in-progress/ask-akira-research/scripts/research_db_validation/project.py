@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
-def check_project(project_root: Path, connection, errors: list[str]) -> None:
+def _check_downstream_project(project_root: Path, connection, errors: list[str]) -> None:
     for row in connection.execute(
         "SELECT id, slug, provenance_path FROM datasets ORDER BY id"
     ):
@@ -110,6 +109,8 @@ def check_project(project_root: Path, connection, errors: list[str]) -> None:
                 f"project observation {row['id']} 的 source artifact 不属于同一 Analysis。"
             )
 
+
+def _check_planning_project(project_root: Path, connection, errors: list[str]) -> None:
     for row in connection.execute(
         "SELECT id, slug, artifact_path, status, freeze_commit FROM hypothesis_sets ORDER BY id"
     ):
@@ -190,6 +191,8 @@ def check_project(project_root: Path, connection, errors: list[str]) -> None:
         if not (row["summary"] and str(row["summary"]).strip()):
             errors.append(f"hypothesis evaluation {row['id']} 缺少 summary。")
 
+
+def _check_communication_project(project_root: Path, connection, errors: list[str]) -> None:
     for row in connection.execute(
         """
         SELECT a.id, a.product_id, a.path, p.id AS product_exists
@@ -205,3 +208,8 @@ def check_project(project_root: Path, connection, errors: list[str]) -> None:
             path = project_root / path
         if not path.is_file():
             errors.append(f"communication artifact {row['id']} 文件不存在：{path}")
+
+def check_project(project_root: Path, connection, errors: list[str]) -> None:
+    _check_downstream_project(project_root, connection, errors)
+    _check_planning_project(project_root, connection, errors)
+    _check_communication_project(project_root, connection, errors)
