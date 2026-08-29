@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import Any
 
 from research_db_support.storage import connect, database_path
-from ..git import _git, _git_commit_has_path, _git_first_path_change_after, _git_path_changed_after
-from ..language import _canonical_paths
+from ..git import run_git, commit_has_path, first_path_change_after, path_changed_after
+from ..language import canonical_paths
 
 def communication_completion_readiness(project_root: Path) -> dict[str, Any]:
     blockers: list[dict[str, Any]] = []
@@ -58,7 +58,7 @@ def communication_completion_readiness(project_root: Path) -> dict[str, Any]:
 
         scientific_paths = [
             path
-            for path in _canonical_paths(project_root)
+            for path in canonical_paths(project_root)
             if path not in {"RESEARCH.md", ".research/research.sqlite"}
             and not path.startswith("communication/")
         ]
@@ -78,12 +78,12 @@ def communication_completion_readiness(project_root: Path) -> dict[str, Any]:
             if not source_commit:
                 blockers.append({"reason": "communication_source_commit_missing", "communication": slug})
                 continue
-            if _git(project_root, "cat-file", "-e", f"{source_commit}^{{commit}}").returncode != 0:
+            if run_git(project_root, "cat-file", "-e", f"{source_commit}^{{commit}}").returncode != 0:
                 blockers.append(
                     {"reason": "communication_source_commit_not_found", "communication": slug, "source_commit": source_commit}
                 )
                 continue
-            if _git(project_root, "merge-base", "--is-ancestor", source_commit, "HEAD").returncode != 0:
+            if run_git(project_root, "merge-base", "--is-ancestor", source_commit, "HEAD").returncode != 0:
                 blockers.append(
                     {"reason": "communication_source_commit_not_ancestor", "communication": slug, "source_commit": source_commit}
                 )
@@ -92,7 +92,7 @@ def communication_completion_readiness(project_root: Path) -> dict[str, Any]:
             wrong_timing: list[str] = []
             for artifact in artifacts:
                 path = str(artifact["path"])
-                existed = _git_commit_has_path(project_root, source_commit, path)
+                existed = commit_has_path(project_root, source_commit, path)
                 if artifact["timing_role"] == "derived_output" and existed:
                     wrong_timing.append(path)
                 if artifact["timing_role"] == "source_support" and not existed:
@@ -110,7 +110,7 @@ def communication_completion_readiness(project_root: Path) -> dict[str, Any]:
             changed_science = [
                 path
                 for path in scientific_paths
-                if _git(project_root, "diff", "--quiet", source_commit, "HEAD", "--", path).returncode != 0
+                if run_git(project_root, "diff", "--quiet", source_commit, "HEAD", "--", path).returncode != 0
             ]
             if changed_science:
                 blockers.append(

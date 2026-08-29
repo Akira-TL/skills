@@ -5,8 +5,8 @@ from typing import Any
 
 from research_db_validation import validate
 from research_db_ops.candidates import discovery_readiness
-from .git import _git
-from .language import _canonical_paths, academic_language_readiness
+from .git import run_git
+from .language import canonical_paths, academic_language_readiness
 from .literature import literature_completion_readiness
 from .project import (
     communication_completion_readiness,
@@ -50,9 +50,9 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
         "repository_root": None,
         "head": None,
         "canonical_paths": [],
-        "dirty_canonical_paths": [],
+        "dirtycanonical_paths": [],
     }
-    top = _git(project_root, "rev-parse", "--show-toplevel")
+    top = run_git(project_root, "rev-parse", "--show-toplevel")
     if top.returncode != 0:
         errors.append("科研项目尚不是 Git repository；不能完成科研 provenance gate。")
     else:
@@ -63,30 +63,30 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
                 f"科研项目根目录不是独立 Git repository top-level：{repo_root}。"
             )
 
-        head = _git(project_root, "rev-parse", "--verify", "HEAD")
+        head = run_git(project_root, "rev-parse", "--verify", "HEAD")
         if head.returncode != 0:
             errors.append("科研项目尚无任何 Git commit；研究状态没有形成版本历史。")
         else:
             git_info["head"] = head.stdout.strip()
 
-        canonical_paths = _canonical_paths(project_root)
-        git_info["canonical_paths"] = canonical_paths
-        for path in canonical_paths:
-            tracked = _git(project_root, "ls-files", "--error-unmatch", "--", path)
+        canonical_path_list = canonical_paths(project_root)
+        git_info["canonical_paths"] = canonical_path_list
+        for path in canonical_path_list:
+            tracked = run_git(project_root, "ls-files", "--error-unmatch", "--", path)
             if tracked.returncode != 0:
                 errors.append(f"canonical research artifact 尚未被 Git 跟踪：{path}")
 
-        if canonical_paths:
-            status = _git(
+        if canonical_path_list:
+            status = run_git(
                 project_root,
                 "status",
                 "--porcelain",
                 "--untracked-files=all",
                 "--",
-                *canonical_paths,
+                *canonical_path_list,
             )
             dirty = [line for line in status.stdout.splitlines() if line.strip()]
-            git_info["dirty_canonical_paths"] = dirty
+            git_info["dirtycanonical_paths"] = dirty
             if dirty:
                 errors.append("canonical research artifacts 仍有未提交修改：" + " | ".join(dirty))
 

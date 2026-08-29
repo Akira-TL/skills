@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import Any
 
 from research_db_support.storage import connect, database_path
-from ..git import _git, _git_commit_has_path, _git_first_path_change_after, _git_path_changed_after
-from ..language import _canonical_paths
+from ..git import run_git, commit_has_path, first_path_change_after, path_changed_after
+from ..language import canonical_paths
 
 def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
     blockers: list[dict[str, Any]] = []
@@ -84,7 +84,7 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
                     {"reason": "hypothesis_freeze_commit_missing", "hypothesis_set": hypothesis["slug"]}
                 )
                 continue
-            commit_exists = _git(project_root, "cat-file", "-e", f"{freeze_commit}^{{commit}}")
+            commit_exists = run_git(project_root, "cat-file", "-e", f"{freeze_commit}^{{commit}}")
             if commit_exists.returncode != 0:
                 blockers.append(
                     {
@@ -94,7 +94,7 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
                     }
                 )
                 continue
-            if _git(project_root, "merge-base", "--is-ancestor", freeze_commit, "HEAD").returncode != 0:
+            if run_git(project_root, "merge-base", "--is-ancestor", freeze_commit, "HEAD").returncode != 0:
                 blockers.append(
                     {
                         "reason": "hypothesis_freeze_commit_not_ancestor",
@@ -102,7 +102,7 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
                         "freeze_commit": freeze_commit,
                     }
                 )
-            if not _git_commit_has_path(project_root, freeze_commit, str(hypothesis["artifact_path"])):
+            if not commit_has_path(project_root, freeze_commit, str(hypothesis["artifact_path"])):
                 blockers.append(
                     {
                         "reason": "hypothesis_artifact_missing_at_freeze",
@@ -127,7 +127,7 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
             if not freeze_commit:
                 blockers.append({"reason": "design_freeze_commit_missing", "design": design["slug"]})
                 continue
-            if _git(project_root, "cat-file", "-e", f"{freeze_commit}^{{commit}}").returncode != 0:
+            if run_git(project_root, "cat-file", "-e", f"{freeze_commit}^{{commit}}").returncode != 0:
                 blockers.append(
                     {
                         "reason": "design_freeze_commit_not_found",
@@ -136,7 +136,7 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
                     }
                 )
                 continue
-            if _git(project_root, "merge-base", "--is-ancestor", freeze_commit, "HEAD").returncode != 0:
+            if run_git(project_root, "merge-base", "--is-ancestor", freeze_commit, "HEAD").returncode != 0:
                 blockers.append(
                     {
                         "reason": "design_freeze_commit_not_ancestor",
@@ -147,7 +147,7 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
             missing_at_freeze = [
                 path
                 for path in (str(design["artifact_path"]), str(design["hypothesis_path"]))
-                if not _git_commit_has_path(project_root, freeze_commit, path)
+                if not commit_has_path(project_root, freeze_commit, path)
             ]
             if missing_at_freeze:
                 blockers.append(
@@ -167,7 +167,7 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
                         "hypothesis_set": design["hypothesis_slug"],
                     }
                 )
-            elif _git(
+            elif run_git(
                 project_root, "merge-base", "--is-ancestor", hypothesis_freeze, freeze_commit
             ).returncode != 0:
                 blockers.append(

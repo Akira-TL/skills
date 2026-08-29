@@ -25,7 +25,7 @@ BARE_ENGLISH_TERMS_IN_CHINESE_COMMUNICATION = {
 }
 
 
-def _canonical_paths(project_root: Path) -> list[str]:
+def canonical_paths(project_root: Path) -> list[str]:
     paths = {"RESEARCH.md", ".research/research.sqlite"}
     db_path = database_path(project_root)
     if not db_path.exists():

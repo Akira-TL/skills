@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import Any
 
 from research_db_support.storage import connect, database_path
-from ..git import _git, _git_commit_has_path, _git_first_path_change_after, _git_path_changed_after
-from ..language import _canonical_paths
+from ..git import run_git, commit_has_path, first_path_change_after, path_changed_after
+from ..language import canonical_paths
 
 def _append_registration_blockers(
     project_root: Path,
@@ -13,9 +13,9 @@ def _append_registration_blockers(
     dataset_count: int,
     analysis_count: int,
 ) -> None:
-    tracked = _git(project_root, "ls-files", "--", "data", "analysis")
+    tracked = run_git(project_root, "ls-files", "--", "data", "analysis")
     tracked_paths = {line.strip() for line in tracked.stdout.splitlines() if line.strip()}
-    registered_paths = set(_canonical_paths(project_root))
+    registered_paths = set(canonical_paths(project_root))
     orphaned = sorted(tracked_paths - registered_paths)
     if orphaned:
         blockers.append(
@@ -148,7 +148,7 @@ def _append_design_freeze_order_blocker(
     if design is None:
         return
     design_freeze = str(design["freeze_commit"] or "").strip()
-    if design_freeze and _git(
+    if design_freeze and run_git(
         project_root, "merge-base", "--is-ancestor", design_freeze, freeze_commit
     ).returncode != 0:
         blockers.append(
@@ -213,7 +213,7 @@ def _append_freeze_snapshot_blockers(
     missing_at_freeze = sorted(
         path
         for path in dict.fromkeys(freeze_required_paths)
-        if not _git_commit_has_path(project_root, freeze_commit, path)
+        if not commit_has_path(project_root, freeze_commit, path)
     )
     if missing_at_freeze:
         blockers.append(
@@ -228,8 +228,8 @@ def _append_freeze_snapshot_blockers(
     changed_after_freeze = sorted(
         path
         for path in dict.fromkeys(freeze_required_paths)
-        if _git_commit_has_path(project_root, freeze_commit, path)
-        and _git_path_changed_after(project_root, freeze_commit, path)
+        if commit_has_path(project_root, freeze_commit, path)
+        and path_changed_after(project_root, freeze_commit, path)
     )
     if changed_after_freeze:
         blockers.append(
@@ -255,7 +255,7 @@ def _append_freeze_snapshot_blockers(
     context_present_at_freeze = sorted(
         path
         for path in dict.fromkeys(post_result_context_paths)
-        if _git_commit_has_path(project_root, freeze_commit, path)
+        if commit_has_path(project_root, freeze_commit, path)
     )
     if context_present_at_freeze:
         blockers.append(
@@ -271,11 +271,11 @@ def _append_freeze_snapshot_blockers(
     for path in dict.fromkeys(post_result_context_paths):
         if path in context_present_at_freeze:
             continue
-        first_context_commit = _git_first_path_change_after(
+        first_context_commit = first_path_change_after(
             project_root, freeze_commit, path
         )
         if first_context_commit is None or not any(
-            _git_commit_has_path(project_root, first_context_commit, result_path)
+            commit_has_path(project_root, first_context_commit, result_path)
             for result_path in result_paths
         ):
             premature_context_paths.append(path)
@@ -289,7 +289,7 @@ def _append_freeze_snapshot_blockers(
             }
         )
     result_present_at_freeze = sorted(
-        path for path in result_paths if _git_commit_has_path(project_root, freeze_commit, path)
+        path for path in result_paths if commit_has_path(project_root, freeze_commit, path)
     )
     if result_present_at_freeze:
         blockers.append(
@@ -320,7 +320,7 @@ def _append_confirmatory_blockers(
             {"reason": "confirmatory_analysis_missing_freeze_commit", "analysis": slug}
         )
         return
-    commit_exists = _git(project_root, "cat-file", "-e", f"{freeze_commit}^{{commit}}")
+    commit_exists = run_git(project_root, "cat-file", "-e", f"{freeze_commit}^{{commit}}")
     if commit_exists.returncode != 0:
         blockers.append(
             {
@@ -330,7 +330,7 @@ def _append_confirmatory_blockers(
             }
         )
         return
-    ancestor = _git(project_root, "merge-base", "--is-ancestor", freeze_commit, "HEAD")
+    ancestor = run_git(project_root, "merge-base", "--is-ancestor", freeze_commit, "HEAD")
     if ancestor.returncode != 0:
         blockers.append(
             {
