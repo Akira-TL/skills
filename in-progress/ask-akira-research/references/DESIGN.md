@@ -101,11 +101,11 @@ Design 必须主动检查什么会让 target contrast 不能回答原问题：
 
 设计进入数据产生或目标结果可见之前，记录一个 **freeze point**（例如 Git commit），并确保关联的 Hypothesis Set 已在同一或更早提交中冻结。之后影响 estimand、primary outcome、关键 exclusion、group definition 或 primary analysis 的变化作为 amendment 明示原因和发生时点；Git history 保存具体版本。存在尚未解决的设施、伦理、样本来源或精度参数时，Design 可以冻结为“科研设计已完成但不可立即执行”，不得把 unresolved feasibility 改写成 execution-ready。
 
-## 6. Sample size / precision
+## 6. 样本量与估计精度
 
-样本量依据 discriminator 所需的可识别精度设计，而不是只追求 `P < 0.05`。根据问题使用 effect-size uncertainty、confidence interval width、power、expected event rate、variance、dropout、cluster/repeated-measure structure 或 simulation 等合理依据。
+样本量应根据区分竞争解释所需的**估计精度**进行规划，而不是只追求 `P < 0.05`。根据具体问题，可以依据效应量不确定性、置信区间宽度、统计功效、预期事件率、方差、脱落率、聚类/重复测量结构或模拟等进行样本量规划。
 
-若没有可信 effect size，不伪造精确 power；可以用 pilot / feasibility 目标、precision target 或 sensitivity analysis 表达不确定性。
+若没有可信的效应量依据，不伪造看似精确的功效分析；可以采用预试验/可行性目标、基于精度的样本量规划（precision-based sample size planning）或敏感性分析表达不确定性。
 
 ## 7. Analysis alignment
 
