@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TypedDict
 
+from research_db_support.normalization import clean_optional_text, normalize_doi, normalize_identifier
 from research_db_support.storage import ResearchDbError, connect, database_path
 
 
@@ -51,41 +52,12 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _clean_optional_text(value: object) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text or None
-
-
-def normalize_doi(value: object) -> str | None:
-    text = _clean_optional_text(value)
-    if text is None:
-        return None
-    lowered = text.lower()
-    for prefix in (
-        "https://doi.org/",
-        "http://doi.org/",
-        "https://dx.doi.org/",
-        "http://dx.doi.org/",
-        "doi:",
-    ):
-        if lowered.startswith(prefix):
-            lowered = lowered[len(prefix) :].strip()
-            break
-    return lowered or None
-
-
-def normalize_identifier(value: object) -> str | None:
-    return _clean_optional_text(value)
-
-
 def canonical_identity(bundle: PaperIngestBundle, doi: str | None, pmid: str | None) -> str | None:
     if doi:
         return f"doi:{doi}"
     if pmid:
         return f"pmid:{pmid}"
-    return _clean_optional_text(bundle.get("canonical_identity"))
+    return clean_optional_text(bundle.get("canonical_identity"))
 
 
 def _paper_id(connection: sqlite3.Connection) -> str:
@@ -106,8 +78,8 @@ def _prepare_artifacts(project_root: Path, specs: object) -> list[PreparedArtifa
         if not isinstance(raw, dict):
             raise ResearchDbError(f"artifact #{index} 必须是 JSON object。")
 
-        kind = _clean_optional_text(raw.get("kind"))
-        raw_path = _clean_optional_text(raw.get("path"))
+        kind = clean_optional_text(raw.get("kind"))
+        raw_path = clean_optional_text(raw.get("path"))
         if not kind or not raw_path:
             raise ResearchDbError(f"artifact #{index} 缺少 kind 或 path。")
 
@@ -118,7 +90,7 @@ def _prepare_artifacts(project_root: Path, specs: object) -> list[PreparedArtifa
         if not path.is_file():
             raise ResearchDbError(f"artifact #{index} 文件不存在：{path}")
 
-        content_type = _clean_optional_text(raw.get("content_type"))
+        content_type = clean_optional_text(raw.get("content_type"))
         if content_type is None:
             content_type = mimetypes.guess_type(path.name)[0]
 
@@ -127,10 +99,10 @@ def _prepare_artifacts(project_root: Path, specs: object) -> list[PreparedArtifa
                 "kind": kind,
                 "source_path": path,
                 "content_type": content_type,
-                "version": _clean_optional_text(raw.get("version")),
-                "source": _clean_optional_text(raw.get("source")),
-                "source_url": _clean_optional_text(raw.get("source_url")),
-                "retrieved_at": _clean_optional_text(raw.get("retrieved_at")),
+                "version": clean_optional_text(raw.get("version")),
+                "source": clean_optional_text(raw.get("source")),
+                "source_url": clean_optional_text(raw.get("source_url")),
+                "retrieved_at": clean_optional_text(raw.get("retrieved_at")),
             }
         )
 
@@ -267,7 +239,7 @@ def ingest_paper(project_root: Path, bundle: PaperIngestBundle) -> dict[str, Any
     if not db_path.exists():
         raise ResearchDbError("research.sqlite 不存在；先运行 research-db init。")
 
-    title = _clean_optional_text(bundle.get("title"))
+    title = clean_optional_text(bundle.get("title"))
     if not title:
         raise ResearchDbError("ingest-paper 缺少非空 title。")
 
@@ -298,7 +270,7 @@ def ingest_paper(project_root: Path, bundle: PaperIngestBundle) -> dict[str, Any
 
     prepared = _prepare_artifacts(project_root, bundle.get("artifacts"))
     timestamp = _now()
-    reason = _clean_optional_text(bundle.get("reason")) or "Registered acquired paper"
+    reason = clean_optional_text(bundle.get("reason")) or "Registered acquired paper"
     paper_dir: Path | None = None
 
     with connect(db_path) as connection:
@@ -332,11 +304,11 @@ def ingest_paper(project_root: Path, bundle: PaperIngestBundle) -> dict[str, Any
                     pmid,
                     pmcid,
                     authors_json,
-                    _clean_optional_text(bundle.get("journal")),
+                    clean_optional_text(bundle.get("journal")),
                     year,
-                    _clean_optional_text(bundle.get("paper_type")),
+                    clean_optional_text(bundle.get("paper_type")),
                     canonical,
-                    _clean_optional_text(bundle.get("sidecar_path")),
+                    clean_optional_text(bundle.get("sidecar_path")),
                     timestamp,
                     timestamp,
                 ),

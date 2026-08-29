@@ -7,7 +7,7 @@ from typing import Any
 
 from research_db_support.storage import ResearchDbError, connect
 from research_db_ops.acquisition import unavailable_candidate_blockers
-from research_db_ingest import normalize_doi, normalize_identifier
+from research_db_support.normalization import normalize_doi, normalize_identifier
 from research_db_ops.discovery import (
     ACQUISITION_STATUSES,
     IDENTITY_STATUSES,

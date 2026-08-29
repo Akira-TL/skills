@@ -8,7 +8,7 @@ from typing import Any
 
 import research_db_ops.common as common
 from research_db_support.storage import ResearchDbError, connect
-from research_db_ingest import normalize_doi, normalize_identifier
+from research_db_support.normalization import normalize_doi, normalize_identifier
 
 
 SEARCH_MODES = {"DISCOVERY", "SYSTEMATIC"}
