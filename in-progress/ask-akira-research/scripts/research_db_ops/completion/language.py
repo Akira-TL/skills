@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import re
+import sqlite3
 from pathlib import Path
 from typing import Any
 
+from research_db_support.schema import ACADEMIC_LANGUAGE_LEGACY_BASELINE_META_KEY
 from research_db_support.storage import connect, database_path
+from .git import commit_has_path, path_changed_after, run_git
 from .state import CURRENT_LOOPS
 
 BARE_ENGLISH_TERMS_IN_CHINESE_RESEARCH_TEXT = {
@@ -143,6 +146,46 @@ def _academic_language_paths(project_root: Path) -> list[Path]:
     return list(dict.fromkeys(paths))
 
 
+def _legacy_language_baseline_commit(project_root: Path) -> str | None:
+    db_path = database_path(project_root)
+    if not db_path.exists():
+        return None
+    with connect(db_path) as connection:
+        try:
+            row = connection.execute(
+                "SELECT value FROM meta WHERE key = ?",
+                (ACADEMIC_LANGUAGE_LEGACY_BASELINE_META_KEY,),
+            ).fetchone()
+        except sqlite3.OperationalError:
+            return None
+    value = str(row["value"]).strip() if row else ""
+    return value or None
+
+
+def _path_is_unchanged_legacy_text(
+    project_root: Path,
+    path: Path,
+    baseline_commit: str | None,
+) -> bool:
+    if not baseline_commit:
+        return False
+    try:
+        relative_path = path.resolve().relative_to(project_root.resolve()).as_posix()
+    except ValueError:
+        return False
+    if run_git(
+        project_root, "merge-base", "--is-ancestor", baseline_commit, "HEAD"
+    ).returncode != 0:
+        return False
+    if not commit_has_path(project_root, baseline_commit, relative_path):
+        return False
+    if path_changed_after(project_root, baseline_commit, relative_path):
+        return False
+    return run_git(
+        project_root, "diff", "--quiet", baseline_commit, "--", relative_path
+    ).returncode == 0
+
+
 def academic_language_readiness(project_root: Path) -> dict[str, Any]:
     research_path = project_root / "RESEARCH.md"
     if not research_path.exists():
@@ -152,8 +195,13 @@ def academic_language_readiness(project_root: Path) -> dict[str, Any]:
         return {"ready": True, "checked": False, "blockers": []}
 
     blockers: list[dict[str, Any]] = []
+    legacy_baseline_commit = _legacy_language_baseline_commit(project_root)
+    grandfathered_paths: list[str] = []
     for path in _academic_language_paths(project_root):
         if not path.exists() or path.suffix.casefold() not in {".md", ".txt"}:
+            continue
+        if _path_is_unchanged_legacy_text(project_root, path, legacy_baseline_commit):
+            grandfathered_paths.append(path.resolve().relative_to(project_root.resolve()).as_posix())
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
         text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
@@ -199,4 +247,10 @@ def academic_language_readiness(project_root: Path) -> dict[str, Any]:
                         "preview": " ".join(stripped.split())[:180],
                     }
                 )
-    return {"ready": not blockers, "checked": True, "blockers": blockers}
+    return {
+        "ready": not blockers,
+        "checked": True,
+        "blockers": blockers,
+        "legacy_baseline_commit": legacy_baseline_commit,
+        "grandfathered_paths": sorted(grandfathered_paths),
+    }

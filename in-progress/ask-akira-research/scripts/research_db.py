@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Callable
@@ -52,6 +53,8 @@ from research_db_ops.query import (
 )
 from research_db_reading import ingest_reading
 from research_db_ops.relations import add_relation
+from research_db_support.schema import ACADEMIC_LANGUAGE_LEGACY_BASELINE_META_KEY
+from research_db_support.storage import connect
 
 
 BUNDLE_DEFAULTS = {
@@ -86,9 +89,28 @@ def cmd_migrate(args: argparse.Namespace) -> int:
     db_path = database_path(project_root)
     if not db_path.exists():
         raise ResearchDbError("research.sqlite 不存在；新项目请先运行 research-db init。")
+
+    head = subprocess.run(
+        ["git", "-C", str(project_root), "rev-parse", "--verify", "HEAD"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    legacy_baseline_commit = head.stdout.strip() if head.returncode == 0 else None
+
     applied = apply_migrations(db_path)
+    if applied and legacy_baseline_commit:
+        with connect(db_path) as connection:
+            connection.execute(
+                "INSERT INTO meta(key, value) VALUES(?, ?) "
+                "ON CONFLICT(key) DO NOTHING",
+                (ACADEMIC_LANGUAGE_LEGACY_BASELINE_META_KEY, legacy_baseline_commit),
+            )
+
     payload = status(project_root)
     payload["applied_migrations"] = applied
+    if applied and legacy_baseline_commit:
+        payload["academic_language_legacy_baseline_commit"] = legacy_baseline_commit
     emit(payload)
     return 0
 

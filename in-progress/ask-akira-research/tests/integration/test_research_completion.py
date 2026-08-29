@@ -368,6 +368,83 @@ class ResearchCompletionTests(unittest.TestCase):
         self.assertEqual(blockers[0]["path"], "RESEARCH.md")
         self.assertEqual(blockers[0]["terms"], ["analysis", "exploratory"])
 
+    def test_academic_language_grandfathers_unchanged_legacy_text_after_migration(self) -> None:
+        legacy_text = (
+            "# Research\n\n"
+            "这是一个迁移前已经形成版本历史的中文科研项目。当前问题、证据边界、"
+            "结果解释与后续研究方向都已经保存，而且这些历史内容不能仅因后来新增的"
+            "写作规范而被迫改写，否则会破坏结果可见前的版本审计与科研溯源。\n\n"
+            "## Current State\n\n"
+            "历史记录使用 Treatment A 表示当时已经冻结的处理标签。\n"
+        )
+        (self.root / "RESEARCH.md").write_text(legacy_text, encoding="utf-8")
+
+        db_path = database_path(self.root)
+        db_path.unlink()
+        with closing(sqlite3.connect(db_path)) as connection, connection:
+            for migration in sorted(MIGRATION_DIR.rglob("[0-9][0-9][0-9]_*.sql")):
+                version = int(migration.name[:3])
+                if version > 14:
+                    break
+                connection.executescript(migration.read_text(encoding="utf-8"))
+            connection.execute("PRAGMA user_version = 14")
+            connection.execute("DELETE FROM meta WHERE key = 'schema_version'")
+            connection.execute(
+                "INSERT INTO meta(key, value) VALUES('schema_version', '14')"
+            )
+
+        subprocess.run(
+            ["git", "-C", str(self.root), "add", "RESEARCH.md", ".research/research.sqlite"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(self.root), "commit", "-m", "RESEARCH: legacy baseline"],
+            check=True,
+            capture_output=True,
+        )
+        baseline = subprocess.run(
+            ["git", "-C", str(self.root), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        migrated = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT_DIR / "research_db.py"),
+                "--project",
+                str(self.root),
+                "migrate",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(migrated.returncode, 0, migrated.stdout + migrated.stderr)
+
+        unchanged = academic_language_readiness(self.root)
+        self.assertTrue(unchanged["ready"], unchanged["blockers"])
+        with closing(sqlite3.connect(db_path)) as connection:
+            marker = connection.execute(
+                "SELECT value FROM meta WHERE key = 'academic_language_legacy_baseline_commit'"
+            ).fetchone()
+        self.assertIsNotNone(marker)
+        self.assertEqual(marker[0], baseline)
+
+        (self.root / "RESEARCH.md").write_text(
+            legacy_text + "\n迁移后新增的 exploratory analysis 只用于测试新文本仍受规范约束。\n",
+            encoding="utf-8",
+        )
+        changed = academic_language_readiness(self.root)
+        blockers = [
+            item
+            for item in changed["blockers"]
+            if item["reason"] == "bare_english_term_in_chinese_research_text"
+        ]
+        self.assertFalse(changed["ready"])
+        self.assertTrue(any(item["path"] == "RESEARCH.md" for item in blockers))
+
     def test_academic_language_ignores_inline_code_paths(self) -> None:
         (self.root / "RESEARCH.md").write_text(
             "# 研究\n\n这是一个中文科研项目，用于验证分析文件路径不会被误判为英文科研叙述。"

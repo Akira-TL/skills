@@ -10,7 +10,7 @@ disable-model-invocation: true
 
 ## 1. 进入项目
 
-先确认当前目录是否为科研项目，并读取 `RESEARCH.md`。不存在时进入 bootstrap；bootstrap 的最小文件、状态字段与 Git 约定按需读取 [`PROJECT-STATE.md`](PROJECT-STATE.md)。接管已有项目、缺少前序会话上下文、或当前数据库版本可能落后于 Skill 时，同样读取 `PROJECT-STATE.md` 的接管规则：先恢复科学状态和 Git 冻结历史，再把 schema / validator 兼容性作为独立基础设施状态处理，不为让检查通过而自动重做科研工作或改写历史。
+先确认当前目录是否为科研项目，并读取 `RESEARCH.md`。不存在时进入 bootstrap；bootstrap 的最小文件、状态字段与 Git 约定按需读取 [`PROJECT-STATE.md`](PROJECT-STATE.md)。接管已有项目、缺少前序会话上下文、或当前数据库版本可能落后于 Skill 时，同样读取 `PROJECT-STATE.md` 的接管规则：先恢复科学状态和 Git 冻结历史，再把 schema / validator 兼容性作为独立基础设施状态处理，不为让检查通过而自动重做科研工作或改写历史。获得维护授权后如需迁移，按 [`RESEARCH-DB.md`](RESEARCH-DB.md) 的正式 `migrate` 契约执行；迁移对后来新增的语言门禁保留旧文本 Git 基线，但任何迁移后修改的科研文本仍立即适用当前学术语言规范。
 
 完成标准：当前 Objective、Current Loop、唯一 primary Active Uncertainty、Current State 与 Active Work 均已明确，且后续动作可以解释为在降低该 uncertainty。
 

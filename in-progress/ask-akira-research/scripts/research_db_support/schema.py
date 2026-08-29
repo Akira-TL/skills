@@ -8,6 +8,7 @@ from research_db_support.storage import ResearchDbError, connect, current_versio
 
 
 MIGRATION_DIR = Path(__file__).resolve().parents[2] / "migrations" / "versions"
+ACADEMIC_LANGUAGE_LEGACY_BASELINE_META_KEY = "academic_language_legacy_baseline_commit"
 REQUIRED_TABLES = {
     "meta",
     "papers",
