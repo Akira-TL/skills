@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 
-MIGRATION_DIR = Path(__file__).resolve().parent.parent / "migrations"
+MIGRATION_DIR = Path(__file__).resolve().parent.parent / "migrations" / "versions"
 REQUIRED_TABLES = {
     "meta",
     "papers",
@@ -161,7 +161,7 @@ def database_path(project_root: Path) -> Path:
 
 def list_migrations() -> list[Migration]:
     migrations: list[Migration] = []
-    for path in sorted(MIGRATION_DIR.glob("[0-9][0-9][0-9]_*.sql")):
+    for path in sorted(MIGRATION_DIR.rglob("[0-9][0-9][0-9]_*.sql")):
         migrations.append(Migration(version=int(path.name[:3]), path=path))
 
     if not migrations:

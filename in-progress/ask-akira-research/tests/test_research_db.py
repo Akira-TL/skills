@@ -91,7 +91,7 @@ class ResearchDbTests(unittest.TestCase):
     def test_migrate_v1_to_v2_preserves_artifacts_and_maps_issue_model(self) -> None:
         db_path = database_path(self.root)
         db_path.parent.mkdir(parents=True)
-        v1_sql = (MIGRATION_DIR / "001_initial.sql").read_text(encoding="utf-8")
+        v1_sql = (next(MIGRATION_DIR.rglob("001_initial.sql"))).read_text(encoding="utf-8")
         now = datetime.now(timezone.utc).isoformat()
         with sqlite3.connect(db_path) as connection:
             connection.executescript(v1_sql)
@@ -147,7 +147,7 @@ class ResearchDbTests(unittest.TestCase):
                 "003_knowledge_fts.sql",
                 "004_discovery_workflow.sql",
             ):
-                connection.executescript((MIGRATION_DIR / migration_name).read_text(encoding="utf-8"))
+                connection.executescript((next(MIGRATION_DIR.rglob(migration_name))).read_text(encoding="utf-8"))
             connection.execute("PRAGMA user_version = 4")
             connection.execute(
                 "INSERT INTO meta(key, value) VALUES('schema_version', '4')"
