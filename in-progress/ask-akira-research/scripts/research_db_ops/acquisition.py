@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -61,7 +62,25 @@ def _int_list(value: object, *, field: str) -> list[int]:
     return result
 
 
-def record_acquisition_attempt(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
+@dataclass(frozen=True)
+class _AttemptSpec:
+    candidate_id: int | None
+    paper_id: str | None
+    target_kind: str
+    target_label: str | None
+    route_family: str
+    resource_kind: str
+    source_url: str
+    outcome: str
+    detail: str
+    attempted_at: str
+    access_basis: str
+    access_basis_detail: str | None
+    supersedes_attempt_ids: list[int]
+    supersession_reason: str | None
+
+
+def _parse_attempt(bundle: dict[str, Any]) -> _AttemptSpec:
     candidate_id = _optional_int(bundle.get("candidate_id"), field="candidate_id")
     paper_id = common.text(bundle.get("paper_id"))
     if candidate_id is None and paper_id is None:
@@ -129,117 +148,160 @@ def record_acquisition_attempt(project_root: Path, bundle: dict[str, Any]) -> di
     elif access_basis != "not_applicable":
         raise ResearchDbError("非 acquired Acquisition Attempt 的 access_basis 必须为 not_applicable。")
 
+    return _AttemptSpec(
+        candidate_id=candidate_id,
+        paper_id=paper_id,
+        target_kind=target_kind,
+        target_label=target_label,
+        route_family=route_family,
+        resource_kind=resource_kind,
+        source_url=source_url,
+        outcome=outcome,
+        detail=detail,
+        attempted_at=attempted_at,
+        access_basis=access_basis,
+        access_basis_detail=access_basis_detail,
+        supersedes_attempt_ids=supersedes_attempt_ids,
+        supersession_reason=supersession_reason,
+    )
+
+
+def _validate_attempt_entities(connection, spec: _AttemptSpec) -> None:
+    if spec.candidate_id is not None:
+        candidate = connection.execute(
+            "SELECT id, paper_id, user_access_status, user_access_reason "
+            "FROM candidates WHERE id = ?",
+            (spec.candidate_id,),
+        ).fetchone()
+        if candidate is None:
+            raise ResearchDbError(f"Candidate 不存在：{spec.candidate_id}")
+        if spec.paper_id is not None and candidate["paper_id"] not in {None, spec.paper_id}:
+            raise ResearchDbError(
+                f"Candidate {spec.candidate_id} 已关联 {candidate['paper_id']}，与 attempt.paper_id={spec.paper_id} 不一致。"
+            )
+    if spec.paper_id is not None:
+        paper = connection.execute("SELECT id FROM papers WHERE id = ?", (spec.paper_id,)).fetchone()
+        if paper is None:
+            raise ResearchDbError(f"Paper 不存在：{spec.paper_id}")
+
+
+def _resolve_superseded_attempts(connection, spec: _AttemptSpec) -> list[Any]:
+    superseded_rows = []
+    for old_id in spec.supersedes_attempt_ids:
+        old = connection.execute(
+            "SELECT * FROM acquisition_attempts WHERE id = ?", (old_id,)
+        ).fetchone()
+        if old is None:
+            raise ResearchDbError(f"被 supersede 的 Acquisition Attempt 不存在：{old_id}")
+        if old["validity_status"] != "active":
+            raise ResearchDbError(f"Acquisition Attempt {old_id} 已非 active，不能重复 supersede。")
+        if old["target_kind"] != spec.target_kind:
+            raise ResearchDbError(
+                f"Acquisition Attempt {old_id} 的 target_kind 与新 attempt 不一致。"
+            )
+        if spec.candidate_id is not None and old["candidate_id"] != spec.candidate_id:
+            raise ResearchDbError(
+                f"Acquisition Attempt {old_id} 不属于 Candidate {spec.candidate_id}。"
+            )
+        if spec.paper_id is not None and old["paper_id"] != spec.paper_id:
+            raise ResearchDbError(
+                f"Acquisition Attempt {old_id} 不属于 Paper {spec.paper_id}。"
+            )
+        superseded_rows.append(old)
+    return superseded_rows
+
+
+def _insert_attempt(connection, spec: _AttemptSpec) -> int:
+    cursor = connection.execute(
+        """
+        INSERT INTO acquisition_attempts(
+            candidate_id, paper_id, target_kind, target_label, route_family,
+            resource_kind, source_url, outcome, detail, attempted_at,
+            access_basis, access_basis_detail
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            spec.candidate_id,
+            spec.paper_id,
+            spec.target_kind,
+            spec.target_label,
+            spec.route_family,
+            spec.resource_kind,
+            spec.source_url,
+            spec.outcome,
+            spec.detail,
+            spec.attempted_at,
+            spec.access_basis,
+            spec.access_basis_detail,
+        ),
+    )
+    return int(cursor.lastrowid)
+
+
+def _update_user_access(connection, spec: _AttemptSpec) -> None:
+    if (
+        spec.candidate_id is not None
+        and spec.target_kind == "main_text"
+        and spec.outcome == "auth_required"
+    ):
+        connection.execute(
+            """
+            UPDATE candidates
+            SET user_access_status = 'required',
+                user_access_reason = ?,
+                updated_at = ?
+            WHERE id = ? AND acquisition_status <> 'acquired'
+            """,
+            (spec.detail, spec.attempted_at, spec.candidate_id),
+        )
+
+
+def _apply_supersession(connection, attempt_id: int, superseded_rows: list[Any], spec: _AttemptSpec) -> None:
+    if superseded_rows:
+        connection.executemany(
+            """
+            UPDATE acquisition_attempts
+            SET validity_status = 'superseded',
+                superseded_by_attempt_id = ?,
+                supersession_reason = ?
+            WHERE id = ?
+            """,
+            [
+                (attempt_id, spec.supersession_reason, int(row["id"]))
+                for row in superseded_rows
+            ],
+        )
+
+
+def _write_attempt_change(connection, attempt_id: int, spec: _AttemptSpec) -> None:
+    connection.execute(
+        """
+        INSERT INTO change_log(
+            timestamp, action, entity_type, entity_id, paper_id, reason, summary
+        ) VALUES (?, 'acquisition_attempted', 'acquisition_attempt', ?, ?, ?, ?)
+        """,
+        (
+            spec.attempted_at,
+            str(attempt_id),
+            spec.paper_id,
+            spec.supersession_reason or spec.detail,
+            f"{spec.target_kind} via {spec.route_family}/{spec.resource_kind}: {spec.outcome}; "
+            f"supersedes={spec.supersedes_attempt_ids or 'none'}",
+        ),
+    )
+
+
+def record_acquisition_attempt(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
+    spec = _parse_attempt(bundle)
     with connect(common.db_path(project_root)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         try:
-            if candidate_id is not None:
-                candidate = connection.execute(
-                    "SELECT id, paper_id, user_access_status, user_access_reason "
-                    "FROM candidates WHERE id = ?",
-                    (candidate_id,),
-                ).fetchone()
-                if candidate is None:
-                    raise ResearchDbError(f"Candidate 不存在：{candidate_id}")
-                if paper_id is not None and candidate["paper_id"] not in {None, paper_id}:
-                    raise ResearchDbError(
-                        f"Candidate {candidate_id} 已关联 {candidate['paper_id']}，与 attempt.paper_id={paper_id} 不一致。"
-                    )
-            if paper_id is not None:
-                paper = connection.execute("SELECT id FROM papers WHERE id = ?", (paper_id,)).fetchone()
-                if paper is None:
-                    raise ResearchDbError(f"Paper 不存在：{paper_id}")
-
-            superseded_rows = []
-            for old_id in supersedes_attempt_ids:
-                old = connection.execute(
-                    "SELECT * FROM acquisition_attempts WHERE id = ?", (old_id,)
-                ).fetchone()
-                if old is None:
-                    raise ResearchDbError(f"被 supersede 的 Acquisition Attempt 不存在：{old_id}")
-                if old["validity_status"] != "active":
-                    raise ResearchDbError(f"Acquisition Attempt {old_id} 已非 active，不能重复 supersede。")
-                if old["target_kind"] != target_kind:
-                    raise ResearchDbError(
-                        f"Acquisition Attempt {old_id} 的 target_kind 与新 attempt 不一致。"
-                    )
-                if candidate_id is not None and old["candidate_id"] != candidate_id:
-                    raise ResearchDbError(
-                        f"Acquisition Attempt {old_id} 不属于 Candidate {candidate_id}。"
-                    )
-                if paper_id is not None and old["paper_id"] != paper_id:
-                    raise ResearchDbError(
-                        f"Acquisition Attempt {old_id} 不属于 Paper {paper_id}。"
-                    )
-                superseded_rows.append(old)
-
-            cursor = connection.execute(
-                """
-                INSERT INTO acquisition_attempts(
-                    candidate_id, paper_id, target_kind, target_label, route_family,
-                    resource_kind, source_url, outcome, detail, attempted_at,
-                    access_basis, access_basis_detail
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    candidate_id,
-                    paper_id,
-                    target_kind,
-                    target_label,
-                    route_family,
-                    resource_kind,
-                    source_url,
-                    outcome,
-                    detail,
-                    attempted_at,
-                    access_basis,
-                    access_basis_detail,
-                ),
-            )
-            attempt_id = int(cursor.lastrowid)
-            if (
-                candidate_id is not None
-                and target_kind == "main_text"
-                and outcome == "auth_required"
-            ):
-                connection.execute(
-                    """
-                    UPDATE candidates
-                    SET user_access_status = 'required',
-                        user_access_reason = ?,
-                        updated_at = ?
-                    WHERE id = ? AND acquisition_status <> 'acquired'
-                    """,
-                    (detail, attempted_at, candidate_id),
-                )
-            if superseded_rows:
-                connection.executemany(
-                    """
-                    UPDATE acquisition_attempts
-                    SET validity_status = 'superseded',
-                        superseded_by_attempt_id = ?,
-                        supersession_reason = ?
-                    WHERE id = ?
-                    """,
-                    [
-                        (attempt_id, supersession_reason, int(row["id"]))
-                        for row in superseded_rows
-                    ],
-                )
-            connection.execute(
-                """
-                INSERT INTO change_log(
-                    timestamp, action, entity_type, entity_id, paper_id, reason, summary
-                ) VALUES (?, 'acquisition_attempted', 'acquisition_attempt', ?, ?, ?, ?)
-                """,
-                (
-                    attempted_at,
-                    str(attempt_id),
-                    paper_id,
-                    supersession_reason or detail,
-                    f"{target_kind} via {route_family}/{resource_kind}: {outcome}; "
-                    f"supersedes={supersedes_attempt_ids or 'none'}",
-                ),
-            )
+            _validate_attempt_entities(connection, spec)
+            superseded_rows = _resolve_superseded_attempts(connection, spec)
+            attempt_id = _insert_attempt(connection, spec)
+            _update_user_access(connection, spec)
+            _apply_supersession(connection, attempt_id, superseded_rows, spec)
+            _write_attempt_change(connection, attempt_id, spec)
             connection.commit()
         except Exception:
             connection.rollback()
@@ -249,21 +311,21 @@ def record_acquisition_attempt(project_root: Path, bundle: dict[str, Any]) -> di
         "ok": True,
         "attempt": {
             "id": attempt_id,
-            "candidate_id": candidate_id,
-            "paper_id": paper_id,
-            "target_kind": target_kind,
-            "target_label": target_label,
-            "route_family": route_family,
-            "resource_kind": resource_kind,
-            "source_url": source_url,
-            "outcome": outcome,
-            "detail": detail,
-            "attempted_at": attempted_at,
-            "access_basis": access_basis,
-            "access_basis_detail": access_basis_detail,
+            "candidate_id": spec.candidate_id,
+            "paper_id": spec.paper_id,
+            "target_kind": spec.target_kind,
+            "target_label": spec.target_label,
+            "route_family": spec.route_family,
+            "resource_kind": spec.resource_kind,
+            "source_url": spec.source_url,
+            "outcome": spec.outcome,
+            "detail": spec.detail,
+            "attempted_at": spec.attempted_at,
+            "access_basis": spec.access_basis,
+            "access_basis_detail": spec.access_basis_detail,
             "validity_status": "active",
-            "supersedes_attempt_ids": supersedes_attempt_ids,
-            "supersession_reason": supersession_reason,
+            "supersedes_attempt_ids": spec.supersedes_attempt_ids,
+            "supersession_reason": spec.supersession_reason,
         },
     }
 
