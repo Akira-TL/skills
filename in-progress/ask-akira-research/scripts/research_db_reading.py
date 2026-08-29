@@ -4,20 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from research_db_bundle import (
-    _array,
-    _checked_artifacts,
-    _depth,
-    _insert_relations,
-    _json_text,
-    _now,
-    _paper,
-    _register_ref,
-    _source_fields,
-    _string_list,
-    _text,
-    _write_change,
-)
+import research_db_support.knowledge as knowledge
 from research_db_support.checks import main_text_exposes_code_data_locator
 from research_db_support.storage import ResearchDbError, connect, database_path
 from research_db_ops.acquisition import code_data_access_blockers, supplement_access_blockers
@@ -59,7 +46,7 @@ def _extraction_checks(
             )
         if value in {"not_applicable", "access_limited"}:
             reason_field = field.removesuffix("_status") + "_reason"
-            if not _text(checks.get(reason_field)):
+            if not knowledge.text(checks.get(reason_field)):
                 raise ResearchDbError(
                     f"deep_extraction 的 {field}={value} 时必须说明 extraction_checks.{reason_field}。"
                 )
@@ -133,7 +120,7 @@ def _extraction_checks(
         raise ResearchDbError(
             "quantitative_results_present=true 时至少一个 Observation 必须保存非空 statistics。"
         )
-    if not present and not _text(checks.get("quantitative_results_reason")):
+    if not present and not knowledge.text(checks.get("quantitative_results_reason")):
         raise ResearchDbError(
             "quantitative_results_present=false 时必须说明 quantitative_results_reason。"
         )
@@ -216,22 +203,22 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
     db_path = database_path(project_root)
     if not db_path.exists():
         raise ResearchDbError("research.sqlite 不存在；先运行 research-db init。")
-    paper_id = _text(bundle.get("paper_id"), required=True, field="paper_id")
-    requested_depth = _text(bundle.get("depth")) or "full_scan"
+    paper_id = knowledge.text(bundle.get("paper_id"), required=True, field="paper_id")
+    requested_depth = knowledge.text(bundle.get("depth")) or "full_scan"
     if requested_depth not in {"full_scan", "deep_extraction"}:
         raise ResearchDbError("depth 必须是 full_scan 或 deep_extraction。")
-    sections = _string_list(bundle.get("sections_checked"), "sections_checked", required=True)
-    timestamp = _now()
-    started_at = _text(bundle.get("started_at")) or timestamp
-    completed_at = _text(bundle.get("completed_at")) or timestamp
-    reason = _text(bundle.get("reason")) or "Pass 1 Reconstruction"
+    sections = knowledge.string_list(bundle.get("sections_checked"), "sections_checked", required=True)
+    timestamp = knowledge.now()
+    started_at = knowledge.text(bundle.get("started_at")) or timestamp
+    completed_at = knowledge.text(bundle.get("completed_at")) or timestamp
+    reason = knowledge.text(bundle.get("reason")) or "Pass 1 Reconstruction"
 
-    methods = _array(bundle, "methods")
-    experiments = _array(bundle, "experiments")
-    observations = _array(bundle, "observations")
-    claims = _array(bundle, "claims")
-    leads = _array(bundle, "leads")
-    relations = _array(bundle, "relations")
+    methods = knowledge.array(bundle, "methods")
+    experiments = knowledge.array(bundle, "experiments")
+    observations = knowledge.array(bundle, "observations")
+    claims = knowledge.array(bundle, "claims")
+    leads = knowledge.array(bundle, "leads")
+    relations = knowledge.array(bundle, "relations")
     if not any((methods, experiments, observations, claims, leads)):
         raise ResearchDbError("Reconstruction bundle 至少需要一个知识单元。")
     extraction_checks = _extraction_checks(
@@ -245,7 +232,7 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
     with connect(db_path) as connection:
         try:
             connection.execute("BEGIN IMMEDIATE")
-            paper = _paper(connection, paper_id)
+            paper = knowledge.paper(connection, paper_id)
             existing = connection.execute(
                 """
                 SELECT 1 FROM reading_runs
@@ -256,7 +243,7 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
             ).fetchone()
             if existing:
                 raise ResearchDbError(f"{paper_id} 已有完成的 reconstruction run。")
-            checked = _checked_artifacts(connection, paper_id, bundle.get("artifacts_checked"))
+            checked = knowledge.checked_artifacts(connection, paper_id, bundle.get("artifacts_checked"))
             if requested_depth == "deep_extraction":
                 _validate_deep_artifact_checks(
                     project_root, connection, paper_id, checked, extraction_checks
@@ -275,14 +262,14 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
                     completed_at,
                     json.dumps(checked, ensure_ascii=False),
                     json.dumps(sections, ensure_ascii=False),
-                    _text(bundle.get("notes")),
+                    knowledge.text(bundle.get("notes")),
                     json.dumps(extraction_checks, ensure_ascii=False, sort_keys=True),
                 ),
             )
             run_id = int(run_cursor.lastrowid)
 
             for spec in methods:
-                artifact_id, locator = _source_fields(
+                artifact_id, locator = knowledge.source_fields(
                     connection, paper_id, spec, required=True, field="Method"
                 )
                 cursor = connection.execute(
@@ -294,24 +281,24 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
                     """,
                     (
                         paper_id,
-                        _text(spec.get("name"), required=True, field="method.name"),
-                        _text(spec.get("purpose")),
-                        _text(spec.get("description")),
-                        _json_text(spec.get("parameters")),
-                        _json_text(spec.get("materials")),
-                        _json_text(spec.get("software")),
-                        _text(spec.get("reusable_notes")),
+                        knowledge.text(spec.get("name"), required=True, field="method.name"),
+                        knowledge.text(spec.get("purpose")),
+                        knowledge.text(spec.get("description")),
+                        knowledge.json_text(spec.get("parameters")),
+                        knowledge.json_text(spec.get("materials")),
+                        knowledge.json_text(spec.get("software")),
+                        knowledge.text(spec.get("reusable_notes")),
                         artifact_id,
                         locator,
                     ),
                 )
                 entity_id = int(cursor.lastrowid)
-                _register_ref(refs, "method", spec, entity_id)
-                _write_change(connection, timestamp=timestamp, entity_type="method", entity_id=str(entity_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Method: {spec.get('name')}")
+                knowledge.register_ref(refs, "method", spec, entity_id)
+                knowledge.write_change(connection, timestamp=timestamp, entity_type="method", entity_id=str(entity_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Method: {spec.get('name')}")
                 counts["methods"] += 1
 
             for spec in experiments:
-                artifact_id, locator = _source_fields(
+                artifact_id, locator = knowledge.source_fields(
                     connection, paper_id, spec, required=True, field="Experiment"
                 )
                 cursor = connection.execute(
@@ -323,30 +310,30 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
                     """,
                     (
                         paper_id,
-                        _text(spec.get("question")),
-                        _text(spec.get("design")),
-                        _text(spec.get("samples")),
-                        _json_text(spec.get("groups")),
-                        _text(spec.get("controls")),
-                        _json_text(spec.get("variables")),
-                        _text(spec.get("analysis")),
-                        _text(spec.get("result_summary")),
+                        knowledge.text(spec.get("question")),
+                        knowledge.text(spec.get("design")),
+                        knowledge.text(spec.get("samples")),
+                        knowledge.json_text(spec.get("groups")),
+                        knowledge.text(spec.get("controls")),
+                        knowledge.json_text(spec.get("variables")),
+                        knowledge.text(spec.get("analysis")),
+                        knowledge.text(spec.get("result_summary")),
                         artifact_id,
                         locator,
                     ),
                 )
                 entity_id = int(cursor.lastrowid)
-                _register_ref(refs, "experiment", spec, entity_id)
-                _write_change(connection, timestamp=timestamp, entity_type="experiment", entity_id=str(entity_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Experiment: {spec.get('question') or spec.get('design')}")
+                knowledge.register_ref(refs, "experiment", spec, entity_id)
+                knowledge.write_change(connection, timestamp=timestamp, entity_type="experiment", entity_id=str(entity_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Experiment: {spec.get('question') or spec.get('design')}")
                 counts["experiments"] += 1
 
             for spec in observations:
-                artifact_id, locator = _source_fields(
+                artifact_id, locator = knowledge.source_fields(
                     connection, paper_id, spec, required=True, field="Observation"
                 )
                 experiment_id = None
                 if spec.get("experiment_ref") is not None:
-                    key = ("experiment", _text(spec.get("experiment_ref"), required=True, field="observation.experiment_ref"))
+                    key = ("experiment", knowledge.text(spec.get("experiment_ref"), required=True, field="observation.experiment_ref"))
                     if key not in refs:
                         raise ResearchDbError(f"未知 bundle ref：experiment:{key[1]}")
                     experiment_id = int(refs[key])
@@ -360,22 +347,22 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
                     (
                         paper_id,
                         experiment_id,
-                        _text(spec.get("statement"), required=True, field="observation.statement"),
-                        _text(spec.get("effect")),
-                        _json_text(spec.get("statistics")),
-                        _text(spec.get("scope")),
-                        _text(spec.get("certainty")),
+                        knowledge.text(spec.get("statement"), required=True, field="observation.statement"),
+                        knowledge.text(spec.get("effect")),
+                        knowledge.json_text(spec.get("statistics")),
+                        knowledge.text(spec.get("scope")),
+                        knowledge.text(spec.get("certainty")),
                         artifact_id,
                         locator,
                     ),
                 )
                 entity_id = int(cursor.lastrowid)
-                _register_ref(refs, "observation", spec, entity_id)
-                _write_change(connection, timestamp=timestamp, entity_type="observation", entity_id=str(entity_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Observation: {spec.get('statement')}")
+                knowledge.register_ref(refs, "observation", spec, entity_id)
+                knowledge.write_change(connection, timestamp=timestamp, entity_type="observation", entity_id=str(entity_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Observation: {spec.get('statement')}")
                 counts["observations"] += 1
 
             for spec in claims:
-                artifact_id, locator = _source_fields(
+                artifact_id, locator = knowledge.source_fields(
                     connection, paper_id, spec, required=True, field="Claim"
                 )
                 cursor = connection.execute(
@@ -387,21 +374,21 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
                     """,
                     (
                         paper_id,
-                        _text(spec.get("statement"), required=True, field="claim.statement"),
-                        _text(spec.get("claim_type"), required=True, field="claim.claim_type"),
-                        _text(spec.get("author_strength")),
-                        _text(spec.get("scope")),
+                        knowledge.text(spec.get("statement"), required=True, field="claim.statement"),
+                        knowledge.text(spec.get("claim_type"), required=True, field="claim.claim_type"),
+                        knowledge.text(spec.get("author_strength")),
+                        knowledge.text(spec.get("scope")),
                         artifact_id,
                         locator,
                     ),
                 )
                 entity_id = int(cursor.lastrowid)
-                _register_ref(refs, "claim", spec, entity_id)
-                _write_change(connection, timestamp=timestamp, entity_type="claim", entity_id=str(entity_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Claim: {spec.get('statement')}")
+                knowledge.register_ref(refs, "claim", spec, entity_id)
+                knowledge.write_change(connection, timestamp=timestamp, entity_type="claim", entity_id=str(entity_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Claim: {spec.get('statement')}")
                 counts["claims"] += 1
 
             for spec in leads:
-                artifact_id, locator = _source_fields(
+                artifact_id, locator = knowledge.source_fields(
                     connection, paper_id, spec, required=True, field="Lead"
                 )
                 cursor = connection.execute(
@@ -413,26 +400,26 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
                     """,
                     (
                         paper_id,
-                        _text(spec.get("type"), required=True, field="lead.type"),
-                        _text(spec.get("title")),
-                        _text(spec.get("identifier")),
-                        _text(spec.get("url")),
-                        _text(spec.get("purpose")),
-                        _text(spec.get("priority")),
-                        _text(spec.get("status")),
+                        knowledge.text(spec.get("type"), required=True, field="lead.type"),
+                        knowledge.text(spec.get("title")),
+                        knowledge.text(spec.get("identifier")),
+                        knowledge.text(spec.get("url")),
+                        knowledge.text(spec.get("purpose")),
+                        knowledge.text(spec.get("priority")),
+                        knowledge.text(spec.get("status")),
                         artifact_id,
                         locator,
                     ),
                 )
                 entity_id = int(cursor.lastrowid)
-                _register_ref(refs, "lead", spec, entity_id)
-                _write_change(connection, timestamp=timestamp, entity_type="lead", entity_id=str(entity_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Lead: {spec.get('title') or spec.get('identifier')}")
+                knowledge.register_ref(refs, "lead", spec, entity_id)
+                knowledge.write_change(connection, timestamp=timestamp, entity_type="lead", entity_id=str(entity_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Lead: {spec.get('title') or spec.get('identifier')}")
                 counts["leads"] += 1
 
-            counts["relations"] = _insert_relations(
+            counts["relations"] = knowledge.insert_relations(
                 connection, paper_id, refs, relations, timestamp, reason, run_id
             )
-            new_depth = _depth(str(paper["read_depth"]), requested_depth)
+            new_depth = knowledge.depth(str(paper["read_depth"]), requested_depth)
             connection.execute(
                 """
                 UPDATE papers
@@ -442,7 +429,7 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
                 """,
                 (new_depth, timestamp, paper_id),
             )
-            _write_change(connection, timestamp=timestamp, entity_type="reading_run", entity_id=str(run_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Completed reconstruction ({requested_depth})")
+            knowledge.write_change(connection, timestamp=timestamp, entity_type="reading_run", entity_id=str(run_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Completed reconstruction ({requested_depth})")
             connection.commit()
         except Exception:
             if connection.in_transaction:

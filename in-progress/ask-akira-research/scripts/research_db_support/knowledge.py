@@ -5,6 +5,7 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
+from research_db_support.checks import source_locator_is_specific
 from research_db_support.schema import KNOWLEDGE_ENTITY_TABLES
 from research_db_support.storage import ResearchDbError
 
@@ -12,11 +13,11 @@ from research_db_support.storage import ResearchDbError
 DEPTH_ORDER = {"none": 0, "full_scan": 1, "deep_extraction": 2}
 
 
-def _now() -> str:
+def now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _text(value: object, *, required: bool = False, field: str = "value") -> str | None:
+def text(value: object, *, required: bool = False, field: str = "value") -> str | None:
     if value is None:
         if required:
             raise ResearchDbError(f"{field} 不能为空。")
@@ -27,7 +28,7 @@ def _text(value: object, *, required: bool = False, field: str = "value") -> str
     return result or None
 
 
-def _json_text(value: object) -> str | None:
+def json_text(value: object) -> str | None:
     if value is None:
         return None
     if isinstance(value, str):
@@ -36,7 +37,7 @@ def _json_text(value: object) -> str | None:
     return json.dumps(value, ensure_ascii=False, sort_keys=True)
 
 
-def _array(bundle: dict[str, Any], field: str) -> list[dict[str, Any]]:
+def array(bundle: dict[str, Any], field: str) -> list[dict[str, Any]]:
     value = bundle.get(field, [])
     if not isinstance(value, list):
         raise ResearchDbError(f"{field} 必须是 JSON array。")
@@ -45,7 +46,7 @@ def _array(bundle: dict[str, Any], field: str) -> list[dict[str, Any]]:
     return value
 
 
-def _string_list(value: object, field: str, *, required: bool = False) -> list[str]:
+def string_list(value: object, field: str, *, required: bool = False) -> list[str]:
     if value is None:
         value = []
     if not isinstance(value, list) or not all(
@@ -58,7 +59,7 @@ def _string_list(value: object, field: str, *, required: bool = False) -> list[s
     return result
 
 
-def _paper(connection: sqlite3.Connection, paper_id: str) -> sqlite3.Row:
+def paper(connection: sqlite3.Connection, paper_id: str) -> sqlite3.Row:
     row = connection.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone()
     if row is None:
         raise ResearchDbError(f"Paper 不存在：{paper_id}")
@@ -71,8 +72,8 @@ def _artifact_id(
     spec: dict[str, Any],
 ) -> int | None:
     raw_id = spec.get("artifact_id")
-    raw_path = _text(spec.get("artifact_path"))
-    raw_kind = _text(spec.get("artifact_kind"))
+    raw_path = text(spec.get("artifact_path"))
+    raw_kind = text(spec.get("artifact_kind"))
     selectors = sum(value is not None for value in (raw_id, raw_path, raw_kind))
     if selectors == 0:
         return None
@@ -111,7 +112,7 @@ def _artifact_id(
     return int(rows[0]["id"])
 
 
-def _checked_artifacts(
+def checked_artifacts(
     connection: sqlite3.Connection, paper_id: str, value: object
 ) -> list[dict[str, Any]]:
     if not isinstance(value, list) or not value:
@@ -132,27 +133,7 @@ def _checked_artifacts(
     return normalized
 
 
-def _source_locator_is_specific(value: str) -> bool:
-    normalized = " ".join(value.strip().casefold().split())
-    generic = {
-        "abstract",
-        "introduction",
-        "methods",
-        "materials and methods",
-        "results",
-        "discussion",
-        "conclusion",
-        "conclusions",
-        "main text",
-        "supplement",
-        "supplementary material",
-        "supplementary materials",
-        "supplementary information",
-    }
-    return normalized not in generic
-
-
-def _source_fields(
+def source_fields(
     connection: sqlite3.Connection,
     paper_id: str,
     spec: dict[str, Any],
@@ -161,12 +142,12 @@ def _source_fields(
     field: str = "knowledge unit",
 ) -> tuple[int | None, str | None]:
     artifact_id = _artifact_id(connection, paper_id, spec)
-    source_locator = _text(spec.get("source_locator"))
+    source_locator = text(spec.get("source_locator"))
     if required and artifact_id is None:
         raise ResearchDbError(f"{field} 必须定位到具体 artifact。")
     if required and source_locator is None:
         raise ResearchDbError(f"{field} 必须提供 source_locator。")
-    if required and source_locator is not None and not _source_locator_is_specific(source_locator):
+    if required and source_locator is not None and not source_locator_is_specific(source_locator):
         raise ResearchDbError(
             f"{field} 的 source_locator={source_locator!r} 过于模糊；"
             "至少定位到具体 subsection、page、figure/table、supplement item 或等价的唯一位置。"
@@ -174,10 +155,10 @@ def _source_fields(
     return artifact_id, source_locator
 
 
-def _register_ref(
+def register_ref(
     refs: dict[tuple[str, str], str], entity_type: str, spec: dict[str, Any], entity_id: int
 ) -> None:
-    ref = _text(spec.get("ref"), required=True, field=f"{entity_type}.ref")
+    ref = text(spec.get("ref"), required=True, field=f"{entity_type}.ref")
     key = (entity_type, ref)
     if key in refs:
         raise ResearchDbError(f"重复 bundle ref：{entity_type}:{ref}")
@@ -199,18 +180,18 @@ def _existing_entity_for_paper(
     return row is not None
 
 
-def _resolve_entity(
+def resolve_entity(
     connection: sqlite3.Connection,
     paper_id: str,
     refs: dict[tuple[str, str], str],
     spec: dict[str, Any],
     prefix: str,
 ) -> tuple[str, str]:
-    entity_type = _text(
+    entity_type = text(
         spec.get(f"{prefix}_type"), required=True, field=f"{prefix}_type"
     )
-    raw_ref = _text(spec.get(f"{prefix}_ref"))
-    raw_id = _text(spec.get(f"{prefix}_id"))
+    raw_ref = text(spec.get(f"{prefix}_ref"))
+    raw_id = text(spec.get(f"{prefix}_id"))
     if bool(raw_ref) == bool(raw_id):
         raise ResearchDbError(
             f"{prefix} 必须且只能提供 {prefix}_ref 或 {prefix}_id。"
@@ -229,7 +210,7 @@ def _resolve_entity(
     return entity_type, entity_id
 
 
-def _write_change(
+def write_change(
     connection: sqlite3.Connection,
     *,
     timestamp: str,
@@ -250,7 +231,7 @@ def _write_change(
     )
 
 
-def _insert_relations(
+def insert_relations(
     connection: sqlite3.Connection,
     paper_id: str,
     refs: dict[tuple[str, str], str],
@@ -261,14 +242,14 @@ def _insert_relations(
 ) -> int:
     count = 0
     for spec in relations:
-        subject_type, subject_id = _resolve_entity(
+        subject_type, subject_id = resolve_entity(
             connection, paper_id, refs, spec, "subject"
         )
-        object_type, object_id = _resolve_entity(
+        object_type, object_id = resolve_entity(
             connection, paper_id, refs, spec, "object"
         )
-        predicate = _text(spec.get("predicate"), required=True, field="predicate")
-        note = _text(spec.get("note"))
+        predicate = text(spec.get("predicate"), required=True, field="predicate")
+        note = text(spec.get("note"))
         if predicate == "SUPPORTS":
             raise ResearchDbError(
                 "科研证据关系不得使用模糊 SUPPORTS；请明确 DIRECTLY_SUPPORTS 或 INDIRECTLY_SUPPORTS。"
@@ -288,13 +269,13 @@ def _insert_relations(
                 predicate,
                 object_type,
                 object_id,
-                _text(spec.get("confidence")),
+                text(spec.get("confidence")),
                 note,
                 timestamp,
             ),
         )
         relation_id = int(cursor.lastrowid)
-        _write_change(
+        write_change(
             connection,
             timestamp=timestamp,
             entity_type="relation",
@@ -308,7 +289,7 @@ def _insert_relations(
     return count
 
 
-def _depth(current: str, requested: str) -> str:
+def depth(current: str, requested: str) -> str:
     if requested not in DEPTH_ORDER:
         raise ResearchDbError("depth 必须是 full_scan 或 deep_extraction。")
     return requested if DEPTH_ORDER[requested] >= DEPTH_ORDER[current] else current

@@ -4,26 +4,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-from research_db_bundle import (
-    _array,
-    _checked_artifacts,
-    _depth,
-    _insert_relations,
-    _json_text,
-    _now,
-    _paper,
-    _register_ref,
-    _resolve_entity,
-    _source_fields,
-    _string_list,
-    _text,
-    _write_change,
-)
+import research_db_support.knowledge as knowledge
 from research_db_support.storage import ResearchDbError, connect, database_path
 
 
 def _sidecar_path(project_root: Path, value: object) -> str | None:
-    raw = _text(value)
+    raw = knowledge.text(value)
     if raw is None:
         return None
     path = Path(raw).expanduser()
@@ -42,17 +28,17 @@ def ingest_critical(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
     db_path = database_path(project_root)
     if not db_path.exists():
         raise ResearchDbError("research.sqlite 不存在；先运行 research-db init。")
-    paper_id = _text(bundle.get("paper_id"), required=True, field="paper_id")
-    requested_depth = _text(bundle.get("depth")) or "full_scan"
+    paper_id = knowledge.text(bundle.get("paper_id"), required=True, field="paper_id")
+    requested_depth = knowledge.text(bundle.get("depth")) or "full_scan"
     if requested_depth not in {"full_scan", "deep_extraction"}:
         raise ResearchDbError("depth 必须是 full_scan 或 deep_extraction。")
-    sections = _string_list(bundle.get("sections_checked"), "sections_checked", required=True)
-    timestamp = _now()
-    started_at = _text(bundle.get("started_at")) or timestamp
-    completed_at = _text(bundle.get("completed_at")) or timestamp
-    reason = _text(bundle.get("reason")) or "Pass 2 Critical Audit"
-    issues = _array(bundle, "issues")
-    relations = _array(bundle, "relations")
+    sections = knowledge.string_list(bundle.get("sections_checked"), "sections_checked", required=True)
+    timestamp = knowledge.now()
+    started_at = knowledge.text(bundle.get("started_at")) or timestamp
+    completed_at = knowledge.text(bundle.get("completed_at")) or timestamp
+    reason = knowledge.text(bundle.get("reason")) or "Pass 2 Critical Audit"
+    issues = knowledge.array(bundle, "issues")
+    relations = knowledge.array(bundle, "relations")
     sidecar = _sidecar_path(project_root, bundle.get("sidecar_path"))
 
     refs: dict[tuple[str, str], str] = {}
@@ -60,7 +46,7 @@ def ingest_critical(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
     with connect(db_path) as connection:
         try:
             connection.execute("BEGIN IMMEDIATE")
-            paper = _paper(connection, paper_id)
+            paper = knowledge.paper(connection, paper_id)
             reconstructed = connection.execute(
                 """
                 SELECT depth FROM reading_runs
@@ -87,7 +73,7 @@ def ingest_critical(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
             ).fetchone()
             if existing:
                 raise ResearchDbError(f"{paper_id} 已有完成的 critical audit run。")
-            checked = _checked_artifacts(connection, paper_id, bundle.get("artifacts_checked"))
+            checked = knowledge.checked_artifacts(connection, paper_id, bundle.get("artifacts_checked"))
             run_cursor = connection.execute(
                 """
                 INSERT INTO reading_runs(
@@ -102,24 +88,24 @@ def ingest_critical(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                     completed_at,
                     json.dumps(checked, ensure_ascii=False),
                     json.dumps(sections, ensure_ascii=False),
-                    _text(bundle.get("notes")),
+                    knowledge.text(bundle.get("notes")),
                 ),
             )
             run_id = int(run_cursor.lastrowid)
 
             for spec in issues:
-                artifact_id, locator = _source_fields(
+                artifact_id, locator = knowledge.source_fields(
                     connection, paper_id, spec, required=True, field="Issue"
                 )
-                basis = _text(spec.get("basis"), required=True, field="issue.basis")
-                basis_rationale = _text(
+                basis = knowledge.text(spec.get("basis"), required=True, field="issue.basis")
+                basis_rationale = knowledge.text(
                     spec.get("basis_rationale"),
                     required=True,
                     field="issue.basis_rationale",
                 )
-                target_type = _text(spec.get("target_type"))
-                target_ref = _text(spec.get("target_ref"))
-                target_id = _text(spec.get("target_id"))
+                target_type = knowledge.text(spec.get("target_type"))
+                target_ref = knowledge.text(spec.get("target_ref"))
+                target_id = knowledge.text(spec.get("target_id"))
                 resolved_target_id = None
                 if target_type or target_ref or target_id:
                     target_spec = {
@@ -127,7 +113,7 @@ def ingest_critical(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                         "target_ref": target_ref,
                         "target_id": target_id,
                     }
-                    target_type, resolved_target_id = _resolve_entity(
+                    target_type, resolved_target_id = knowledge.resolve_entity(
                         connection, paper_id, refs, target_spec, "target"
                     )
                 cursor = connection.execute(
@@ -141,32 +127,32 @@ def ingest_critical(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                     """,
                     (
                         paper_id,
-                        _text(spec.get("category"), required=True, field="issue.category"),
-                        _text(spec.get("nature"), required=True, field="issue.nature"),
+                        knowledge.text(spec.get("category"), required=True, field="issue.category"),
+                        knowledge.text(spec.get("nature"), required=True, field="issue.nature"),
                         target_type,
                         resolved_target_id,
-                        _text(spec.get("assessment"), required=True, field="issue.assessment"),
+                        knowledge.text(spec.get("assessment"), required=True, field="issue.assessment"),
                         basis,
                         basis_rationale,
-                        _text(spec.get("severity"), required=True, field="issue.severity"),
-                        _text(spec.get("confidence"), required=True, field="issue.confidence"),
-                        _text(spec.get("why_it_matters")),
-                        _json_text(spec.get("alternative_explanations")),
-                        _text(spec.get("possible_resolution")),
+                        knowledge.text(spec.get("severity"), required=True, field="issue.severity"),
+                        knowledge.text(spec.get("confidence"), required=True, field="issue.confidence"),
+                        knowledge.text(spec.get("why_it_matters")),
+                        knowledge.json_text(spec.get("alternative_explanations")),
+                        knowledge.text(spec.get("possible_resolution")),
                         artifact_id,
                         locator,
                         timestamp,
                     ),
                 )
                 entity_id = int(cursor.lastrowid)
-                _register_ref(refs, "issue", spec, entity_id)
-                _write_change(connection, timestamp=timestamp, entity_type="issue", entity_id=str(entity_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Issue: {spec.get('assessment')}")
+                knowledge.register_ref(refs, "issue", spec, entity_id)
+                knowledge.write_change(connection, timestamp=timestamp, entity_type="issue", entity_id=str(entity_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Issue: {spec.get('assessment')}")
                 counts["issues"] += 1
 
-            counts["relations"] = _insert_relations(
+            counts["relations"] = knowledge.insert_relations(
                 connection, paper_id, refs, relations, timestamp, reason, run_id
             )
-            new_depth = _depth(str(paper["read_depth"]), requested_depth)
+            new_depth = knowledge.depth(str(paper["read_depth"]), requested_depth)
             connection.execute(
                 """
                 UPDATE papers
@@ -177,7 +163,7 @@ def ingest_critical(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                 """,
                 (new_depth, sidecar, timestamp, paper_id),
             )
-            _write_change(connection, timestamp=timestamp, entity_type="reading_run", entity_id=str(run_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Completed critical audit ({requested_depth})")
+            knowledge.write_change(connection, timestamp=timestamp, entity_type="reading_run", entity_id=str(run_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Completed critical audit ({requested_depth})")
             connection.commit()
         except Exception:
             if connection.in_transaction:
