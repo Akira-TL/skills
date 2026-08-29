@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from research_db_ops.acquisition import acquired_main_text_access_blockers, unavailable_candidate_blockers
 
-
-def check_acquisition(connection, errors: list[str]) -> None:
+def _check_attempt_history(connection, errors: list[str]) -> None:
     for attempt in connection.execute(
         """
         SELECT id, candidate_id, paper_id, target_kind, validity_status,
@@ -58,6 +57,7 @@ def check_acquisition(connection, errors: list[str]) -> None:
                         f"acquisition attempt {attempt_id} 与 superseding attempt {superseded_by} Paper 不一致。"
                     )
 
+def _check_candidates(connection, errors: list[str]) -> None:
     for row in connection.execute(
         """
         SELECT id, identity_status, relevance_status, exclusion_reason,
@@ -124,6 +124,7 @@ def check_acquisition(connection, errors: list[str]) -> None:
                         f"candidate {candidate_id} PMID 与关联 Paper {row['paper_id']} 不一致。"
                     )
 
+def _check_duplicate_identity(connection, errors: list[str]) -> None:
     for field, expression, where in (
         ("DOI", "lower(doi)", "doi IS NOT NULL AND trim(doi) <> ''"),
         ("PMID", "pmid", "pmid IS NOT NULL AND trim(pmid) <> ''"),
@@ -137,3 +138,8 @@ def check_acquisition(connection, errors: list[str]) -> None:
                 f"Candidate 存在重复稳定身份 {field}={duplicate['identity']!r}："
                 f"{duplicate['ids']}；请使用 merge-candidates 合并。"
             )
+
+def check_acquisition(connection, errors: list[str]) -> None:
+    _check_attempt_history(connection, errors)
+    _check_candidates(connection, errors)
+    _check_duplicate_identity(connection, errors)
