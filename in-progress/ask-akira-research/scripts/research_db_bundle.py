@@ -5,7 +5,7 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
-from research_db_core import ResearchDbError
+from research_db_support.storage import ResearchDbError
 
 
 DEPTH_ORDER = {"none": 0, "full_scan": 1, "deep_extraction": 2}

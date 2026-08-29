@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TypedDict
 
-from research_db_core import ResearchDbError, connect, database_path
+from research_db_support.storage import ResearchDbError, connect, database_path
 
 
 class ArtifactSpec(TypedDict, total=False):

@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from research_db_core import ResearchDbError, connect
-from research_db_ops.discovery import _db_path, _enum, _now, _text
+from research_db_support.storage import ResearchDbError, connect
+import research_db_ops.common as common
 
 
 TARGET_KINDS = {"main_text", "supplement", "code_data"}
@@ -63,17 +63,17 @@ def _int_list(value: object, *, field: str) -> list[int]:
 
 def record_acquisition_attempt(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
     candidate_id = _optional_int(bundle.get("candidate_id"), field="candidate_id")
-    paper_id = _text(bundle.get("paper_id"))
+    paper_id = common.text(bundle.get("paper_id"))
     if candidate_id is None and paper_id is None:
         raise ResearchDbError("Acquisition Attempt 必须至少关联 candidate_id 或 paper_id。")
 
-    target_kind = _enum(bundle.get("target_kind"), TARGET_KINDS, default="main_text", field="target_kind")
-    route_family = _enum(bundle.get("route_family"), ROUTE_FAMILIES, default="other", field="route_family")
-    resource_kind = _enum(bundle.get("resource_kind"), RESOURCE_KINDS, default="other", field="resource_kind")
-    outcome = _enum(bundle.get("outcome"), OUTCOMES, default="other_failure", field="outcome")
-    target_label = _text(bundle.get("target_label"))
-    source_url = _text(bundle.get("source_url"), required=True, field="source_url")
-    detail = _text(bundle.get("detail"), required=True, field="detail")
+    target_kind = common.enum_value(bundle.get("target_kind"), TARGET_KINDS, default="main_text", field="target_kind")
+    route_family = common.enum_value(bundle.get("route_family"), ROUTE_FAMILIES, default="other", field="route_family")
+    resource_kind = common.enum_value(bundle.get("resource_kind"), RESOURCE_KINDS, default="other", field="resource_kind")
+    outcome = common.enum_value(bundle.get("outcome"), OUTCOMES, default="other_failure", field="outcome")
+    target_label = common.text(bundle.get("target_label"))
+    source_url = common.text(bundle.get("source_url"), required=True, field="source_url")
+    detail = common.text(bundle.get("detail"), required=True, field="detail")
     inferred_basis: str | None = None
     if outcome == "acquired" and bundle.get("access_basis") is None:
         if route_family == "publisher":
@@ -89,22 +89,22 @@ def record_acquisition_attempt(project_root: Path, bundle: dict[str, Any]) -> di
             for marker in ("pmc.ncbi.nlm.nih.gov/", "europepmc.org/", "ncbi.nlm.nih.gov/pmc/")
         ):
             inferred_basis = "public_repository"
-    access_basis = _enum(
+    access_basis = common.enum_value(
         bundle.get("access_basis") if bundle.get("access_basis") is not None else inferred_basis,
         ACCESS_BASES,
         default="not_applicable" if outcome != "acquired" else "unverified",
         field="access_basis",
     )
-    access_basis_detail = _text(bundle.get("access_basis_detail"))
+    access_basis_detail = common.text(bundle.get("access_basis_detail"))
     if access_basis_detail is None and inferred_basis is not None:
         access_basis_detail = (
             f"Access basis inferred from acquisition route {route_family} and source URL {source_url}."
         )
-    attempted_at = _text(bundle.get("attempted_at")) or _now()
+    attempted_at = common.text(bundle.get("attempted_at")) or common.now()
     supersedes_attempt_ids = _int_list(
         bundle.get("supersedes_attempt_ids"), field="supersedes_attempt_ids"
     )
-    supersession_reason = _text(bundle.get("supersession_reason"))
+    supersession_reason = common.text(bundle.get("supersession_reason"))
     if supersedes_attempt_ids and not supersession_reason:
         raise ResearchDbError(
             "supersedes_attempt_ids 非空时必须提供 supersession_reason，说明为什么旧 attempt 判断失效。"
@@ -129,7 +129,7 @@ def record_acquisition_attempt(project_root: Path, bundle: dict[str, Any]) -> di
     elif access_basis != "not_applicable":
         raise ResearchDbError("非 acquired Acquisition Attempt 的 access_basis 必须为 not_applicable。")
 
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         try:
             if candidate_id is not None:
@@ -296,7 +296,7 @@ def list_acquisition_attempts(
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY attempted_at, id LIMIT ?"
     params.append(limit)
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         rows = [dict(row) for row in connection.execute(sql, params)]
     return {"ok": True, "attempts": rows}
 

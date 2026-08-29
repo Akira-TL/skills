@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from research_db_core import validate
+from research_db_validation import validate
 from research_db_ops.candidates import discovery_readiness
 from .git import _git
 from .language import _canonical_paths, academic_language_readiness

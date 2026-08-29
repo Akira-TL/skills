@@ -6,7 +6,8 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Iterable
 
-from research_db_core import ResearchDbError, connect, database_path
+import research_db_ops.common as common
+from research_db_support.storage import ResearchDbError, connect
 
 
 ENTITY_TABLES = {
@@ -24,13 +25,6 @@ JSON_FIELDS = {
     "experiment": {"groups_json", "variables_json"},
     "observation": {"statistics_json"},
 }
-
-
-def _db_path(project_root: Path) -> Path:
-    path = database_path(project_root)
-    if not path.exists():
-        raise ResearchDbError("research.sqlite 不存在；先运行 research-db init。")
-    return path
 
 
 def _limit(value: int) -> int:
@@ -150,7 +144,7 @@ def search_knowledge(
         ORDER BY retrieval_rank, entity_type, entity_id
         LIMIT ?
     """
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         matches = connection.execute(sql, params).fetchall()
         results: list[dict[str, Any]] = []
         for match in matches:
@@ -261,7 +255,7 @@ def evidence_packet(
         (str(item["entity_type"]), str(item["entity_id"])) for item in seed_units
     }
 
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         seen_keys = set(seed_keys)
         frontier = set(seed_keys)
         relation_by_id: dict[int, dict[str, Any]] = {}
@@ -389,7 +383,7 @@ def list_entities(
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY paper_id, id LIMIT ?"
 
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         ids = [str(row["id"]) for row in connection.execute(sql, params)]
         results = [
             record
@@ -421,7 +415,7 @@ def _paper_id_for_entity(
 
 
 def related_papers(project_root: Path, paper_id: str) -> dict[str, Any]:
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         if _entity_record(connection, "paper", paper_id) is None:
             raise ResearchDbError(f"Paper 不存在：{paper_id}")
         grouped: dict[str, dict[str, Any]] = {}
@@ -459,7 +453,7 @@ def paper_history(
     project_root: Path, paper_id: str, *, limit: int = 100
 ) -> dict[str, Any]:
     limit = _limit(limit)
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         if _entity_record(connection, "paper", paper_id) is None:
             raise ResearchDbError(f"Paper 不存在：{paper_id}")
         rows = [
@@ -478,7 +472,7 @@ def paper_history(
 
 
 def get_paper(project_root: Path, paper_id: str) -> dict[str, Any]:
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         paper = _entity_record(connection, "paper", paper_id)
         if paper is None:
             raise ResearchDbError(f"Paper 不存在：{paper_id}")

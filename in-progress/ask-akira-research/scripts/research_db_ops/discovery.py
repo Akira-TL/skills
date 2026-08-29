@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 import sqlite3
 import unicodedata
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from research_db_core import ResearchDbError, connect, database_path
+import research_db_ops.common as common
+from research_db_support.storage import ResearchDbError, connect
 from research_db_ingest import normalize_doi, normalize_identifier
 
 
@@ -34,35 +34,6 @@ DISCOVERY_METHODS = {
     "exact_work",
     "other",
 }
-
-
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def _db_path(project_root: Path) -> Path:
-    path = database_path(project_root)
-    if not path.exists():
-        raise ResearchDbError("research.sqlite 不存在；先运行 research-db init。")
-    return path
-
-
-def _text(value: object, *, required: bool = False, field: str = "字段") -> str | None:
-    if value is None:
-        if required:
-            raise ResearchDbError(f"{field} 不能为空。")
-        return None
-    text = str(value).strip()
-    if not text and required:
-        raise ResearchDbError(f"{field} 不能为空。")
-    return text or None
-
-
-def _enum(value: object, allowed: set[str], *, default: str, field: str) -> str:
-    text = _text(value) or default
-    if text not in allowed:
-        raise ResearchDbError(f"{field} 必须是：{', '.join(sorted(allowed))}")
-    return text
 
 
 def _authors(value: object) -> str | None:
@@ -172,26 +143,26 @@ def _record_candidate(
     discovery_source: str,
     timestamp: str,
 ) -> dict[str, Any]:
-    title = _text(raw.get("title"), required=True, field="candidate title")
+    title = common.text(raw.get("title"), required=True, field="candidate title")
     assert title is not None
     doi = normalize_doi(raw.get("doi"))
     pmid = normalize_identifier(raw.get("pmid"))
     year = _year(raw.get("year"))
     authors = _authors(raw.get("authors"))
-    source_url = _text(raw.get("source_url"))
-    identity_status = _enum(
+    source_url = common.text(raw.get("source_url"))
+    identity_status = common.enum_value(
         raw.get("identity_status"),
         IDENTITY_STATUSES,
         default="resolved" if (doi or pmid) else "unresolved",
         field="identity_status",
     )
-    relevance_status = _enum(
+    relevance_status = common.enum_value(
         raw.get("relevance_status"),
         RELEVANCE_STATUSES,
         default="pending",
         field="relevance_status",
     )
-    acquisition_status = _enum(
+    acquisition_status = common.enum_value(
         raw.get("acquisition_status"),
         ACQUISITION_STATUSES,
         default="queued" if relevance_status == "relevant" else "pending",
@@ -202,14 +173,14 @@ def _record_candidate(
             "Search Run 不能直接创建 acquisition_status=unavailable 的 Candidate；"
             "先保留为 queued，记录 Acquisition Attempt provenance 后再 update-candidate。"
         )
-    reading_priority = _enum(
+    reading_priority = common.enum_value(
         raw.get("reading_priority"),
         READING_PRIORITIES,
         default="normal",
         field="reading_priority",
     )
-    relevance_reason = _text(raw.get("relevance_reason"))
-    exclusion_reason = _text(raw.get("exclusion_reason"))
+    relevance_reason = common.text(raw.get("relevance_reason"))
+    exclusion_reason = common.text(raw.get("exclusion_reason"))
     if relevance_status == "excluded" and not exclusion_reason:
         raise ResearchDbError("excluded candidate 必须提供 exclusion_reason。")
 
@@ -325,7 +296,7 @@ def _record_candidate(
             run_id,
             candidate_id,
             result_rank,
-            _text(raw.get("source_result_id")),
+            common.text(raw.get("source_result_id")),
             source_url,
             timestamp,
         ),
@@ -350,15 +321,15 @@ def _record_candidate(
 
 
 def record_search_run(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
-    purpose = _text(bundle.get("purpose"), required=True, field="purpose")
-    source = _text(bundle.get("source"), required=True, field="source")
-    query = _text(bundle.get("query"), required=True, field="query")
+    purpose = common.text(bundle.get("purpose"), required=True, field="purpose")
+    source = common.text(bundle.get("source"), required=True, field="source")
+    query = common.text(bundle.get("query"), required=True, field="query")
     assert purpose is not None and source is not None and query is not None
-    mode = _text(bundle.get("mode")) or "DISCOVERY"
+    mode = common.text(bundle.get("mode")) or "DISCOVERY"
     mode = mode.upper()
     if mode not in SEARCH_MODES:
         raise ResearchDbError("mode 必须是 DISCOVERY 或 SYSTEMATIC。")
-    discovery_method = _text(bundle.get("discovery_method"))
+    discovery_method = common.text(bundle.get("discovery_method"))
     if mode == "DISCOVERY":
         if discovery_method not in DISCOVERY_METHODS:
             raise ResearchDbError(
@@ -385,7 +356,7 @@ def record_search_run(project_root: Path, bundle: dict[str, Any]) -> dict[str, A
         except (TypeError, ValueError) as exc:
             raise ResearchDbError("parent_run_id 必须是整数。") from exc
 
-    timestamp = _text(bundle.get("executed_at")) or _now()
+    timestamp = common.text(bundle.get("executed_at")) or common.now()
     result_count = bundle.get("result_count")
     if result_count is None:
         result_count = len(raw_candidates)
@@ -400,7 +371,7 @@ def record_search_run(project_root: Path, bundle: dict[str, Any]) -> dict[str, A
     if filters is not None and not isinstance(filters, str):
         filters = json.dumps(filters, ensure_ascii=False, sort_keys=True)
 
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         try:
             if parent_run_id is not None:
@@ -424,11 +395,11 @@ def record_search_run(project_root: Path, bundle: dict[str, Any]) -> dict[str, A
                     query,
                     filters,
                     parent_run_id,
-                    _text(bundle.get("reason")),
+                    common.text(bundle.get("reason")),
                     timestamp,
                     result_count,
-                    _text(bundle.get("what_we_learned")),
-                    _text(bundle.get("next_decision")),
+                    common.text(bundle.get("what_we_learned")),
+                    common.text(bundle.get("next_decision")),
                     discovery_method,
                 ),
             )
@@ -452,7 +423,7 @@ def record_search_run(project_root: Path, bundle: dict[str, Any]) -> dict[str, A
                 (
                     timestamp,
                     str(run_id),
-                    _text(bundle.get("reason")),
+                    common.text(bundle.get("reason")),
                     run_id,
                     f"Recorded {mode} search with {len(candidates)} persisted candidates.",
                 ),
@@ -475,7 +446,7 @@ def record_search_run(project_root: Path, bundle: dict[str, Any]) -> dict[str, A
 def list_search_runs(project_root: Path, *, limit: int = 50) -> dict[str, Any]:
     if limit < 1 or limit > 100:
         raise ResearchDbError("limit 必须在 1 到 100 之间。")
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         rows = [
             dict(row)
             for row in connection.execute(

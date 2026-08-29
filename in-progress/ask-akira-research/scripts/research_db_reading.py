@@ -18,12 +18,8 @@ from research_db_bundle import (
     _text,
     _write_change,
 )
-from research_db_core import (
-    ResearchDbError,
-    connect,
-    database_path,
-    main_text_exposes_code_data_locator,
-)
+from research_db_support.checks import main_text_exposes_code_data_locator
+from research_db_support.storage import ResearchDbError, connect, database_path
 from research_db_ops.acquisition import code_data_access_blockers, supplement_access_blockers
 
 

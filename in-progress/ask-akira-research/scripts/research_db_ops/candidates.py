@@ -5,7 +5,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from research_db_core import ResearchDbError, connect
+from research_db_support.storage import ResearchDbError, connect
 from research_db_ops.acquisition import unavailable_candidate_blockers
 from research_db_ingest import normalize_doi, normalize_identifier
 from research_db_ops.discovery import (
@@ -14,11 +14,8 @@ from research_db_ops.discovery import (
     READING_PRIORITIES,
     RELEVANCE_STATUSES,
     USER_ACCESS_STATUSES,
-    _db_path,
-    _enum,
-    _now,
-    _text,
 )
+import research_db_ops.common as common
 
 
 def update_candidate(project_root: Path, candidate_id: int, changes: dict[str, Any]) -> dict[str, Any]:
@@ -45,23 +42,23 @@ def update_candidate(project_root: Path, candidate_id: int, changes: dict[str, A
 
     normalized = dict(changes)
     if "identity_status" in normalized:
-        normalized["identity_status"] = _enum(
+        normalized["identity_status"] = common.enum_value(
             normalized["identity_status"], IDENTITY_STATUSES, default="unresolved", field="identity_status"
         )
     if "relevance_status" in normalized:
-        normalized["relevance_status"] = _enum(
+        normalized["relevance_status"] = common.enum_value(
             normalized["relevance_status"], RELEVANCE_STATUSES, default="pending", field="relevance_status"
         )
     if "acquisition_status" in normalized:
-        normalized["acquisition_status"] = _enum(
+        normalized["acquisition_status"] = common.enum_value(
             normalized["acquisition_status"], ACQUISITION_STATUSES, default="pending", field="acquisition_status"
         )
     if "reading_priority" in normalized:
-        normalized["reading_priority"] = _enum(
+        normalized["reading_priority"] = common.enum_value(
             normalized["reading_priority"], READING_PRIORITIES, default="normal", field="reading_priority"
         )
     if "user_access_status" in normalized:
-        normalized["user_access_status"] = _enum(
+        normalized["user_access_status"] = common.enum_value(
             normalized["user_access_status"],
             USER_ACCESS_STATUSES,
             default="not_required",
@@ -80,9 +77,9 @@ def update_candidate(project_root: Path, candidate_id: int, changes: dict[str, A
         "source_url",
     ):
         if field in normalized:
-            normalized[field] = _text(normalized[field])
+            normalized[field] = common.text(normalized[field])
 
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         current = connection.execute(
             "SELECT * FROM candidates WHERE id = ?", (candidate_id,)
         ).fetchone()
@@ -131,7 +128,7 @@ def update_candidate(project_root: Path, candidate_id: int, changes: dict[str, A
                     "请先使用 merge-candidates 合并身份记录。"
                 )
 
-        timestamp = _now()
+        timestamp = common.now()
         assignments = ", ".join(f"{field} = ?" for field in normalized)
         params = [normalized[field] for field in normalized]
         params.extend([timestamp, candidate_id])
@@ -173,10 +170,10 @@ def merge_candidates(
 ) -> dict[str, Any]:
     if keep_id == merge_id:
         raise ResearchDbError("keep_id 与 merge_id 不能相同。")
-    merge_reason = _text(reason, required=True, field="merge reason")
+    merge_reason = common.text(reason, required=True, field="merge reason")
     assert merge_reason is not None
 
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         try:
             keep = connection.execute(
@@ -224,7 +221,7 @@ def merge_candidates(
                     "not_required",
                 )
             user_access_reason = keep["user_access_reason"] or source["user_access_reason"]
-            timestamp = _now()
+            timestamp = common.now()
 
             connection.execute(
                 """
@@ -338,7 +335,7 @@ def discovery_readiness(project_root: Path) -> dict[str, Any]:
     citation_chasing_count = 0
     relevant_count = 0
 
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         search_count = int(connection.execute("SELECT COUNT(*) FROM search_runs").fetchone()[0])
         candidates = connection.execute(
             "SELECT id, title, doi, pmid, relevance_status, acquisition_status, "
@@ -499,7 +496,7 @@ def list_candidates(
     sql += " ORDER BY CASE c.reading_priority WHEN 'core' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END, c.id LIMIT ?"
     params.append(limit)
 
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         rows: list[dict[str, Any]] = []
         for candidate in connection.execute(sql, params):
             row = dict(candidate)

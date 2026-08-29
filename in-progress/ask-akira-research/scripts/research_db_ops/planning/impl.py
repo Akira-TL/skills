@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any
 
-from research_db_core import ResearchDbError, connect
-from research_db_ops.discovery import _db_path, _enum, _now, _text
+from research_db_support.storage import ResearchDbError, connect
+import research_db_ops.common as common
 
 
 HYPOTHESIS_STATUSES = {"draft", "frozen", "superseded", "closed"}
@@ -17,53 +16,28 @@ HYPOTHESIS_RESOLUTION_STATUSES = {
     "resolved",
     "not_interpretable",
 }
-_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _HYPOTHESIS_ORDER = {"draft": 0, "frozen": 1, "closed": 2, "superseded": 2}
 _DESIGN_ORDER = {"draft": 0, "frozen": 1, "execution_ready": 2, "superseded": 2}
 
 
-def _slug(value: object, *, field: str = "slug") -> str:
-    text = _text(value, required=True, field=field)
-    assert text is not None
-    if not _SLUG_RE.fullmatch(text):
-        raise ResearchDbError(f"{field} 必须使用 lowercase kebab-case。")
-    return text
-
-
-def _local_file(project_root: Path, value: object, *, field: str) -> str:
-    text = _text(value, required=True, field=field)
-    assert text is not None
-    path = Path(text).expanduser()
-    if not path.is_absolute():
-        path = project_root / path
-    resolved = path.resolve()
-    try:
-        relative = resolved.relative_to(project_root.resolve())
-    except ValueError as exc:
-        raise ResearchDbError(f"{field} 必须位于科研项目目录内：{resolved}") from exc
-    if not resolved.is_file():
-        raise ResearchDbError(f"{field} 指向的文件不存在：{relative.as_posix()}")
-    return relative.as_posix()
-
-
 def record_hypothesis_set(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
-    slug = _slug(bundle.get("slug"))
-    title = _text(bundle.get("title"), required=True, field="title")
-    target_uncertainty = _text(
+    slug = common.slug(bundle.get("slug"))
+    title = common.text(bundle.get("title"), required=True, field="title")
+    target_uncertainty = common.text(
         bundle.get("target_uncertainty"), required=True, field="target_uncertainty"
     )
-    artifact_path = _local_file(
-        project_root, bundle.get("artifact_path"), field="hypothesis artifact_path"
+    artifact_path = common.local_path(
+        project_root, bundle.get("artifact_path"), field="hypothesis artifact_path", require_file=True
     )
-    status = _enum(
+    status = common.enum_value(
         bundle.get("status"), HYPOTHESIS_STATUSES, default="draft", field="hypothesis status"
     )
-    freeze_commit = _text(bundle.get("freeze_commit"))
+    freeze_commit = common.text(bundle.get("freeze_commit"))
     if status == "frozen" and not freeze_commit:
         raise ResearchDbError("Hypothesis Set 进入 frozen 时必须记录 freeze_commit。")
 
-    now = _now()
-    with connect(_db_path(project_root)) as connection:
+    now = common.now()
+    with connect(common.db_path(project_root)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         try:
             existing = connection.execute(
@@ -165,26 +139,26 @@ def record_hypothesis_set(project_root: Path, bundle: dict[str, Any]) -> dict[st
 
 
 def record_design(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
-    slug = _slug(bundle.get("slug"))
-    title = _text(bundle.get("title"), required=True, field="title")
-    hypothesis_slug = _slug(bundle.get("hypothesis_set_slug"), field="hypothesis_set_slug")
-    target_estimand = _text(bundle.get("target_estimand"), required=True, field="target_estimand")
-    primary_outcome = _text(bundle.get("primary_outcome"), required=True, field="primary_outcome")
-    experimental_unit = _text(
+    slug = common.slug(bundle.get("slug"))
+    title = common.text(bundle.get("title"), required=True, field="title")
+    hypothesis_slug = common.slug(bundle.get("hypothesis_set_slug"), field="hypothesis_set_slug")
+    target_estimand = common.text(bundle.get("target_estimand"), required=True, field="target_estimand")
+    primary_outcome = common.text(bundle.get("primary_outcome"), required=True, field="primary_outcome")
+    experimental_unit = common.text(
         bundle.get("experimental_unit"), required=True, field="experimental_unit"
     )
-    artifact_path = _local_file(
-        project_root, bundle.get("artifact_path"), field="design artifact_path"
+    artifact_path = common.local_path(
+        project_root, bundle.get("artifact_path"), field="design artifact_path", require_file=True
     )
-    status = _enum(bundle.get("status"), DESIGN_STATUSES, default="draft", field="design status")
-    feasibility_status = _enum(
+    status = common.enum_value(bundle.get("status"), DESIGN_STATUSES, default="draft", field="design status")
+    feasibility_status = common.enum_value(
         bundle.get("feasibility_status"),
         FEASIBILITY_STATUSES,
         default="unresolved",
         field="feasibility_status",
     )
-    feasibility_summary = _text(bundle.get("feasibility_summary"))
-    freeze_commit = _text(bundle.get("freeze_commit"))
+    feasibility_summary = common.text(bundle.get("feasibility_summary"))
+    freeze_commit = common.text(bundle.get("freeze_commit"))
     if status in {"frozen", "execution_ready"} and not freeze_commit:
         raise ResearchDbError("Design 进入 frozen/execution_ready 时必须记录 freeze_commit。")
     if feasibility_status == "unresolved" and not feasibility_summary:
@@ -192,8 +166,8 @@ def record_design(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
     if status == "execution_ready" and feasibility_status != "ready":
         raise ResearchDbError("Design 只有在 feasibility_status=ready 时才能标记 execution_ready。")
 
-    now = _now()
-    with connect(_db_path(project_root)) as connection:
+    now = common.now()
+    with connect(common.db_path(project_root)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         try:
             hypothesis = connection.execute(
@@ -328,7 +302,7 @@ def record_design(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
 
 
 def list_hypothesis_sets(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         rows = [
             dict(row)
             for row in connection.execute(
@@ -339,7 +313,7 @@ def list_hypothesis_sets(project_root: Path, *, limit: int = 100) -> dict[str, A
 
 
 def list_designs(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         rows: list[dict[str, Any]] = []
         for row in connection.execute(
             """
@@ -355,27 +329,27 @@ def list_designs(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
 
 
 def record_hypothesis_evaluation(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
-    hypothesis_slug = _slug(bundle.get("hypothesis_set_slug"), field="hypothesis_set_slug")
-    analysis_slug = _slug(bundle.get("analysis_slug"), field="analysis_slug")
-    resolution_value = _text(
+    hypothesis_slug = common.slug(bundle.get("hypothesis_set_slug"), field="hypothesis_set_slug")
+    analysis_slug = common.slug(bundle.get("analysis_slug"), field="analysis_slug")
+    resolution_value = common.text(
         bundle.get("resolution_status"), required=True, field="resolution_status"
     )
-    resolution_status = _enum(
+    resolution_status = common.enum_value(
         resolution_value,
         HYPOTHESIS_RESOLUTION_STATUSES,
         default="unresolved",
         field="resolution_status",
     )
-    decision = _text(bundle.get("decision"), required=True, field="decision")
-    summary = _text(bundle.get("summary"), required=True, field="summary")
-    source_path = _local_file(
-        project_root, bundle.get("source_path"), field="evaluation source_path"
+    decision = common.text(bundle.get("decision"), required=True, field="decision")
+    summary = common.text(bundle.get("summary"), required=True, field="summary")
+    source_path = common.local_path(
+        project_root, bundle.get("source_path"), field="evaluation source_path", require_file=True
     )
-    evaluated_at = _text(bundle.get("evaluated_at")) or _now()
+    evaluated_at = common.text(bundle.get("evaluated_at")) or common.now()
     assert decision is not None and summary is not None
 
-    now = _now()
-    with connect(_db_path(project_root)) as connection:
+    now = common.now()
+    with connect(common.db_path(project_root)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         try:
             hypothesis = connection.execute(
@@ -469,7 +443,7 @@ def record_hypothesis_evaluation(project_root: Path, bundle: dict[str, Any]) -> 
 
 
 def list_hypothesis_evaluations(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         rows = [
             dict(row)
             for row in connection.execute(

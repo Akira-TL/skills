@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from research_db_core import connect, database_path
+from research_db_support.storage import connect, database_path
 
 BARE_ENGLISH_TERMS_IN_CHINESE_COMMUNICATION = {
     "treatment",

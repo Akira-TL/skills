@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Any
 
-from research_db_core import ResearchDbError, connect
-from research_db_ops.discovery import _db_path, _enum, _now, _text
+from research_db_support.storage import ResearchDbError, connect
+import research_db_ops.common as common
 
 
 DATASET_ROLES = {"raw", "curated", "metadata", "manifest", "other"}
 STORAGE_KINDS = {"local", "external"}
-GIT_TRACKING = {"required", "not_required"}
 ANALYSIS_MODES = {"confirmatory", "exploratory"}
 ANALYSIS_STATUSES = {"planned", "frozen", "completed", "abandoned"}
 ANALYSIS_ARTIFACT_ROLES = {"estimate", "diagnostic", "figure", "table", "log", "other"}
@@ -19,48 +17,19 @@ ANALYSIS_ARTIFACT_TIMING_ROLES = {"pre_result_support", "result"}
 DATASET_ARTIFACT_TIMING_ROLES = {"pre_result_input", "post_result_context"}
 AMENDMENT_TIMINGS = {"pre_result", "post_result"}
 _STATUS_ORDER = {"planned": 0, "frozen": 1, "completed": 2, "abandoned": 2}
-_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
-
-
-def _slug(value: object, *, field: str = "slug") -> str:
-    text = _text(value, required=True, field=field)
-    assert text is not None
-    if not _SLUG_RE.fullmatch(text):
-        raise ResearchDbError(f"{field} 必须使用 lowercase kebab-case。")
-    return text
-
-
-def _local_path(project_root: Path, value: object, *, field: str) -> str:
-    text = _text(value, required=True, field=field)
-    assert text is not None
-    path = Path(text).expanduser()
-    if not path.is_absolute():
-        path = project_root / path
-    resolved = path.resolve()
-    try:
-        relative = resolved.relative_to(project_root.resolve())
-    except ValueError as exc:
-        raise ResearchDbError(f"{field} 必须位于科研项目目录内：{resolved}") from exc
-    if not resolved.exists():
-        raise ResearchDbError(f"{field} 指向的文件不存在：{relative.as_posix()}")
-    return relative.as_posix()
-
-
-def _tracking(value: object, *, default: str = "required") -> str:
-    return _enum(value, GIT_TRACKING, default=default, field="git_tracking")
 
 
 def record_dataset(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
-    slug = _slug(bundle.get("slug"))
-    title = _text(bundle.get("title"), required=True, field="title")
-    source = _text(bundle.get("source"), required=True, field="source")
-    received_at = _text(bundle.get("received_at"), required=True, field="received_at")
-    unit = _text(bundle.get("unit_of_inference"), required=True, field="unit_of_inference")
-    provenance_path = _local_path(project_root, bundle.get("provenance_path"), field="provenance_path")
-    identity = _text(bundle.get("identity"))
-    source_url = _text(bundle.get("source_url"))
-    version = _text(bundle.get("version"))
-    status = _enum(bundle.get("status"), {"active", "archived"}, default="active", field="status")
+    slug = common.slug(bundle.get("slug"))
+    title = common.text(bundle.get("title"), required=True, field="title")
+    source = common.text(bundle.get("source"), required=True, field="source")
+    received_at = common.text(bundle.get("received_at"), required=True, field="received_at")
+    unit = common.text(bundle.get("unit_of_inference"), required=True, field="unit_of_inference")
+    provenance_path = common.local_path(project_root, bundle.get("provenance_path"), field="provenance_path")
+    identity = common.text(bundle.get("identity"))
+    source_url = common.text(bundle.get("source_url"))
+    version = common.text(bundle.get("version"))
+    status = common.enum_value(bundle.get("status"), {"active", "archived"}, default="active", field="status")
     artifacts = bundle.get("artifacts")
     if not isinstance(artifacts, list) or not artifacts:
         raise ResearchDbError("dataset artifacts 必须是非空数组。")
@@ -69,18 +38,18 @@ def record_dataset(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
     for index, item in enumerate(artifacts, start=1):
         if not isinstance(item, dict):
             raise ResearchDbError(f"dataset artifact {index} 必须是 JSON object。")
-        role = _enum(item.get("role"), DATASET_ROLES, default="other", field="dataset artifact role")
-        storage_kind = _enum(
+        role = common.enum_value(item.get("role"), DATASET_ROLES, default="other", field="dataset artifact role")
+        storage_kind = common.enum_value(
             item.get("storage_kind"), STORAGE_KINDS, default="local", field="storage_kind"
         )
-        git_tracking = _tracking(item.get("git_tracking"))
-        tracking_reason = _text(item.get("tracking_reason"))
+        git_tracking = common.tracking(item.get("git_tracking"))
+        tracking_reason = common.text(item.get("tracking_reason"))
         if git_tracking == "not_required" and not tracking_reason:
             raise ResearchDbError("git_tracking=not_required 时必须说明 tracking_reason。")
         if storage_kind == "local":
-            location = _local_path(project_root, item.get("location"), field="dataset artifact location")
+            location = common.local_path(project_root, item.get("location"), field="dataset artifact location")
         else:
-            location = _text(item.get("location"), required=True, field="dataset artifact location")
+            location = common.text(item.get("location"), required=True, field="dataset artifact location")
             assert location is not None
             if git_tracking == "required":
                 raise ResearchDbError("external dataset artifact 不能声明 git_tracking=required。")
@@ -91,13 +60,13 @@ def record_dataset(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
                 "storage_kind": storage_kind,
                 "git_tracking": git_tracking,
                 "tracking_reason": tracking_reason,
-                "source_url": _text(item.get("source_url")),
-                "version": _text(item.get("version")),
+                "source_url": common.text(item.get("source_url")),
+                "version": common.text(item.get("version")),
             }
         )
 
-    now = _now()
-    with connect(_db_path(project_root)) as connection:
+    now = common.now()
+    with connect(common.db_path(project_root)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         try:
             existing = connection.execute(
@@ -205,23 +174,23 @@ def _dataset_ids(connection, slugs: object) -> list[int]:
 
 
 def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
-    slug = _slug(bundle.get("slug"))
-    title = _text(bundle.get("title"), required=True, field="title")
-    analysis_mode = _enum(
+    slug = common.slug(bundle.get("slug"))
+    title = common.text(bundle.get("title"), required=True, field="title")
+    analysis_mode = common.enum_value(
         bundle.get("analysis_mode"), ANALYSIS_MODES, default="confirmatory", field="analysis_mode"
     )
-    status = _enum(bundle.get("status"), ANALYSIS_STATUSES, default="planned", field="status")
-    target_uncertainty = _text(
+    status = common.enum_value(bundle.get("status"), ANALYSIS_STATUSES, default="planned", field="status")
+    target_uncertainty = common.text(
         bundle.get("target_uncertainty"), required=True, field="target_uncertainty"
     )
-    estimand = _text(bundle.get("estimand"), required=True, field="estimand")
-    unit = _text(bundle.get("unit_of_inference"), required=True, field="unit_of_inference")
-    primary_analysis = _text(bundle.get("primary_analysis"), required=True, field="primary_analysis")
-    analysis_path = _local_path(project_root, bundle.get("analysis_path"), field="analysis_path")
-    code_path = _local_path(project_root, bundle.get("code_path"), field="code_path")
-    freeze_commit = _text(bundle.get("freeze_commit"))
-    started_at = _text(bundle.get("started_at")) or _now()
-    completed_at = _text(bundle.get("completed_at"))
+    estimand = common.text(bundle.get("estimand"), required=True, field="estimand")
+    unit = common.text(bundle.get("unit_of_inference"), required=True, field="unit_of_inference")
+    primary_analysis = common.text(bundle.get("primary_analysis"), required=True, field="primary_analysis")
+    analysis_path = common.local_path(project_root, bundle.get("analysis_path"), field="analysis_path")
+    code_path = common.local_path(project_root, bundle.get("code_path"), field="code_path")
+    freeze_commit = common.text(bundle.get("freeze_commit"))
+    started_at = common.text(bundle.get("started_at")) or common.now()
+    completed_at = common.text(bundle.get("completed_at"))
     if analysis_mode == "confirmatory" and status in {"frozen", "completed"} and not freeze_commit:
         raise ResearchDbError("confirmatory analysis 进入 frozen/completed 时必须记录结果可见前的 freeze_commit。")
 
@@ -237,13 +206,13 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
             "artifacts/dataset_artifact_timing/amendments/observations 必须是数组。"
         )
 
-    now = _now()
-    with connect(_db_path(project_root)) as connection:
+    now = common.now()
+    with connect(common.db_path(project_root)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         try:
             dataset_ids = _dataset_ids(connection, bundle.get("dataset_slugs"))
             existing = connection.execute("SELECT * FROM analysis_runs WHERE slug = ?", (slug,)).fetchone()
-            design_slug = _text(bundle.get("design_slug"))
+            design_slug = common.text(bundle.get("design_slug"))
             design_id: int | None = None
             if design_slug is not None:
                 design = connection.execute(
@@ -407,7 +376,7 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                     raise ResearchDbError(
                         f"dataset artifact timing {index} 必须是 JSON object。"
                     )
-                dataset_slug = _slug(
+                dataset_slug = common.slug(
                     item.get("dataset_slug"), field="dataset artifact timing dataset_slug"
                 )
                 dataset_row = connection.execute(
@@ -417,7 +386,7 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                     raise ResearchDbError(
                         f"dataset artifact timing 必须引用当前 Analysis 的 Dataset：{dataset_slug}"
                     )
-                location = _local_path(
+                location = common.local_path(
                     project_root,
                     item.get("location"),
                     field="dataset artifact timing location",
@@ -439,13 +408,13 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                     raise ResearchDbError(
                         "dataset artifact timing 只用于 local + git_tracking=required 的 canonical artifact。"
                     )
-                timing_role = _enum(
+                timing_role = common.enum_value(
                     item.get("timing_role"),
                     DATASET_ARTIFACT_TIMING_ROLES,
                     default="pre_result_input",
                     field="dataset artifact timing_role",
                 )
-                reason = _text(item.get("reason"))
+                reason = common.text(item.get("reason"))
                 if timing_role == "post_result_context" and not reason:
                     raise ResearchDbError(
                         "dataset artifact timing_role=post_result_context 时必须说明 reason。"
@@ -481,18 +450,18 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
             for index, item in enumerate(artifacts, start=1):
                 if not isinstance(item, dict):
                     raise ResearchDbError(f"analysis artifact {index} 必须是 JSON object。")
-                role = _enum(
+                role = common.enum_value(
                     item.get("role"), ANALYSIS_ARTIFACT_ROLES, default="other", field="analysis artifact role"
                 )
-                path = _local_path(project_root, item.get("path"), field="analysis artifact path")
-                git_tracking = _tracking(item.get("git_tracking"))
-                timing_role = _enum(
+                path = common.local_path(project_root, item.get("path"), field="analysis artifact path")
+                git_tracking = common.tracking(item.get("git_tracking"))
+                timing_role = common.enum_value(
                     item.get("timing_role"),
                     ANALYSIS_ARTIFACT_TIMING_ROLES,
                     default="result",
                     field="analysis artifact timing_role",
                 )
-                tracking_reason = _text(item.get("tracking_reason"))
+                tracking_reason = common.text(item.get("tracking_reason"))
                 if git_tracking == "not_required" and not tracking_reason:
                     raise ResearchDbError("analysis artifact git_tracking=not_required 时必须说明 tracking_reason。")
                 connection.execute(
@@ -514,25 +483,25 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
             for index, item in enumerate(amendments, start=1):
                 if not isinstance(item, dict):
                     raise ResearchDbError(f"analysis amendment {index} 必须是 JSON object。")
-                timing = _enum(
+                timing = common.enum_value(
                     item.get("timing"), AMENDMENT_TIMINGS, default="post_result", field="amendment timing"
                 )
-                description = _text(item.get("description"), required=True, field="amendment description")
-                reason = _text(item.get("reason"), required=True, field="amendment reason")
+                description = common.text(item.get("description"), required=True, field="amendment description")
+                reason = common.text(item.get("reason"), required=True, field="amendment reason")
                 connection.execute(
                     """
                     INSERT INTO analysis_amendments(
                         analysis_id, timing, description, reason, commit_ref, created_at
                     ) VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (analysis_id, timing, description, reason, _text(item.get("commit_ref")), now),
+                    (analysis_id, timing, description, reason, common.text(item.get("commit_ref")), now),
                 )
 
             for index, item in enumerate(observations, start=1):
                 if not isinstance(item, dict):
                     raise ResearchDbError(f"project observation {index} 必须是 JSON object。")
-                statement = _text(item.get("statement"), required=True, field="observation statement")
-                source_path = _local_path(project_root, item.get("source_path"), field="observation source_path")
+                statement = common.text(item.get("statement"), required=True, field="observation statement")
+                source_path = common.local_path(project_root, item.get("source_path"), field="observation source_path")
                 artifact_id = artifact_ids_by_path.get(source_path)
                 if artifact_id is None:
                     row = connection.execute(
@@ -556,11 +525,11 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                     (
                         analysis_id,
                         statement,
-                        _text(item.get("effect")),
+                        common.text(item.get("effect")),
                         statistics_json,
-                        _text(item.get("scope")),
+                        common.text(item.get("scope")),
                         artifact_id,
-                        _text(item.get("source_locator")),
+                        common.text(item.get("source_locator")),
                         now,
                     ),
                 )
@@ -585,7 +554,7 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
 
 
 def list_datasets(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         rows = []
         for row in connection.execute("SELECT * FROM datasets ORDER BY id LIMIT ?", (limit,)):
             item = dict(row)
@@ -600,7 +569,7 @@ def list_datasets(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
 
 
 def list_analyses(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         rows = []
         for row in connection.execute("SELECT * FROM analysis_runs ORDER BY id LIMIT ?", (limit,)):
             item = dict(row)

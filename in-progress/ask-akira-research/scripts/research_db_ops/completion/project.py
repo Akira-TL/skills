@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from research_db_core import connect, database_path
+from research_db_support.storage import connect, database_path
 from .git import _git, _git_commit_has_path, _git_first_path_change_after, _git_path_changed_after
 from .language import _canonical_paths
 

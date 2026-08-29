@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from research_db_core import ResearchDbError, connect, database_path
+import research_db_ops.common as common
+from research_db_support.storage import ResearchDbError, connect
 
 
 ENTITY_TABLES = {
@@ -33,28 +33,6 @@ ALLOWED_PREDICATES = {
 }
 
 
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def _db_path(project_root: Path) -> Path:
-    path = database_path(project_root)
-    if not path.exists():
-        raise ResearchDbError("research.sqlite 不存在；先运行 research-db init。")
-    return path
-
-
-def _text(value: object, *, required: bool = False, field: str = "字段") -> str | None:
-    if value is None:
-        if required:
-            raise ResearchDbError(f"{field} 不能为空。")
-        return None
-    text = str(value).strip()
-    if not text and required:
-        raise ResearchDbError(f"{field} 不能为空。")
-    return text or None
-
-
 def _resolve_entity(connection, entity_type: str, entity_id: str) -> tuple[str, str]:
     if entity_type not in ALLOWED_ENTITY_TYPES:
         raise ResearchDbError(f"不支持的 relation entity type：{entity_type}")
@@ -74,12 +52,12 @@ def _resolve_entity(connection, entity_type: str, entity_id: str) -> tuple[str, 
 
 
 def add_relation(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
-    subject_type = _text(bundle.get("subject_type"), required=True, field="subject_type")
-    subject_id = _text(bundle.get("subject_id"), required=True, field="subject_id")
-    predicate = _text(bundle.get("predicate"), required=True, field="predicate")
-    object_type = _text(bundle.get("object_type"), required=True, field="object_type")
-    object_id = _text(bundle.get("object_id"), required=True, field="object_id")
-    note = _text(bundle.get("note"), required=True, field="note")
+    subject_type = common.text(bundle.get("subject_type"), required=True, field="subject_type")
+    subject_id = common.text(bundle.get("subject_id"), required=True, field="subject_id")
+    predicate = common.text(bundle.get("predicate"), required=True, field="predicate")
+    object_type = common.text(bundle.get("object_type"), required=True, field="object_type")
+    object_id = common.text(bundle.get("object_id"), required=True, field="object_id")
+    note = common.text(bundle.get("note"), required=True, field="note")
     assert subject_type and subject_id and predicate and object_type and object_id and note
 
     predicate = predicate.upper()
@@ -92,11 +70,11 @@ def add_relation(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
     if subject_type == object_type and subject_id == object_id:
         raise ResearchDbError("relation 不能连接实体自身。")
 
-    confidence = _text(bundle.get("confidence"))
-    reason = _text(bundle.get("reason")) or "Verified cross-entity research relation"
-    timestamp = _text(bundle.get("created_at")) or _now()
+    confidence = common.text(bundle.get("confidence"))
+    reason = common.text(bundle.get("reason")) or "Verified cross-entity research relation"
+    timestamp = common.text(bundle.get("created_at")) or common.now()
 
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         try:
             subject_id, subject_paper = _resolve_entity(connection, subject_type, subject_id)

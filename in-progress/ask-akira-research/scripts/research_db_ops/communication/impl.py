@@ -3,9 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from research_db_core import ResearchDbError, connect
-from research_db_ops.discovery import _db_path, _enum, _now, _text
-from research_db_ops.downstream import _local_path, _slug, _tracking
+from research_db_support.storage import ResearchDbError, connect
+import research_db_ops.common as common
 
 
 COMMUNICATION_STATUSES = {"draft", "completed", "superseded"}
@@ -26,12 +25,12 @@ COMMUNICATION_TIMING_ROLES = {"source_support", "derived_output"}
 
 
 def record_communication(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
-    slug = _slug(bundle.get("slug"))
-    title = _text(bundle.get("title"), required=True, field="title")
-    purpose = _text(bundle.get("purpose"), required=True, field="purpose")
-    audience = _text(bundle.get("audience"), required=True, field="audience")
-    source_commit = _text(bundle.get("source_commit"), required=True, field="source_commit")
-    status = _enum(bundle.get("status"), COMMUNICATION_STATUSES, default="draft", field="status")
+    slug = common.slug(bundle.get("slug"))
+    title = common.text(bundle.get("title"), required=True, field="title")
+    purpose = common.text(bundle.get("purpose"), required=True, field="purpose")
+    audience = common.text(bundle.get("audience"), required=True, field="audience")
+    source_commit = common.text(bundle.get("source_commit"), required=True, field="source_commit")
+    status = common.enum_value(bundle.get("status"), COMMUNICATION_STATUSES, default="draft", field="status")
     artifacts = bundle.get("artifacts")
     if not isinstance(artifacts, list) or not artifacts:
         raise ResearchDbError("communication artifacts 必须是非空数组。")
@@ -40,16 +39,16 @@ def record_communication(project_root: Path, bundle: dict[str, Any]) -> dict[str
     for index, item in enumerate(artifacts, start=1):
         if not isinstance(item, dict):
             raise ResearchDbError(f"communication artifact {index} 必须是 JSON object。")
-        role = _enum(item.get("role"), COMMUNICATION_ROLES, default="other", field="communication artifact role")
-        path = _local_path(project_root, item.get("path"), field="communication artifact path")
-        timing_role = _enum(
+        role = common.enum_value(item.get("role"), COMMUNICATION_ROLES, default="other", field="communication artifact role")
+        path = common.local_path(project_root, item.get("path"), field="communication artifact path")
+        timing_role = common.enum_value(
             item.get("timing_role"),
             COMMUNICATION_TIMING_ROLES,
             default="derived_output",
             field="communication artifact timing_role",
         )
-        git_tracking = _tracking(item.get("git_tracking"))
-        tracking_reason = _text(item.get("tracking_reason"))
+        git_tracking = common.tracking(item.get("git_tracking"))
+        tracking_reason = common.text(item.get("tracking_reason"))
         if git_tracking == "not_required" and not tracking_reason:
             raise ResearchDbError("communication artifact git_tracking=not_required 时必须说明 tracking_reason。")
         parsed.append(
@@ -63,8 +62,8 @@ def record_communication(project_root: Path, bundle: dict[str, Any]) -> dict[str
         )
 
     assert title is not None and purpose is not None and audience is not None and source_commit is not None
-    now = _now()
-    with connect(_db_path(project_root)) as connection:
+    now = common.now()
+    with connect(common.db_path(project_root)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         try:
             existing = connection.execute(
@@ -145,7 +144,7 @@ def record_communication(project_root: Path, bundle: dict[str, Any]) -> dict[str
 
 
 def list_communications(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
-    with connect(_db_path(project_root)) as connection:
+    with connect(common.db_path(project_root)) as connection:
         rows: list[dict[str, Any]] = []
         for row in connection.execute(
             "SELECT * FROM communication_products ORDER BY id LIMIT ?", (limit,)

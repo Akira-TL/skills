@@ -19,7 +19,7 @@ from research_db_bundle import (
     _text,
     _write_change,
 )
-from research_db_core import ResearchDbError, connect, database_path
+from research_db_support.storage import ResearchDbError, connect, database_path
 
 
 def _sidecar_path(project_root: Path, value: object) -> str | None:

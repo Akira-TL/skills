@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from research_db_core import connect, database_path
+from research_db_support.storage import connect, database_path
 from research_db_ops.acquisition import (
     acquired_main_text_access_blockers,
     acquired_paper_main_text_access_blockers,
