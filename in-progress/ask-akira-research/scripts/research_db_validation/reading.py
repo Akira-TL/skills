@@ -6,8 +6,7 @@ from pathlib import Path
 from research_db_ops.acquisition import code_data_access_blockers, supplement_access_blockers
 from research_db_support.checks import main_text_exposes_code_data_locator
 
-
-def check_reading(project_root: Path, connection, errors: list[str], warnings: list[str]) -> None:
+def _check_reconstruction(project_root: Path, connection, errors: list[str]) -> None:
     reconstructed_without_run = connection.execute(
         """
         SELECT p.id FROM papers p
@@ -228,6 +227,7 @@ def check_reading(project_root: Path, connection, errors: list[str], warnings: l
                     "但没有说明 quantitative_results_reason。"
                 )
 
+def _check_critical(connection, errors: list[str], warnings: list[str]) -> None:
     critical_without_run = connection.execute(
         """
         SELECT p.id FROM papers p
@@ -274,6 +274,7 @@ def check_reading(project_root: Path, connection, errors: list[str], warnings: l
     for row in reviewed_without_issue:
         warnings.append(f"{row['id']} 已 critically_reviewed，但没有记录 Issue；请确认这是有意结果。")
 
+def _check_paper_identity(connection, errors: list[str]) -> None:
     for row in connection.execute(
         "SELECT id, doi, pmid, canonical_identity FROM papers ORDER BY id"
     ):
@@ -290,3 +291,8 @@ def check_reading(project_root: Path, connection, errors: list[str], warnings: l
                 f"{row['id']} canonical_identity={row['canonical_identity']!r} "
                 f"与稳定论文身份 {expected_identity!r} 不一致。"
             )
+
+def check_reading(project_root: Path, connection, errors: list[str], warnings: list[str]) -> None:
+    _check_reconstruction(project_root, connection, errors)
+    _check_critical(connection, errors, warnings)
+    _check_paper_identity(connection, errors)
