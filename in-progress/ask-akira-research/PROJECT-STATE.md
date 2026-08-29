@@ -76,15 +76,15 @@
 
 ## Git 语义
 
-科研提交应表达发生了什么研究事件，例如：
+科研提交继续使用全局 `<TYPE>: (<SCOPE>) <DETAIL>` 格式；科研事件放在 `SCOPE` 与具体 `DETAIL` 中，不另造一套会被 Guard 拒绝的提交类型。例如：
 
 ```text
-RESEARCH: establish initial evidence landscape
-LITERATURE: identify conflicting altitude definitions
-HYPOTHESIS: add diet-confounding alternative
-DESIGN: separate group assignment from sequencing batch
-ANALYSIS: weaken altitude association after diet adjustment
-INTERPRETATION: reclassify pathway Y as exploratory
+CHORE: (research) establish initial evidence landscape
+CHORE: (literature) identify conflicting altitude definitions
+CHORE: (hypothesis) add diet-confounding alternative
+CHORE: (design) separate group assignment from sequencing batch
+CHORE: (analysis) record weakened altitude association after diet adjustment
+CHORE: (interpretation) reclassify pathway Y as exploratory
 ```
 
-这些是研究项目自身未来采用的语义示例，不替代当前 Akira Skills 仓库的全局 Git 提交格式。
+正式提交仍使用当前环境规定的 Guard 入口；这些示例只说明如何在兼容全局格式的同时保留科研事件语义。
