@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from research_db_support.schema import KNOWLEDGE_ENTITY_TABLES
 from research_db_support.storage import connect, database_path
 from research_db_ops.acquisition import (
     acquired_main_text_access_blockers,
@@ -20,21 +21,13 @@ SCIENTIFIC_RELATION_PREDICATES = {
     "CHALLENGES",
     "WEAKENS",
 }
-RELATION_ENTITY_TABLES = {
-    "method": "methods",
-    "experiment": "experiments",
-    "observation": "observations",
-    "claim": "claims",
-    "issue": "issues",
-    "lead": "leads",
-}
 
 
 def _entity_paper_id(connection, entity_type: str, entity_id: str) -> str | None:
     if entity_type == "paper":
         row = connection.execute("SELECT id FROM papers WHERE id = ?", (entity_id,)).fetchone()
         return str(row["id"]) if row else None
-    table = RELATION_ENTITY_TABLES.get(entity_type)
+    table = KNOWLEDGE_ENTITY_TABLES.get(entity_type)
     if table is None:
         return None
     row = connection.execute(

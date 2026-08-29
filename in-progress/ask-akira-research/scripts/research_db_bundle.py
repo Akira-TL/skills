@@ -5,18 +5,11 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
+from research_db_support.schema import KNOWLEDGE_ENTITY_TABLES
 from research_db_support.storage import ResearchDbError
 
 
 DEPTH_ORDER = {"none": 0, "full_scan": 1, "deep_extraction": 2}
-ENTITY_TABLES = {
-    "method": "methods",
-    "experiment": "experiments",
-    "observation": "observations",
-    "claim": "claims",
-    "issue": "issues",
-    "lead": "leads",
-}
 
 
 def _now() -> str:
@@ -196,7 +189,7 @@ def _existing_entity_for_paper(
 ) -> bool:
     if entity_type == "paper":
         return entity_id == paper_id
-    table = ENTITY_TABLES.get(entity_type)
+    table = KNOWLEDGE_ENTITY_TABLES.get(entity_type)
     if table is None:
         return False
     row = connection.execute(

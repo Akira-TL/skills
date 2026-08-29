@@ -4,18 +4,11 @@ from pathlib import Path
 from typing import Any
 
 import research_db_ops.common as common
+from research_db_support.schema import KNOWLEDGE_ENTITY_TABLES
 from research_db_support.storage import ResearchDbError, connect
 
 
-ENTITY_TABLES = {
-    "method": "methods",
-    "experiment": "experiments",
-    "observation": "observations",
-    "claim": "claims",
-    "issue": "issues",
-    "lead": "leads",
-}
-ALLOWED_ENTITY_TYPES = {"paper", *ENTITY_TABLES}
+ALLOWED_ENTITY_TYPES = {"paper", *KNOWLEDGE_ENTITY_TABLES}
 ALLOWED_PREDICATES = {
     "USES",
     "PRODUCES",
@@ -42,7 +35,7 @@ def _resolve_entity(connection, entity_type: str, entity_id: str) -> tuple[str, 
             raise ResearchDbError(f"Paper 不存在：{entity_id}")
         return entity_id, entity_id
 
-    table = ENTITY_TABLES[entity_type]
+    table = KNOWLEDGE_ENTITY_TABLES[entity_type]
     row = connection.execute(
         f'SELECT paper_id FROM "{table}" WHERE CAST(id AS TEXT) = ?', (entity_id,)
     ).fetchone()

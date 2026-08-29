@@ -39,18 +39,21 @@ REQUIRED_TABLES = {
     "communication_products",
     "communication_artifacts",
 }
-ENTITY_TABLES = {
-    "paper": "papers",
-    "artifact": "artifacts",
-    "search_run": "search_runs",
-    "candidate": "candidates",
-    "reading_run": "reading_runs",
+KNOWLEDGE_ENTITY_TABLES = {
     "method": "methods",
     "experiment": "experiments",
     "observation": "observations",
     "claim": "claims",
     "issue": "issues",
     "lead": "leads",
+}
+ENTITY_TABLES = {
+    "paper": "papers",
+    "artifact": "artifacts",
+    "search_run": "search_runs",
+    "candidate": "candidates",
+    "reading_run": "reading_runs",
+    **KNOWLEDGE_ENTITY_TABLES,
 }
 
 

@@ -7,18 +7,11 @@ from pathlib import Path
 from typing import Any, Iterable
 
 import research_db_ops.common as common
+from research_db_support.schema import KNOWLEDGE_ENTITY_TABLES
 from research_db_support.storage import ResearchDbError, connect
 
 
-ENTITY_TABLES = {
-    "method": "methods",
-    "experiment": "experiments",
-    "observation": "observations",
-    "claim": "claims",
-    "issue": "issues",
-    "lead": "leads",
-}
-SEARCH_ENTITY_TYPES = {"paper", *ENTITY_TABLES}
+SEARCH_ENTITY_TYPES = {"paper", *KNOWLEDGE_ENTITY_TABLES}
 JSON_FIELDS = {
     "paper": {"authors"},
     "method": {"parameters", "materials", "software"},
@@ -84,7 +77,7 @@ def _entity_record(
     if entity_type == "paper":
         row = connection.execute("SELECT * FROM papers WHERE id = ?", (entity_id,)).fetchone()
     else:
-        table = ENTITY_TABLES.get(entity_type)
+        table = KNOWLEDGE_ENTITY_TABLES.get(entity_type)
         if table is None:
             raise ResearchDbError(f"不支持的实体类型：{entity_type}")
         row = connection.execute(
@@ -346,7 +339,7 @@ def list_entities(
     nature: str | None = None,
 ) -> dict[str, Any]:
     limit = _limit(limit)
-    if entity_type not in ENTITY_TABLES:
+    if entity_type not in KNOWLEDGE_ENTITY_TABLES:
         raise ResearchDbError(f"不支持的实体类型：{entity_type}")
     if query:
         result = search_knowledge(
@@ -365,7 +358,7 @@ def list_entities(
             ]
         return result
 
-    table = ENTITY_TABLES[entity_type]
+    table = KNOWLEDGE_ENTITY_TABLES[entity_type]
     where: list[str] = []
     params: list[Any] = []
     if paper_id:
@@ -405,7 +398,7 @@ def _paper_id_for_entity(
     if entity_type == "paper":
         row = connection.execute("SELECT id FROM papers WHERE id = ?", (entity_id,)).fetchone()
         return str(row["id"]) if row else None
-    table = ENTITY_TABLES.get(entity_type)
+    table = KNOWLEDGE_ENTITY_TABLES.get(entity_type)
     if table is None:
         return None
     row = connection.execute(
@@ -500,7 +493,7 @@ def get_paper(project_root: Path, paper_id: str) -> dict[str, Any]:
                     f'SELECT COUNT(*) FROM "{table}" WHERE paper_id = ?', (paper_id,)
                 ).fetchone()[0]
             )
-            for table in (*ENTITY_TABLES.values(), "reading_runs")
+            for table in (*KNOWLEDGE_ENTITY_TABLES.values(), "reading_runs")
         }
     return {
         "ok": True,
