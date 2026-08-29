@@ -20,6 +20,7 @@ def validate(project_root: Path) -> dict[str, Any]:
     if not db_path.exists():
         return {
             "ok": False,
+            "schema_compatible": False,
             "database": str(db_path),
             "errors": ["research.sqlite 不存在；先运行 research-db init。"],
             "warnings": [],
@@ -49,6 +50,11 @@ def validate(project_root: Path) -> dict[str, Any]:
         if missing_tables:
             errors.append(f"缺少数据表：{', '.join(missing_tables)}")
 
+        schema_compatible = (
+            version == supported
+            and meta_version == version
+            and not missing_tables
+        )
         if not errors:
             check_reading(project_root, connection, errors, warnings)
             check_acquisition(connection, errors)
@@ -61,6 +67,7 @@ def validate(project_root: Path) -> dict[str, Any]:
 
     return {
         "ok": not errors,
+        "schema_compatible": schema_compatible,
         "database": str(db_path),
         "errors": errors,
         "warnings": warnings,

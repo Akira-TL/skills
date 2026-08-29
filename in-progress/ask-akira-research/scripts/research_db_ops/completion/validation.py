@@ -21,10 +21,56 @@ from .messages import (
     append_planning_errors,
 )
 
+
+def _unchecked_readiness(reason: str) -> dict[str, Any]:
+    return {
+        "ready": False,
+        "checked": False,
+        "blockers": [{"reason": reason}],
+    }
+
+
+def _empty_git_info() -> dict[str, Any]:
+    return {
+        "repository_root": None,
+        "head": None,
+        "canonical_paths": [],
+        "dirty_canonical_paths": [],
+    }
+
+
 def validate_completion(project_root: Path) -> dict[str, Any]:
     base = validate(project_root)
     errors = list(base["errors"])
     warnings = list(base["warnings"])
+    schema_compatible = bool(base.get("schema_compatible", False))
+
+    if not schema_compatible:
+        database_exists = Path(base["database"]).exists()
+        blocker_reason = "schema_incompatible" if database_exists else "database_missing"
+        if database_exists:
+            errors.append(
+                "completion gate 未执行：research.sqlite schema 与当前脚本不兼容；"
+                "先运行 research-db status 核对 migration_needed，并在获准维护后执行 research-db migrate，"
+                "再重新运行 validate --completion。"
+            )
+        blocked = _unchecked_readiness(blocker_reason)
+        return {
+            "ok": False,
+            "completion_checked": True,
+            "completion": False,
+            "schema_compatible": False,
+            "database": base["database"],
+            "errors": errors,
+            "warnings": warnings,
+            "discovery": dict(blocked),
+            "literature": dict(blocked),
+            "downstream": dict(blocked),
+            "planning": dict(blocked),
+            "communication": dict(blocked),
+            "academic_language": dict(blocked),
+            "git": _empty_git_info(),
+        }
 
     readiness = discovery_readiness(project_root)
     if readiness["has_discovery"] and not readiness["ready_for_saturation"]:
@@ -46,12 +92,7 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
     append_communication_errors(errors, communication["blockers"])
     academic_language = academic_language_readiness(project_root)
     append_academic_language_errors(errors, academic_language["blockers"])
-    git_info: dict[str, Any] = {
-        "repository_root": None,
-        "head": None,
-        "canonical_paths": [],
-        "dirtycanonical_paths": [],
-    }
+    git_info = _empty_git_info()
     top = run_git(project_root, "rev-parse", "--show-toplevel")
     if top.returncode != 0:
         errors.append("科研项目尚不是 Git repository；不能完成科研 provenance gate。")
@@ -86,7 +127,7 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
                 *canonical_path_list,
             )
             dirty = [line for line in status.stdout.splitlines() if line.strip()]
-            git_info["dirtycanonical_paths"] = dirty
+            git_info["dirty_canonical_paths"] = dirty
             if dirty:
                 errors.append("canonical research artifacts 仍有未提交修改：" + " | ".join(dirty))
 
@@ -95,6 +136,7 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
         "ok": completion_passed,
         "completion_checked": True,
         "completion": completion_passed,
+        "schema_compatible": True,
         "database": base["database"],
         "errors": errors,
         "warnings": warnings,

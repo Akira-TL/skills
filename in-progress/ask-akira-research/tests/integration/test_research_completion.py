@@ -11,7 +11,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from research_db_core import database_path, init_database  # noqa: E402
+from research_db_core import MIGRATION_DIR, database_path, init_database  # noqa: E402
 from research_db_ops.planning import record_design, record_hypothesis_set  # noqa: E402
 from research_db_ops.completion import (  # noqa: E402
     academic_language_readiness,
@@ -46,6 +46,37 @@ class ResearchCompletionTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertTrue(any("尚无任何 Git commit" in error for error in result["errors"]))
         self.assertTrue(any("尚未被 Git 跟踪" in error for error in result["errors"]))
+
+    def test_completion_returns_migration_gate_for_legacy_schema(self) -> None:
+        db_path = database_path(self.root)
+        db_path.unlink()
+        with closing(sqlite3.connect(db_path)) as connection, connection:
+            for migration in sorted(MIGRATION_DIR.rglob("[0-9][0-9][0-9]_*.sql")):
+                version = int(migration.name[:3])
+                if version > 11:
+                    break
+                connection.executescript(migration.read_text(encoding="utf-8"))
+            connection.execute("PRAGMA user_version = 11")
+            connection.execute("DELETE FROM meta WHERE key = 'schema_version'")
+            connection.execute(
+                "INSERT INTO meta(key, value) VALUES('schema_version', '11')"
+            )
+
+        result = validate_completion(self.root)
+
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["completion"])
+        self.assertTrue(result["completion_checked"])
+        self.assertFalse(result["schema_compatible"])
+        self.assertTrue(any("schema version 为 v11" in error for error in result["errors"]))
+        self.assertFalse(result["discovery"]["checked"])
+        self.assertEqual(result["discovery"]["blockers"][0]["reason"], "schema_incompatible")
+
+    def test_completion_git_result_keeps_dirty_canonical_paths_key(self) -> None:
+        result = validate_completion(self.root)
+
+        self.assertIn("dirty_canonical_paths", result["git"])
+        self.assertNotIn("dirtycanonical_paths", result["git"])
 
     def _insert_reviewed_candidate(
         self,

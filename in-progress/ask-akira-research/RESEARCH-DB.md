@@ -608,6 +608,10 @@ research-db paper-context P000001 --for-sidecar
 
 对“critically reviewed 但没有 Issue”这类可能合法的情况给 warning，而不是为了满足 schema 强迫 Agent 编造批判。
 
+普通 `validate` 的 structured result 还返回 `schema_compatible`。它只描述当前数据库结构是否可由本版本 Skill 安全解释：`PRAGMA user_version` 必须等于当前 schema、`meta.schema_version` 必须与其一致，且当前必需表完整。它不等同于 `ok`；例如数据库内容存在 integrity error 时，可以出现 `schema_compatible=true` 但 `ok=false`。数据库不存在时 `schema_compatible=false`。
+
+`validate --completion` 在 `schema_compatible=false` 时不得继续执行依赖当前 schema 的 Discovery / Literature / Planning / Downstream / Communication readiness。它必须直接返回 `completion=false`、`completion_checked=true`，把这些 readiness 标记为 `checked=false` 并说明 `schema_incompatible`（数据库不存在时为 `database_missing`），同时保留普通 `validate` 的版本/缺表错误。对历史项目这是一项**工具兼容性门禁**，不是科学失败判定；在用户未授权维护时不得自动迁移。先运行 `research-db status` 核对 `migration_needed`，获得维护授权后再执行 `research-db migrate` 并重新运行 completion gate。
+
 `research-db discovery-status` 是文献发现（Literature Discovery）的闭合门禁：存在 `relevance_status=pending`、未闭合的 `core + relevant` 或 `high + relevant` Candidate、仍处于 `user_access_status=required` 的用户协同任务，或重复稳定身份时返回 `ready_for_saturation=false`。高优先级 Candidate 的 `defer_reason` 不再构成闭合依据。主题型文献发现若已有至少 2 个相关 Candidate，还必须保留检索策略来源、至少一次后向/前向引用追踪，并覆盖至少两个发现策略家族；否则即使 Candidate 队列表面清空也不能宣称实践性概念饱和（practical conceptual saturation）。
 
 `research-db validate --completion` 是“本轮有边界科研工作流已完成”的最终门禁。它先执行普通数据库校验，再检查文献发现闭合与文献语义完成状态：所有相关且已获取全文的候选论文必须有可审计正文获取记录与合格获取依据，并完成论文重建（Reconstruction）和批判性审阅（Critical Audit）；所有核心且已获取论文必须有真实深度抽取（DEEP_EXTRACTION）重建；主题型文献发现已有至少两篇完成审阅的论文时，必须存在至少一条连接不同论文的科学关系，共享样本/共享数据/引用关系不计作该门禁。对于为当前问题**定向直接入库**、没有经过 Candidate/Discovery 队列的 `active/acquired` Paper，仍必须留下合格的正文获取 provenance 并完成 Reconstruction + Critical Audit；“本轮不是 Literature Discovery”不能成为绕过关键论文阅读闭合的路径。

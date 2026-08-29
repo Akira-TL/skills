@@ -45,6 +45,8 @@
 
 `research-db status` 中的 `schema_version`、`latest_schema_version` 与 `migration_needed` 属于**当前工具兼容性状态**，必须与科研语义状态分开解释。旧项目可以在科学证据、冻结历史和当前研究路线仍然可恢复的同时，因数据库 schema 落后于当前 Skill 而无法通过最新 `validate` / `validate --completion`。在只读接管、黑盒审计或用户未授权维护修改时，遇到 `migration_needed=true` 应报告迁移欠账及其影响，不得为了让 validator 变绿而自动迁移数据库、补写新 provenance 或改写历史 freeze。只有用户授权项目维护时，才按当前 migration 契约升级，并把迁移提交与科研结果提交区分开。
 
+当前 `validate --completion` 必须对这种旧 schema **fail closed**：先执行普通结构校验；若数据库版本、`meta.schema_version` 或当前必需表与本 Skill 不兼容，则返回 `completion=false`、`schema_compatible=false`，并把各科研 readiness 标为 `checked=false` / `schema_incompatible`，不得继续用新 schema 的列或表解释旧项目，更不得因此抛出低层 SQLite 异常。这个结果表示“当前 completion validator 尚不能安全评估该历史项目”，而不是文献、分析或解释工作本身失败。先用 `research-db status` 确认迁移欠账；只有获得维护授权后才迁移，再重新执行完成门禁。
+
 接管成功的判据不是“最新 validator 必须通过”，而是 Agent 能说明：当前知道什么、证据和版本在哪里、哪些仍不知道、现有工具兼容性是否有欠账，以及下一条科研动作为什么具有信息增益。若 schema 欠账阻止最新机械门禁，应明确把它报告为基础设施状态，不能误写成科学结果冲突。
 
 ## 路由原则
