@@ -19,7 +19,9 @@ from .messages import (
     append_downstream_errors,
     append_literature_errors,
     append_planning_errors,
+    append_project_state_errors,
 )
+from .state import project_state_readiness
 
 
 def _unchecked_readiness(reason: str) -> dict[str, Any]:
@@ -69,6 +71,7 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
             "planning": dict(blocked),
             "communication": dict(blocked),
             "academic_language": dict(blocked),
+            "project_state": dict(blocked),
             "git": _empty_git_info(),
         }
 
@@ -92,6 +95,8 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
     append_communication_errors(errors, communication["blockers"])
     academic_language = academic_language_readiness(project_root)
     append_academic_language_errors(errors, academic_language["blockers"])
+    project_state = project_state_readiness(project_root)
+    append_project_state_errors(errors, project_state["blockers"])
     git_info = _empty_git_info()
     top = run_git(project_root, "rev-parse", "--show-toplevel")
     if top.returncode != 0:
@@ -146,5 +151,6 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
         "planning": planning,
         "communication": communication,
         "academic_language": academic_language,
+        "project_state": project_state,
         "git": git_info,
     }

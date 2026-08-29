@@ -17,15 +17,52 @@ from research_db_ops.completion import (  # noqa: E402
     academic_language_readiness,
     literature_completion_readiness,
     planning_completion_readiness,
+    project_state_readiness,
     validate_completion,
 )
+
+
+VALID_RESEARCH_MD = """# Research
+
+## Objective
+
+验证科研完成门禁。
+
+## Current Loop
+
+QUESTION
+
+## Active Uncertainty
+
+当前最需要区分的科学解释是什么？
+
+## Current State
+
+当前证据状态已记录。
+
+## Active Work
+
+等待下一条能够区分竞争解释的证据。
+
+## Open Threads
+
+暂无当前优先处理的其他问题。
+
+## Key Decisions
+
+保持当前证据边界。
+
+## References
+
+- `.research/research.sqlite`
+"""
 
 
 class ResearchCompletionTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
         self.root = Path(self.tempdir.name)
-        (self.root / "RESEARCH.md").write_text("# Research\n", encoding="utf-8")
+        (self.root / "RESEARCH.md").write_text(VALID_RESEARCH_MD, encoding="utf-8")
         init_database(self.root)
         subprocess.run(["git", "init", str(self.root)], check=True, capture_output=True)
         subprocess.run(
@@ -77,6 +114,39 @@ class ResearchCompletionTests(unittest.TestCase):
 
         self.assertIn("dirty_canonical_paths", result["git"])
         self.assertNotIn("dirtycanonical_paths", result["git"])
+
+    def test_project_state_requires_required_sections(self) -> None:
+        (self.root / "RESEARCH.md").write_text(
+            "# Research\n\n## Objective\n\n测试。\n\n## Current Loop\n\nQUESTION\n",
+            encoding="utf-8",
+        )
+
+        result = project_state_readiness(self.root)
+
+        self.assertFalse(result["ready"])
+        blocker = next(
+            item for item in result["blockers"]
+            if item["reason"] == "research_state_missing_sections"
+        )
+        self.assertIn("Active Work", blocker["sections"])
+        self.assertIn("Open Threads", blocker["sections"])
+
+    def test_project_state_rejects_stale_completion_active_work(self) -> None:
+        stale = VALID_RESEARCH_MD.replace(
+            "等待下一条能够区分竞争解释的证据。",
+            "当前正在完成最终 Git commit，并运行 research-db validate --completion。",
+        )
+        (self.root / "RESEARCH.md").write_text(stale, encoding="utf-8")
+
+        result = project_state_readiness(self.root)
+
+        self.assertFalse(result["ready"])
+        self.assertTrue(
+            any(
+                item["reason"] == "research_state_active_work_stale_completion"
+                for item in result["blockers"]
+            )
+        )
 
     def _insert_reviewed_candidate(
         self,

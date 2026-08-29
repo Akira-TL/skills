@@ -21,7 +21,40 @@ class CommunicationProvenanceTests(unittest.TestCase):
         self.tempdir = tempfile.TemporaryDirectory()
         self.root = Path(self.tempdir.name)
         (self.root / "RESEARCH.md").write_text(
-            "# Research\n\n## Current State\n\n这是中文科研项目状态，用于验证传播产物与冻结证据之间的溯源关系。当前研究还需要保持结论强度、统计不确定性、实验设计边界与传播表述一致，避免传播阶段产生新的科学事实或因果升级。\n",
+            """# Research
+
+## Objective
+
+验证传播产物与冻结科学证据之间的溯源关系。
+
+## Current Loop
+
+COMMUNICATION
+
+## Active Uncertainty
+
+传播文本是否保持当前证据强度、统计不确定性和研究设计边界？
+
+## Current State
+
+这是中文科研项目状态，用于验证传播产物与冻结证据之间的溯源关系。当前研究需要保持结论强度、统计不确定性、实验设计边界与传播表述一致，避免传播阶段产生新的科学事实或因果升级。
+
+## Active Work
+
+基于当前稳定证据形成并审阅传播文本。
+
+## Open Threads
+
+暂无当前优先处理的其他传播问题。
+
+## Key Decisions
+
+传播产物不得升级 canonical scientific evidence。
+
+## References
+
+- `.research/research.sqlite`
+""",
             encoding="utf-8",
         )
         init_database(self.root)

@@ -5,6 +5,7 @@ from .project import (
     downstream_completion_readiness,
     planning_completion_readiness,
 )
+from .state import project_state_readiness
 from .validation import validate_completion
 
 __all__ = [
@@ -13,5 +14,6 @@ __all__ = [
     "downstream_completion_readiness",
     "literature_completion_readiness",
     "planning_completion_readiness",
+    "project_state_readiness",
     "validate_completion",
 ]

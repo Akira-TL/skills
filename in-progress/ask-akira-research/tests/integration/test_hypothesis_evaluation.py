@@ -29,7 +29,40 @@ class HypothesisEvaluationTests(unittest.TestCase):
         (self.root / "analysis" / "primary").mkdir(parents=True)
         (self.root / "scripts").mkdir(parents=True)
         (self.root / "RESEARCH.md").write_text(
-            "# Research\n\n当前科研问题比较两个随机处理的平均结局差异。\n",
+            """# Research
+
+## Objective
+
+比较两个随机处理的平均结局差异。
+
+## Current Loop
+
+QUESTION
+
+## Active Uncertainty
+
+A 相对 B 的平均处理效应属于哪个预定义效应区域？
+
+## Current State
+
+结果前假设、设计、数据与分析 provenance 按测试步骤逐步登记。
+
+## Active Work
+
+继续取得能够区分预定义效应区域的证据。
+
+## Open Threads
+
+暂无当前优先处理的其他问题。
+
+## Key Decisions
+
+保持结果前冻结与结果后评价分离。
+
+## References
+
+- `.research/research.sqlite`
+""",
             encoding="utf-8",
         )
         (self.root / "hypotheses" / "treatment-effect.md").write_text(

@@ -18,7 +18,43 @@ class DownstreamResearchProvenanceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
         self.root = Path(self.tempdir.name)
-        (self.root / "RESEARCH.md").write_text("# Research\n\n中文科研状态。\n", encoding="utf-8")
+        (self.root / "RESEARCH.md").write_text(
+            """# Research
+
+## Objective
+
+验证项目数据、确认性分析与结果 provenance 的完成门禁。
+
+## Current Loop
+
+ANALYSIS
+
+## Active Uncertainty
+
+预先指定分析能否在冻结输入和代码后产生可审计结果？
+
+## Current State
+
+当前测试按步骤登记 Dataset、Analysis、结果 artifact 与 Project Observation。
+
+## Active Work
+
+继续取得并解释与预定义估计目标对应的分析证据。
+
+## Open Threads
+
+暂无当前优先处理的其他分析问题。
+
+## Key Decisions
+
+结果前计划与输入保持冻结，结果后信息只追加 provenance。
+
+## References
+
+- `.research/research.sqlite`
+""",
+            encoding="utf-8",
+        )
         init_database(self.root)
         subprocess.run(["git", "init", str(self.root)], check=True, capture_output=True)
         subprocess.run(

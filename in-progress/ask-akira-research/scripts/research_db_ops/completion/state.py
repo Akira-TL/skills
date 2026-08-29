@@ -1,0 +1,94 @@
+from __future__ import annotations
+
+import re
+from pathlib import Path
+from typing import Any
+
+
+REQUIRED_RESEARCH_SECTIONS = (
+    "Objective",
+    "Current Loop",
+    "Active Uncertainty",
+    "Current State",
+    "Active Work",
+    "Open Threads",
+    "Key Decisions",
+    "References",
+)
+
+CURRENT_LOOPS = {
+    "EXPLORE",
+    "QUESTION",
+    "HYPOTHESIS",
+    "DESIGN",
+    "DATA",
+    "ANALYSIS",
+    "INTERPRETATION",
+    "COMMUNICATION",
+}
+
+_STALE_COMPLETION_MARKERS = (
+    "validate --completion",
+    "research-db validate",
+    "completion validation",
+    "completion gate",
+    "clean-tree",
+    "git commit",
+    "git tracking",
+)
+
+
+def _sections(text: str) -> dict[str, str]:
+    headings = list(re.finditer(r"(?m)^##\s+(.+?)\s*$", text))
+    sections: dict[str, str] = {}
+    for index, match in enumerate(headings):
+        start = match.end()
+        end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
+        sections[match.group(1).strip()] = text[start:end].strip()
+    return sections
+
+
+def project_state_readiness(project_root: Path) -> dict[str, Any]:
+    path = project_root / "RESEARCH.md"
+    if not path.exists():
+        return {
+            "ready": False,
+            "checked": True,
+            "blockers": [{"reason": "research_state_missing_file"}],
+        }
+
+    sections = _sections(path.read_text(encoding="utf-8", errors="ignore"))
+    blockers: list[dict[str, Any]] = []
+    missing = [name for name in REQUIRED_RESEARCH_SECTIONS if name not in sections]
+    if missing:
+        blockers.append({"reason": "research_state_missing_sections", "sections": missing})
+
+    current_loop = sections.get("Current Loop", "").strip()
+    if "Current Loop" in sections and current_loop not in CURRENT_LOOPS:
+        blockers.append(
+            {
+                "reason": "research_state_invalid_current_loop",
+                "current_loop": current_loop,
+            }
+        )
+
+    active_work = sections.get("Active Work", "").strip()
+    if "Active Work" in sections and not active_work:
+        blockers.append({"reason": "research_state_active_work_empty"})
+    elif active_work:
+        normalized = " ".join(active_work.casefold().split())
+        markers = [marker for marker in _STALE_COMPLETION_MARKERS if marker in normalized]
+        if markers:
+            blockers.append(
+                {
+                    "reason": "research_state_active_work_stale_completion",
+                    "markers": markers,
+                }
+            )
+
+    return {
+        "ready": not blockers,
+        "checked": True,
+        "blockers": blockers,
+        "current_loop": current_loop or None,
+    }

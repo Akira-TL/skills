@@ -223,6 +223,32 @@ def append_communication_errors(errors: list[str], blockers: list[dict[str, Any]
         elif reason in {"communication_assets_present_without_database", "communication_schema_missing"}:
             errors.append("Communication provenance schema 尚未迁移完成，但项目已经存在传播产物。")
 
+def append_project_state_errors(errors: list[str], blockers: list[dict[str, Any]]) -> None:
+    for blocker in blockers:
+        reason = str(blocker.get("reason", "unknown"))
+        if reason == "research_state_missing_file":
+            errors.append("项目根目录缺少 RESEARCH.md，不能完成 current research state gate。")
+        elif reason == "research_state_missing_sections":
+            errors.append(
+                "RESEARCH.md 缺少当前科研状态必需 section："
+                + ", ".join(str(name) for name in blocker.get("sections", []))
+            )
+        elif reason == "research_state_invalid_current_loop":
+            errors.append(
+                "RESEARCH.md 的 Current Loop 不是允许的科研定位词："
+                + repr(blocker.get("current_loop"))
+            )
+        elif reason == "research_state_active_work_empty":
+            errors.append(
+                "RESEARCH.md 的 Active Work 为空；完成时必须写明下一条真实动作、等待/blocker 或有边界停止状态。"
+            )
+        elif reason == "research_state_active_work_stale_completion":
+            errors.append(
+                "RESEARCH.md 的 Active Work 仍描述 Git/validator 收尾动作，说明 current state 尚未在最终提交前刷新："
+                + ", ".join(str(marker) for marker in blocker.get("markers", []))
+            )
+
+
 def append_academic_language_errors(errors: list[str], blockers: list[dict[str, Any]]) -> None:
     for blocker in blockers:
         if blocker.get("reason") == "bare_english_term_in_chinese_communication":
