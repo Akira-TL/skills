@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -199,6 +200,268 @@ def _validate_deep_artifact_checks(
             )
 
 
+@dataclass
+class _ReadingWriteContext:
+    connection: Any
+    paper_id: str
+    run_id: int
+    timestamp: str
+    reason: str
+    refs: dict[tuple[str, str], str]
+
+
+def _record_methods(ctx: _ReadingWriteContext, specs: list[dict[str, Any]]) -> int:
+    count = 0
+    for spec in specs:
+        artifact_id, locator = knowledge.source_fields(
+            ctx.connection, ctx.paper_id, spec, required=True, field="Method"
+        )
+        cursor = ctx.connection.execute(
+            """
+            INSERT INTO methods(
+                paper_id, name, purpose, description, parameters, materials,
+                software, reusable_notes, artifact_id, source_locator
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                ctx.paper_id,
+                knowledge.text(spec.get("name"), required=True, field="method.name"),
+                knowledge.text(spec.get("purpose")),
+                knowledge.text(spec.get("description")),
+                knowledge.json_text(spec.get("parameters")),
+                knowledge.json_text(spec.get("materials")),
+                knowledge.json_text(spec.get("software")),
+                knowledge.text(spec.get("reusable_notes")),
+                artifact_id,
+                locator,
+            ),
+        )
+        entity_id = int(cursor.lastrowid)
+        knowledge.register_ref(ctx.refs, "method", spec, entity_id)
+        knowledge.write_change(
+            ctx.connection,
+            timestamp=ctx.timestamp,
+            entity_type="method",
+            entity_id=str(entity_id),
+            paper_id=ctx.paper_id,
+            reason=ctx.reason,
+            run_id=ctx.run_id,
+            summary=f"Method: {spec.get('name')}",
+        )
+        count += 1
+    return count
+
+
+def _record_experiments(ctx: _ReadingWriteContext, specs: list[dict[str, Any]]) -> int:
+    count = 0
+    for spec in specs:
+        artifact_id, locator = knowledge.source_fields(
+            ctx.connection, ctx.paper_id, spec, required=True, field="Experiment"
+        )
+        cursor = ctx.connection.execute(
+            """
+            INSERT INTO experiments(
+                paper_id, question, design, samples, groups_json, controls,
+                variables_json, analysis, result_summary, artifact_id, source_locator
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                ctx.paper_id,
+                knowledge.text(spec.get("question")),
+                knowledge.text(spec.get("design")),
+                knowledge.text(spec.get("samples")),
+                knowledge.json_text(spec.get("groups")),
+                knowledge.text(spec.get("controls")),
+                knowledge.json_text(spec.get("variables")),
+                knowledge.text(spec.get("analysis")),
+                knowledge.text(spec.get("result_summary")),
+                artifact_id,
+                locator,
+            ),
+        )
+        entity_id = int(cursor.lastrowid)
+        knowledge.register_ref(ctx.refs, "experiment", spec, entity_id)
+        knowledge.write_change(
+            ctx.connection,
+            timestamp=ctx.timestamp,
+            entity_type="experiment",
+            entity_id=str(entity_id),
+            paper_id=ctx.paper_id,
+            reason=ctx.reason,
+            run_id=ctx.run_id,
+            summary=f"Experiment: {spec.get('question') or spec.get('design')}",
+        )
+        count += 1
+    return count
+
+
+def _record_observations(ctx: _ReadingWriteContext, specs: list[dict[str, Any]]) -> int:
+    count = 0
+    for spec in specs:
+        artifact_id, locator = knowledge.source_fields(
+            ctx.connection, ctx.paper_id, spec, required=True, field="Observation"
+        )
+        experiment_id = None
+        if spec.get("experiment_ref") is not None:
+            key = (
+                "experiment",
+                knowledge.text(
+                    spec.get("experiment_ref"),
+                    required=True,
+                    field="observation.experiment_ref",
+                ),
+            )
+            if key not in ctx.refs:
+                raise ResearchDbError(f"未知 bundle ref：experiment:{key[1]}")
+            experiment_id = int(ctx.refs[key])
+        cursor = ctx.connection.execute(
+            """
+            INSERT INTO observations(
+                paper_id, experiment_id, statement, effect, statistics_json,
+                scope, certainty, artifact_id, source_locator
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                ctx.paper_id,
+                experiment_id,
+                knowledge.text(spec.get("statement"), required=True, field="observation.statement"),
+                knowledge.text(spec.get("effect")),
+                knowledge.json_text(spec.get("statistics")),
+                knowledge.text(spec.get("scope")),
+                knowledge.text(spec.get("certainty")),
+                artifact_id,
+                locator,
+            ),
+        )
+        entity_id = int(cursor.lastrowid)
+        knowledge.register_ref(ctx.refs, "observation", spec, entity_id)
+        knowledge.write_change(
+            ctx.connection,
+            timestamp=ctx.timestamp,
+            entity_type="observation",
+            entity_id=str(entity_id),
+            paper_id=ctx.paper_id,
+            reason=ctx.reason,
+            run_id=ctx.run_id,
+            summary=f"Observation: {spec.get('statement')}",
+        )
+        count += 1
+    return count
+
+
+def _record_claims(ctx: _ReadingWriteContext, specs: list[dict[str, Any]]) -> int:
+    count = 0
+    for spec in specs:
+        artifact_id, locator = knowledge.source_fields(
+            ctx.connection, ctx.paper_id, spec, required=True, field="Claim"
+        )
+        cursor = ctx.connection.execute(
+            """
+            INSERT INTO claims(
+                paper_id, statement, claim_type, author_strength, scope,
+                artifact_id, source_locator
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                ctx.paper_id,
+                knowledge.text(spec.get("statement"), required=True, field="claim.statement"),
+                knowledge.text(spec.get("claim_type"), required=True, field="claim.claim_type"),
+                knowledge.text(spec.get("author_strength")),
+                knowledge.text(spec.get("scope")),
+                artifact_id,
+                locator,
+            ),
+        )
+        entity_id = int(cursor.lastrowid)
+        knowledge.register_ref(ctx.refs, "claim", spec, entity_id)
+        knowledge.write_change(
+            ctx.connection,
+            timestamp=ctx.timestamp,
+            entity_type="claim",
+            entity_id=str(entity_id),
+            paper_id=ctx.paper_id,
+            reason=ctx.reason,
+            run_id=ctx.run_id,
+            summary=f"Claim: {spec.get('statement')}",
+        )
+        count += 1
+    return count
+
+
+def _record_leads(ctx: _ReadingWriteContext, specs: list[dict[str, Any]]) -> int:
+    count = 0
+    for spec in specs:
+        artifact_id, locator = knowledge.source_fields(
+            ctx.connection, ctx.paper_id, spec, required=True, field="Lead"
+        )
+        cursor = ctx.connection.execute(
+            """
+            INSERT INTO leads(
+                paper_id, type, title, identifier, url, purpose, priority,
+                status, artifact_id, source_locator
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                ctx.paper_id,
+                knowledge.text(spec.get("type"), required=True, field="lead.type"),
+                knowledge.text(spec.get("title")),
+                knowledge.text(spec.get("identifier")),
+                knowledge.text(spec.get("url")),
+                knowledge.text(spec.get("purpose")),
+                knowledge.text(spec.get("priority")),
+                knowledge.text(spec.get("status")),
+                artifact_id,
+                locator,
+            ),
+        )
+        entity_id = int(cursor.lastrowid)
+        knowledge.register_ref(ctx.refs, "lead", spec, entity_id)
+        knowledge.write_change(
+            ctx.connection,
+            timestamp=ctx.timestamp,
+            entity_type="lead",
+            entity_id=str(entity_id),
+            paper_id=ctx.paper_id,
+            reason=ctx.reason,
+            run_id=ctx.run_id,
+            summary=f"Lead: {spec.get('title') or spec.get('identifier')}",
+        )
+        count += 1
+    return count
+
+
+def _create_reconstruction_run(
+    connection,
+    paper_id: str,
+    requested_depth: str,
+    started_at: str,
+    completed_at: str,
+    checked: list[dict[str, Any]],
+    sections: list[str],
+    notes: str | None,
+    extraction_checks: dict[str, Any],
+) -> int:
+    run_cursor = connection.execute(
+        """
+        INSERT INTO reading_runs(
+            paper_id, pass, depth, started_at, completed_at,
+            artifacts_checked, sections_checked, notes, extraction_checks_json
+        ) VALUES (?, 'reconstruction', ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            paper_id,
+            requested_depth,
+            started_at,
+            completed_at,
+            json.dumps(checked, ensure_ascii=False),
+            json.dumps(sections, ensure_ascii=False),
+            notes,
+            json.dumps(extraction_checks, ensure_ascii=False, sort_keys=True),
+        ),
+    )
+    return int(run_cursor.lastrowid)
+
+
 def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
     db_path = database_path(project_root)
     if not db_path.exists():
@@ -229,6 +492,7 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
 
     refs: dict[tuple[str, str], str] = {}
     counts = {name: 0 for name in ("methods", "experiments", "observations", "claims", "leads", "relations")}
+    assert paper_id is not None
     with connect(db_path) as connection:
         try:
             connection.execute("BEGIN IMMEDIATE")
@@ -248,174 +512,30 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
                 _validate_deep_artifact_checks(
                     project_root, connection, paper_id, checked, extraction_checks
                 )
-            run_cursor = connection.execute(
-                """
-                INSERT INTO reading_runs(
-                    paper_id, pass, depth, started_at, completed_at,
-                    artifacts_checked, sections_checked, notes, extraction_checks_json
-                ) VALUES (?, 'reconstruction', ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    paper_id,
-                    requested_depth,
-                    started_at,
-                    completed_at,
-                    json.dumps(checked, ensure_ascii=False),
-                    json.dumps(sections, ensure_ascii=False),
-                    knowledge.text(bundle.get("notes")),
-                    json.dumps(extraction_checks, ensure_ascii=False, sort_keys=True),
-                ),
+            run_id = _create_reconstruction_run(
+                connection,
+                paper_id,
+                requested_depth,
+                started_at,
+                completed_at,
+                checked,
+                sections,
+                knowledge.text(bundle.get("notes")),
+                extraction_checks,
             )
-            run_id = int(run_cursor.lastrowid)
-
-            for spec in methods:
-                artifact_id, locator = knowledge.source_fields(
-                    connection, paper_id, spec, required=True, field="Method"
-                )
-                cursor = connection.execute(
-                    """
-                    INSERT INTO methods(
-                        paper_id, name, purpose, description, parameters, materials,
-                        software, reusable_notes, artifact_id, source_locator
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        paper_id,
-                        knowledge.text(spec.get("name"), required=True, field="method.name"),
-                        knowledge.text(spec.get("purpose")),
-                        knowledge.text(spec.get("description")),
-                        knowledge.json_text(spec.get("parameters")),
-                        knowledge.json_text(spec.get("materials")),
-                        knowledge.json_text(spec.get("software")),
-                        knowledge.text(spec.get("reusable_notes")),
-                        artifact_id,
-                        locator,
-                    ),
-                )
-                entity_id = int(cursor.lastrowid)
-                knowledge.register_ref(refs, "method", spec, entity_id)
-                knowledge.write_change(connection, timestamp=timestamp, entity_type="method", entity_id=str(entity_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Method: {spec.get('name')}")
-                counts["methods"] += 1
-
-            for spec in experiments:
-                artifact_id, locator = knowledge.source_fields(
-                    connection, paper_id, spec, required=True, field="Experiment"
-                )
-                cursor = connection.execute(
-                    """
-                    INSERT INTO experiments(
-                        paper_id, question, design, samples, groups_json, controls,
-                        variables_json, analysis, result_summary, artifact_id, source_locator
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        paper_id,
-                        knowledge.text(spec.get("question")),
-                        knowledge.text(spec.get("design")),
-                        knowledge.text(spec.get("samples")),
-                        knowledge.json_text(spec.get("groups")),
-                        knowledge.text(spec.get("controls")),
-                        knowledge.json_text(spec.get("variables")),
-                        knowledge.text(spec.get("analysis")),
-                        knowledge.text(spec.get("result_summary")),
-                        artifact_id,
-                        locator,
-                    ),
-                )
-                entity_id = int(cursor.lastrowid)
-                knowledge.register_ref(refs, "experiment", spec, entity_id)
-                knowledge.write_change(connection, timestamp=timestamp, entity_type="experiment", entity_id=str(entity_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Experiment: {spec.get('question') or spec.get('design')}")
-                counts["experiments"] += 1
-
-            for spec in observations:
-                artifact_id, locator = knowledge.source_fields(
-                    connection, paper_id, spec, required=True, field="Observation"
-                )
-                experiment_id = None
-                if spec.get("experiment_ref") is not None:
-                    key = ("experiment", knowledge.text(spec.get("experiment_ref"), required=True, field="observation.experiment_ref"))
-                    if key not in refs:
-                        raise ResearchDbError(f"未知 bundle ref：experiment:{key[1]}")
-                    experiment_id = int(refs[key])
-                cursor = connection.execute(
-                    """
-                    INSERT INTO observations(
-                        paper_id, experiment_id, statement, effect, statistics_json,
-                        scope, certainty, artifact_id, source_locator
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        paper_id,
-                        experiment_id,
-                        knowledge.text(spec.get("statement"), required=True, field="observation.statement"),
-                        knowledge.text(spec.get("effect")),
-                        knowledge.json_text(spec.get("statistics")),
-                        knowledge.text(spec.get("scope")),
-                        knowledge.text(spec.get("certainty")),
-                        artifact_id,
-                        locator,
-                    ),
-                )
-                entity_id = int(cursor.lastrowid)
-                knowledge.register_ref(refs, "observation", spec, entity_id)
-                knowledge.write_change(connection, timestamp=timestamp, entity_type="observation", entity_id=str(entity_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Observation: {spec.get('statement')}")
-                counts["observations"] += 1
-
-            for spec in claims:
-                artifact_id, locator = knowledge.source_fields(
-                    connection, paper_id, spec, required=True, field="Claim"
-                )
-                cursor = connection.execute(
-                    """
-                    INSERT INTO claims(
-                        paper_id, statement, claim_type, author_strength, scope,
-                        artifact_id, source_locator
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        paper_id,
-                        knowledge.text(spec.get("statement"), required=True, field="claim.statement"),
-                        knowledge.text(spec.get("claim_type"), required=True, field="claim.claim_type"),
-                        knowledge.text(spec.get("author_strength")),
-                        knowledge.text(spec.get("scope")),
-                        artifact_id,
-                        locator,
-                    ),
-                )
-                entity_id = int(cursor.lastrowid)
-                knowledge.register_ref(refs, "claim", spec, entity_id)
-                knowledge.write_change(connection, timestamp=timestamp, entity_type="claim", entity_id=str(entity_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Claim: {spec.get('statement')}")
-                counts["claims"] += 1
-
-            for spec in leads:
-                artifact_id, locator = knowledge.source_fields(
-                    connection, paper_id, spec, required=True, field="Lead"
-                )
-                cursor = connection.execute(
-                    """
-                    INSERT INTO leads(
-                        paper_id, type, title, identifier, url, purpose, priority,
-                        status, artifact_id, source_locator
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        paper_id,
-                        knowledge.text(spec.get("type"), required=True, field="lead.type"),
-                        knowledge.text(spec.get("title")),
-                        knowledge.text(spec.get("identifier")),
-                        knowledge.text(spec.get("url")),
-                        knowledge.text(spec.get("purpose")),
-                        knowledge.text(spec.get("priority")),
-                        knowledge.text(spec.get("status")),
-                        artifact_id,
-                        locator,
-                    ),
-                )
-                entity_id = int(cursor.lastrowid)
-                knowledge.register_ref(refs, "lead", spec, entity_id)
-                knowledge.write_change(connection, timestamp=timestamp, entity_type="lead", entity_id=str(entity_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Lead: {spec.get('title') or spec.get('identifier')}")
-                counts["leads"] += 1
-
+            ctx = _ReadingWriteContext(
+                connection=connection,
+                paper_id=paper_id,
+                run_id=run_id,
+                timestamp=timestamp,
+                reason=reason,
+                refs=refs,
+            )
+            counts["methods"] = _record_methods(ctx, methods)
+            counts["experiments"] = _record_experiments(ctx, experiments)
+            counts["observations"] = _record_observations(ctx, observations)
+            counts["claims"] = _record_claims(ctx, claims)
+            counts["leads"] = _record_leads(ctx, leads)
             counts["relations"] = knowledge.insert_relations(
                 connection, paper_id, refs, relations, timestamp, reason, run_id
             )
@@ -429,7 +549,16 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
                 """,
                 (new_depth, timestamp, paper_id),
             )
-            knowledge.write_change(connection, timestamp=timestamp, entity_type="reading_run", entity_id=str(run_id), paper_id=paper_id, reason=reason, run_id=run_id, summary=f"Completed reconstruction ({requested_depth})")
+            knowledge.write_change(
+                connection,
+                timestamp=timestamp,
+                entity_type="reading_run",
+                entity_id=str(run_id),
+                paper_id=paper_id,
+                reason=reason,
+                run_id=run_id,
+                summary=f"Completed reconstruction ({requested_depth})",
+            )
             connection.commit()
         except Exception:
             if connection.in_transaction:
@@ -446,5 +575,4 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
         "counts": counts,
         "refs": {f"{kind}:{ref}": entity_id for (kind, ref), entity_id in refs.items()},
     }
-
 
