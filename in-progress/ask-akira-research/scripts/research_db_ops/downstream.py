@@ -16,6 +16,7 @@ ANALYSIS_MODES = {"confirmatory", "exploratory"}
 ANALYSIS_STATUSES = {"planned", "frozen", "completed", "abandoned"}
 ANALYSIS_ARTIFACT_ROLES = {"estimate", "diagnostic", "figure", "table", "log", "other"}
 ANALYSIS_ARTIFACT_TIMING_ROLES = {"pre_result_support", "result"}
+DATASET_ARTIFACT_TIMING_ROLES = {"pre_result_input", "post_result_context"}
 AMENDMENT_TIMINGS = {"pre_result", "post_result"}
 _STATUS_ORDER = {"planned": 0, "frozen": 1, "completed": 2, "abandoned": 2}
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -227,10 +228,16 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
         raise ResearchDbError("confirmatory analysis 进入 frozen/completed 时必须记录结果可见前的 freeze_commit。")
 
     artifacts = bundle.get("artifacts", [])
+    dataset_artifact_timing = bundle.get("dataset_artifact_timing", [])
     amendments = bundle.get("amendments", [])
     observations = bundle.get("observations", [])
-    if not isinstance(artifacts, list) or not isinstance(amendments, list) or not isinstance(observations, list):
-        raise ResearchDbError("artifacts/amendments/observations 必须是数组。")
+    if not all(
+        isinstance(value, list)
+        for value in (artifacts, dataset_artifact_timing, amendments, observations)
+    ):
+        raise ResearchDbError(
+            "artifacts/dataset_artifact_timing/amendments/observations 必须是数组。"
+        )
 
     now = _now()
     with connect(_db_path(project_root)) as connection:
@@ -386,6 +393,81 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                     (analysis_id, dataset_id),
                 )
 
+            for index, item in enumerate(dataset_artifact_timing, start=1):
+                if not isinstance(item, dict):
+                    raise ResearchDbError(
+                        f"dataset artifact timing {index} 必须是 JSON object。"
+                    )
+                dataset_slug = _slug(
+                    item.get("dataset_slug"), field="dataset artifact timing dataset_slug"
+                )
+                dataset_row = connection.execute(
+                    "SELECT id FROM datasets WHERE slug = ?", (dataset_slug,)
+                ).fetchone()
+                if dataset_row is None or int(dataset_row["id"]) not in dataset_ids:
+                    raise ResearchDbError(
+                        f"dataset artifact timing 必须引用当前 Analysis 的 Dataset：{dataset_slug}"
+                    )
+                location = _local_path(
+                    project_root,
+                    item.get("location"),
+                    field="dataset artifact timing location",
+                )
+                artifact_row = connection.execute(
+                    """
+                    SELECT id, storage_kind, git_tracking
+                    FROM dataset_artifacts
+                    WHERE dataset_id = ? AND location = ?
+                    """,
+                    (int(dataset_row["id"]), location),
+                ).fetchone()
+                if artifact_row is None:
+                    raise ResearchDbError(
+                        "dataset artifact timing 引用的 artifact 未登记在对应 Dataset："
+                        + location
+                    )
+                if artifact_row["storage_kind"] != "local" or artifact_row["git_tracking"] != "required":
+                    raise ResearchDbError(
+                        "dataset artifact timing 只用于 local + git_tracking=required 的 canonical artifact。"
+                    )
+                timing_role = _enum(
+                    item.get("timing_role"),
+                    DATASET_ARTIFACT_TIMING_ROLES,
+                    default="pre_result_input",
+                    field="dataset artifact timing_role",
+                )
+                reason = _text(item.get("reason"))
+                if timing_role == "post_result_context" and not reason:
+                    raise ResearchDbError(
+                        "dataset artifact timing_role=post_result_context 时必须说明 reason。"
+                    )
+                existing_timing = connection.execute(
+                    """
+                    SELECT timing_role, reason
+                    FROM analysis_dataset_artifact_timing
+                    WHERE analysis_id = ? AND dataset_artifact_id = ?
+                    """,
+                    (analysis_id, int(artifact_row["id"])),
+                ).fetchone()
+                if existing_timing is not None:
+                    if (
+                        str(existing_timing["timing_role"]) != timing_role
+                        or (existing_timing["reason"] or None) != reason
+                    ):
+                        raise ResearchDbError(
+                            "已登记的 Dataset artifact timing 不可静默改写；"
+                            "需要建立新的 Analysis 或保留原时序关系。"
+                        )
+                    continue
+                connection.execute(
+                    """
+                    INSERT INTO analysis_dataset_artifact_timing(
+                        analysis_id, dataset_artifact_id, timing_role, reason, created_at
+                    ) VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (analysis_id, int(artifact_row["id"]), timing_role, reason, now),
+                )
+
             artifact_ids_by_path: dict[str, int] = {}
             for index, item in enumerate(artifacts, start=1):
                 if not isinstance(item, dict):
@@ -527,6 +609,21 @@ def list_analyses(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
                     SELECT d.slug FROM analysis_inputs ai
                     JOIN datasets d ON d.id = ai.dataset_id
                     WHERE ai.analysis_id = ? ORDER BY d.id
+                    """,
+                    (row["id"],),
+                )
+            ]
+            item["dataset_artifact_timing"] = [
+                dict(x)
+                for x in connection.execute(
+                    """
+                    SELECT d.slug AS dataset_slug, da.location, t.timing_role, t.reason,
+                           t.created_at
+                    FROM analysis_dataset_artifact_timing t
+                    JOIN dataset_artifacts da ON da.id = t.dataset_artifact_id
+                    JOIN datasets d ON d.id = da.dataset_id
+                    WHERE t.analysis_id = ?
+                    ORDER BY da.id
                     """,
                     (row["id"],),
                 )

@@ -104,7 +104,7 @@ QC 至少考虑当前 assay 的关键失败模式；例如 sequencing 的 read q
 - primary analysis 使用哪个 freeze 必须明确；
 - freeze 后发现的数据问题记录 amendment，并判断是否影响 confirmatory status。
 
-大型或受控数据是否进入 Git、外部存储或远程仓库由项目实际约束决定；Skill 不默认要求把所有 raw binary 纳入 Git。对本地且声明 `git_tracking=required` 的 Dataset artifact，`validate --completion` 会把它纳入 canonical Git provenance；声明 `not_required` 时必须给出具体理由。
+大型或受控数据是否进入 Git、外部存储或远程仓库由项目实际约束决定；Skill 不默认要求把所有 raw binary 纳入 Git。对本地且声明 `git_tracking=required` 的 Dataset artifact，`validate --completion` 会把它纳入 canonical Git provenance；声明 `not_required` 时必须给出具体理由。`git_tracking` 只回答“这个 artifact 是否属于需要版本控制的 canonical provenance”，不能同时承担“它是否属于某次确认性 Analysis 的结果前冻结”这一关系语义。默认情况下，Analysis 所连接 Dataset 的全部 local + `git_tracking=required` artifact 都属于该 Analysis 的 freeze scope。若来源核验、测量语义说明或其他 provenance/context artifact **确实是在该 Analysis 的结果可见后才新增，且没有参与该次输入/执行**，在 `record-analysis` 中用 `dataset_artifact_timing` 把该 Analysis 与该 artifact 标为 `timing_role=post_result_context` 并说明 `reason`；文件仍保持 canonical Git provenance。该关系只对当前 Analysis 生效：后续 Analysis 若未再次声明，仍把该 artifact 作为正常 pre-result context 纳入新的 freeze。结果后补充 provenance 时新增独立 artifact，不覆盖已经进入 freeze 的 Dataset provenance、raw、curated 或其他输入版本。
 
 ## 9. 安全与受控数据
 

@@ -110,8 +110,8 @@ Exploration 可以用于发现：
 真实纵向数据黑盒已经稳定暴露出一组值得进入 `research.sqlite` 的下游对象：Dataset、Analysis Run、Analysis Amendment 与项目自身 Observation。使用 `research-db record-analysis` 持久化它们，但仍保持以下边界：
 
 - 数值结果和图表的文件本身仍是可重建 analysis artifact；SQLite 只保存语义、路径与 provenance；除主要 `code_path` 外，任何实际生成主要结果、敏感性结果或关键诊断的附加脚本/workflow 也必须作为当前 Analysis artifact（通常 `role=other`）登记，不能因为文件放在 `scripts/` 目录就游离于 completion provenance。结果前已经存在并参与确认性执行的脚本/配置标记 `timing_role=pre_result_support`，真正由分析产生的 estimate/diagnostic/figure/report 标记 `timing_role=result`；前者必须出现在 freeze 中，后者不得出现在 freeze 中；
-- confirmatory Analysis 必须记录结果可见前的 Git `freeze_commit`，该提交应已经包含主要分析计划、代码和输入，但不能已经包含本轮结果 artifact；
-- 结果可见后新增的敏感性分析或规则进入 Analysis Amendment，并标明 `post_result`，不能静默改写冻结的 estimand / primary analysis；
+- confirmatory Analysis 必须记录结果可见前的 Git `freeze_commit`，该提交应已经包含主要分析计划、代码和输入，但不能已经包含本轮结果 artifact；进入该 freeze scope 的文件在当前 Analysis 历史上必须保留冻结版本，`validate --completion` 同时检查“freeze 时存在”与“freeze 后未被提交改写”，不能只凭当前路径名相同声称预先冻结；
+- 结果可见后新增的敏感性分析或规则进入 Analysis Amendment，并标明 `post_result`，不能静默改写冻结的 estimand / primary analysis；若需要修订已冻结代码、输入或计划，保留原冻结文件并以新增版本/artifact + amendment 表达，必要时建立新的 Analysis，而不是覆盖旧版本后继续沿用原 `freeze_commit`；
 - 项目自身 Observation 写入 `project_observations`，必须指向当前 Analysis 的具体结果 artifact；不要把项目结果伪装成 literature Observation 写进 paper-bound `observations`；
 - `RESEARCH.md` 仍只更新会改变路线的高层 result boundary，不复制完整结果表。
 

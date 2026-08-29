@@ -30,6 +30,7 @@ REQUIRED_TABLES = {
     "dataset_artifacts",
     "analysis_runs",
     "analysis_inputs",
+    "analysis_dataset_artifact_timing",
     "analysis_artifacts",
     "analysis_amendments",
     "project_observations",
@@ -815,6 +816,33 @@ def validate(project_root: Path) -> dict[str, Any]:
                     path = project_root / path
                 if not path.exists():
                     errors.append(f"dataset artifact {row['id']} 文件不存在：{path}")
+
+            for row in connection.execute(
+                """
+                SELECT t.analysis_id, a.slug AS analysis_slug, da.id AS dataset_artifact_id,
+                       da.location, da.storage_kind, da.git_tracking
+                FROM analysis_dataset_artifact_timing t
+                JOIN analysis_runs a ON a.id = t.analysis_id
+                JOIN dataset_artifacts da ON da.id = t.dataset_artifact_id
+                LEFT JOIN analysis_inputs ai
+                  ON ai.analysis_id = t.analysis_id AND ai.dataset_id = da.dataset_id
+                WHERE ai.analysis_id IS NULL
+                   OR da.storage_kind <> 'local'
+                   OR da.git_tracking <> 'required'
+                ORDER BY t.analysis_id, da.id
+                """
+            ):
+                if row["storage_kind"] != "local" or row["git_tracking"] != "required":
+                    errors.append(
+                        "analysis dataset artifact timing 只能引用 local + git_tracking=required "
+                        f"的 canonical artifact：analysis={row['analysis_slug']}; "
+                        f"artifact={row['location']}"
+                    )
+                else:
+                    errors.append(
+                        "analysis dataset artifact timing 引用了未连接到当前 Analysis 的 Dataset artifact："
+                        f"analysis={row['analysis_slug']}; artifact={row['location']}"
+                    )
 
             for row in connection.execute(
                 """

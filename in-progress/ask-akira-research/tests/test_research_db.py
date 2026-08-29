@@ -32,15 +32,15 @@ class ResearchDbTests(unittest.TestCase):
     def test_init_creates_current_schema(self) -> None:
         result = init_database(self.root)
 
-        self.assertEqual(result["schema_version"], 16)
+        self.assertEqual(result["schema_version"], 17)
         self.assertEqual(
             Path(result["bundle_directory"]), self.root / ".research" / "bundles"
         )
         self.assertTrue((self.root / ".research" / "bundles").is_dir())
         db_status = status(self.root)
         self.assertTrue(db_status["exists"])
-        self.assertEqual(db_status["schema_version"], 16)
-        self.assertEqual(db_status["meta_schema_version"], 16)
+        self.assertEqual(db_status["schema_version"], 17)
+        self.assertEqual(db_status["meta_schema_version"], 17)
         self.assertEqual(db_status["tables"]["papers"], 0)
         self.assertTrue(validate(self.root)["ok"])
 
@@ -51,8 +51,16 @@ class ResearchDbTests(unittest.TestCase):
             issue_columns = {
                 row[1] for row in connection.execute("PRAGMA table_info(issues)")
             }
+            dataset_timing_columns = {
+                row[1]
+                for row in connection.execute(
+                    "PRAGMA table_info(analysis_dataset_artifact_timing)"
+                )
+            }
         self.assertNotIn("sha256", artifact_columns)
         self.assertIn("nature", issue_columns)
+        self.assertIn("dataset_artifact_id", dataset_timing_columns)
+        self.assertIn("timing_role", dataset_timing_columns)
         with sqlite3.connect(database_path(self.root)) as connection:
             fts_table = connection.execute(
                 "SELECT name FROM sqlite_master WHERE name = 'knowledge_fts'"
@@ -68,7 +76,7 @@ class ResearchDbTests(unittest.TestCase):
 
         db_status = status(self.root)
         self.assertEqual(db_status["schema_version"], 15)
-        self.assertEqual(db_status["latest_schema_version"], 16)
+        self.assertEqual(db_status["latest_schema_version"], 17)
         self.assertTrue(db_status["migration_needed"])
 
         with sqlite3.connect(db_path) as connection:
@@ -112,7 +120,7 @@ class ResearchDbTests(unittest.TestCase):
                 ("P000001", now),
             )
 
-        self.assertEqual(apply_migrations(db_path), [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16])
+        self.assertEqual(apply_migrations(db_path), [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17])
         with sqlite3.connect(db_path) as connection:
             connection.row_factory = sqlite3.Row
             artifact_columns = {
@@ -165,7 +173,7 @@ class ResearchDbTests(unittest.TestCase):
                 (now, now),
             )
 
-        self.assertEqual(apply_migrations(db_path), [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16])
+        self.assertEqual(apply_migrations(db_path), [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17])
         with sqlite3.connect(db_path) as connection:
             row = connection.execute(
                 "SELECT acquisition_status, identity_status FROM candidates"

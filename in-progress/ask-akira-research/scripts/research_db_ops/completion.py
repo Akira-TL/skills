@@ -572,6 +572,7 @@ def downstream_completion_readiness(project_root: Path) -> dict[str, Any]:
                         )
 
             freeze_required_paths = [str(run["analysis_path"]), str(run["code_path"])]
+            post_result_context_paths: list[str] = []
             freeze_required_paths.extend(
                 str(row["path"])
                 for row in connection.execute(
@@ -585,17 +586,23 @@ def downstream_completion_readiness(project_root: Path) -> dict[str, Any]:
             )
             for dataset in input_rows:
                 freeze_required_paths.append(str(dataset["provenance_path"]))
-                freeze_required_paths.extend(
-                    str(row["location"])
-                    for row in connection.execute(
-                        """
-                        SELECT location FROM dataset_artifacts
-                        WHERE dataset_id = ? AND storage_kind = 'local' AND git_tracking = 'required'
-                        ORDER BY id
-                        """,
-                        (dataset["id"],),
-                    )
-                )
+                for item in connection.execute(
+                    """
+                    SELECT da.location, t.timing_role
+                    FROM dataset_artifacts da
+                    LEFT JOIN analysis_dataset_artifact_timing t
+                      ON t.dataset_artifact_id = da.id AND t.analysis_id = ?
+                    WHERE da.dataset_id = ?
+                      AND da.storage_kind = 'local'
+                      AND da.git_tracking = 'required'
+                    ORDER BY da.id
+                    """,
+                    (analysis_id, dataset["id"]),
+                ):
+                    if item["timing_role"] == "post_result_context":
+                        post_result_context_paths.append(str(item["location"]))
+                    else:
+                        freeze_required_paths.append(str(item["location"]))
             missing_at_freeze = sorted(
                 path
                 for path in dict.fromkeys(freeze_required_paths)
@@ -608,6 +615,40 @@ def downstream_completion_readiness(project_root: Path) -> dict[str, Any]:
                         "analysis": slug,
                         "freeze_commit": freeze_commit,
                         "paths": missing_at_freeze,
+                    }
+                )
+
+            changed_after_freeze = sorted(
+                path
+                for path in dict.fromkeys(freeze_required_paths)
+                if _git_commit_has_path(project_root, freeze_commit, path)
+                and _git(
+                    project_root, "diff", "--quiet", freeze_commit, "HEAD", "--", path
+                ).returncode
+                != 0
+            )
+            if changed_after_freeze:
+                blockers.append(
+                    {
+                        "reason": "analysis_frozen_artifact_changed_after_freeze",
+                        "analysis": slug,
+                        "freeze_commit": freeze_commit,
+                        "paths": changed_after_freeze,
+                    }
+                )
+
+            context_present_at_freeze = sorted(
+                path
+                for path in dict.fromkeys(post_result_context_paths)
+                if _git_commit_has_path(project_root, freeze_commit, path)
+            )
+            if context_present_at_freeze:
+                blockers.append(
+                    {
+                        "reason": "analysis_post_result_context_present_at_freeze",
+                        "analysis": slug,
+                        "freeze_commit": freeze_commit,
+                        "paths": context_present_at_freeze,
                     }
                 )
 
@@ -1090,6 +1131,18 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
             errors.append(
                 f"Analysis {blocker.get('analysis')} 的 freeze commit 未冻结全部主要计划/代码/输入："
                 + ", ".join(str(path) for path in blocker.get("paths", []))
+            )
+        elif reason == "analysis_frozen_artifact_changed_after_freeze":
+            errors.append(
+                f"Analysis {blocker.get('analysis')} 的已冻结计划/代码/输入在 freeze 后发生提交内容变化："
+                + ", ".join(str(path) for path in blocker.get("paths", []))
+                + "；请保留冻结版本，并把结果后修订作为新增 artifact/amendment。"
+            )
+        elif reason == "analysis_post_result_context_present_at_freeze":
+            errors.append(
+                f"Analysis {blocker.get('analysis')} 把 freeze 时已存在的 Dataset artifact 标成 post_result_context："
+                + ", ".join(str(path) for path in blocker.get("paths", []))
+                + "；post_result_context 只用于结果可见后新增、未参与该执行快照的 provenance/context artifact。"
             )
         elif reason == "analysis_result_artifact_present_at_freeze":
             errors.append(
