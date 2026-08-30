@@ -11,7 +11,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from research_db_core import ResearchDbError, init_database  # noqa: E402
 from research_db_ops.completion import validate_completion  # noqa: E402
-from research_db_ops.downstream import record_analysis, record_dataset  # noqa: E402
+from research_db_ops.downstream import list_analyses, record_analysis, record_dataset  # noqa: E402
 
 
 class DownstreamResearchProvenanceTests(unittest.TestCase):
@@ -159,6 +159,7 @@ ANALYSIS
         diagnostic_path = outputs / "diagnostic.txt"
         estimate_path.write_text("term,estimate,low,high\nslope,11.4,7.8,15.1\n", encoding="utf-8")
         diagnostic_path.write_text("converged=true\n", encoding="utf-8")
+        completed_at = list_analyses(self.root)["analyses"][0]["started_at"]
 
         record_analysis(
             self.root,
@@ -175,7 +176,7 @@ ANALYSIS
                 "code_path": "analysis/trajectory/run.py",
                 "dataset_slugs": ["sleep-data"],
                 "freeze_commit": freeze_commit,
-                "completed_at": "2026-08-28T01:00:00+00:00",
+                "completed_at": completed_at,
                 "artifacts": [
                     {"role": "estimate", "path": "analysis/trajectory/outputs/primary.csv"},
                     {"role": "diagnostic", "path": "analysis/trajectory/outputs/diagnostic.txt"},

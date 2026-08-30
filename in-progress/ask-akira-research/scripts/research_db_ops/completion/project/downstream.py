@@ -3,7 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from research_db_support.storage import connect, database_path
+from research_db_support.storage import ResearchDbError, connect, database_path
+from ... import common
 from ..git import run_git, commit_has_path, first_path_change_after, path_changed_after
 from ..language import canonical_paths
 
@@ -76,6 +77,22 @@ def _append_analysis_completeness_blockers(
     if observation_count == 0:
         blockers.append(
             {"reason": "completed_analysis_missing_project_observation", "analysis": slug}
+        )
+
+    try:
+        started_at = common.parse_timestamp(run["started_at"], field="started_at")
+        completed_at = common.parse_timestamp(run["completed_at"], field="completed_at")
+        updated_at = common.parse_timestamp(run["updated_at"], field="updated_at")
+    except ResearchDbError:
+        blockers.append({"reason": "analysis_timestamp_invalid", "analysis": slug})
+        return input_rows
+    if completed_at < started_at:
+        blockers.append(
+            {"reason": "analysis_completed_before_started", "analysis": slug}
+        )
+    if completed_at > updated_at:
+        blockers.append(
+            {"reason": "analysis_completed_after_last_update", "analysis": slug}
         )
     return input_rows
 

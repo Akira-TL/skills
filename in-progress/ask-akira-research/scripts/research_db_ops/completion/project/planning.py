@@ -3,7 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from research_db_support.storage import connect, database_path
+from research_db_support.storage import ResearchDbError, connect, database_path
+from ... import common
 from ..git import run_git, commit_has_path, first_path_change_after, path_changed_after
 from ..language import canonical_paths
 
@@ -180,7 +181,7 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
 
         for run in connection.execute(
             """
-            SELECT a.id, a.slug AS analysis_slug, a.design_id,
+            SELECT a.id, a.slug AS analysis_slug, a.design_id, a.completed_at,
                    d.slug AS design_slug, d.hypothesis_set_id,
                    h.slug AS hypothesis_slug
             FROM analysis_runs a
@@ -192,7 +193,7 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
         ):
             evaluation = connection.execute(
                 """
-                SELECT id, resolution_status, decision, summary
+                SELECT id, resolution_status, decision, summary, evaluated_at
                 FROM hypothesis_evaluations
                 WHERE hypothesis_set_id = ? AND analysis_id = ?
                 """,
@@ -205,6 +206,33 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
                         "analysis": run["analysis_slug"],
                         "design": run["design_slug"],
                         "hypothesis_set": run["hypothesis_slug"],
+                    }
+                )
+                continue
+            try:
+                completed_at = common.parse_timestamp(
+                    run["completed_at"], field="Analysis completed_at"
+                )
+                evaluated_at = common.parse_timestamp(
+                    evaluation["evaluated_at"], field="Hypothesis Evaluation evaluated_at"
+                )
+            except ResearchDbError:
+                blockers.append(
+                    {
+                        "reason": "hypothesis_evaluation_timestamp_invalid",
+                        "analysis": run["analysis_slug"],
+                        "hypothesis_set": run["hypothesis_slug"],
+                    }
+                )
+                continue
+            if evaluated_at < completed_at:
+                blockers.append(
+                    {
+                        "reason": "hypothesis_evaluation_before_analysis_completion",
+                        "analysis": run["analysis_slug"],
+                        "hypothesis_set": run["hypothesis_slug"],
+                        "completed_at": run["completed_at"],
+                        "evaluated_at": evaluation["evaluated_at"],
                     }
                 )
 

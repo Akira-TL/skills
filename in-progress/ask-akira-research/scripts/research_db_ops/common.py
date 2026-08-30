@@ -15,6 +15,19 @@ def now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def parse_timestamp(value: object, *, field: str) -> datetime:
+    raw = text(value, required=True, field=field)
+    assert raw is not None
+    normalized = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise ResearchDbError(f"{field} 必须是 ISO 8601 时间戳。") from exc
+    if parsed.tzinfo is None:
+        raise ResearchDbError(f"{field} 必须包含时区偏移。")
+    return parsed.astimezone(timezone.utc)
+
+
 def db_path(project_root: Path) -> Path:
     path = database_path(project_root)
     if not path.exists():

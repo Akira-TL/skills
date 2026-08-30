@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -247,7 +248,7 @@ class AnalysisFreezeHistoryTests(unittest.TestCase):
         outputs = self.root / "analysis" / "trajectory" / "outputs"
         outputs.mkdir()
         (outputs / "primary.csv").write_text("term,estimate\nslope,11.4\n", encoding="utf-8")
-        completed_at = "2026-08-28T01:00:00+00:00"
+        completed_at = list_analyses(self.root)["analyses"][0]["started_at"]
         record_analysis(
             self.root,
             {
@@ -326,7 +327,45 @@ class AnalysisFreezeHistoryTests(unittest.TestCase):
         analysis = list_analyses(self.root)["analyses"][0]
         self.assertEqual(analysis["completed_at"], completed_at)
 
-    def test_completed_analysis_cannot_silently_change_completed_at(self) -> None:
+    def test_completed_analysis_rejects_future_completed_at(self) -> None:
+        self._write_plan_assets()
+        self._record_dataset()
+        self._record_planned_analysis()
+        freeze_commit = self._commit("ANALYSIS: freeze primary plan")
+
+        outputs = self.root / "analysis" / "trajectory" / "outputs"
+        outputs.mkdir()
+        (outputs / "primary.csv").write_text("term,estimate\nslope,11.4\n", encoding="utf-8")
+        with self.assertRaisesRegex(ResearchDbError, "completed_at.*晚于.*记录时间"):
+            record_analysis(
+                self.root,
+                {
+                    "slug": "sleep-trajectory",
+                    "title": "Sleep trajectory analysis",
+                    "analysis_mode": "confirmatory",
+                    "status": "completed",
+                    "target_uncertainty": "Is there a stable positive longitudinal trend?",
+                    "estimand": "Population-average change per study day",
+                    "unit_of_inference": "participant",
+                    "primary_analysis": "Mixed model with participant random intercept and slope",
+                    "analysis_path": "analysis/trajectory/README.md",
+                    "code_path": "analysis/trajectory/run.py",
+                    "dataset_slugs": ["sleep-data"],
+                    "freeze_commit": freeze_commit,
+                    "completed_at": "2999-01-01T00:00:00+00:00",
+                    "artifacts": [
+                        {"role": "estimate", "path": "analysis/trajectory/outputs/primary.csv"}
+                    ],
+                    "observations": [
+                        {
+                            "statement": "A result exists.",
+                            "source_path": "analysis/trajectory/outputs/primary.csv",
+                        }
+                    ],
+                },
+            )
+
+    def test_completion_rejects_persisted_analysis_completion_after_update(self) -> None:
         self._write_plan_assets()
         self._record_dataset()
         self._record_planned_analysis()
@@ -350,7 +389,55 @@ class AnalysisFreezeHistoryTests(unittest.TestCase):
                 "code_path": "analysis/trajectory/run.py",
                 "dataset_slugs": ["sleep-data"],
                 "freeze_commit": freeze_commit,
-                "completed_at": "2026-08-28T01:00:00+00:00",
+                "artifacts": [
+                    {"role": "estimate", "path": "analysis/trajectory/outputs/primary.csv"}
+                ],
+                "observations": [
+                    {
+                        "statement": "A result exists.",
+                        "source_path": "analysis/trajectory/outputs/primary.csv",
+                    }
+                ],
+            },
+        )
+        self._commit("ANALYSIS: record primary result")
+        with sqlite3.connect(self.root / ".research" / "research.sqlite") as connection:
+            connection.execute(
+                "UPDATE analysis_runs SET completed_at = ? WHERE slug = 'sleep-trajectory'",
+                ("2999-01-01T00:00:00+00:00",),
+            )
+        self._commit("TEST: persist invalid analysis chronology")
+
+        result = validate_completion(self.root)
+        reasons = {item["reason"] for item in result["downstream"]["blockers"]}
+        self.assertIn("analysis_completed_after_last_update", reasons)
+
+    def test_completed_analysis_cannot_silently_change_completed_at(self) -> None:
+        self._write_plan_assets()
+        self._record_dataset()
+        self._record_planned_analysis()
+        freeze_commit = self._commit("ANALYSIS: freeze primary plan")
+
+        outputs = self.root / "analysis" / "trajectory" / "outputs"
+        outputs.mkdir()
+        (outputs / "primary.csv").write_text("term,estimate\nslope,11.4\n", encoding="utf-8")
+        completed_at = list_analyses(self.root)["analyses"][0]["started_at"]
+        record_analysis(
+            self.root,
+            {
+                "slug": "sleep-trajectory",
+                "title": "Sleep trajectory analysis",
+                "analysis_mode": "confirmatory",
+                "status": "completed",
+                "target_uncertainty": "Is there a stable positive longitudinal trend?",
+                "estimand": "Population-average change per study day",
+                "unit_of_inference": "participant",
+                "primary_analysis": "Mixed model with participant random intercept and slope",
+                "analysis_path": "analysis/trajectory/README.md",
+                "code_path": "analysis/trajectory/run.py",
+                "dataset_slugs": ["sleep-data"],
+                "freeze_commit": freeze_commit,
+                "completed_at": completed_at,
                 "artifacts": [
                     {"role": "estimate", "path": "analysis/trajectory/outputs/primary.csv"}
                 ],
@@ -363,6 +450,7 @@ class AnalysisFreezeHistoryTests(unittest.TestCase):
             },
         )
 
+        changed_completed_at = list_analyses(self.root)["analyses"][0]["updated_at"]
         with self.assertRaisesRegex(ResearchDbError, "completed_at"):
             record_analysis(
                 self.root,
@@ -379,7 +467,7 @@ class AnalysisFreezeHistoryTests(unittest.TestCase):
                     "code_path": "analysis/trajectory/run.py",
                     "dataset_slugs": ["sleep-data"],
                     "freeze_commit": freeze_commit,
-                    "completed_at": "2026-08-29T01:00:00+00:00",
+                    "completed_at": changed_completed_at,
                 },
             )
 

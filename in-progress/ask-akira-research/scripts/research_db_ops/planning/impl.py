@@ -345,10 +345,14 @@ def record_hypothesis_evaluation(project_root: Path, bundle: dict[str, Any]) -> 
     source_path = common.local_path(
         project_root, bundle.get("source_path"), field="evaluation source_path", require_file=True
     )
-    evaluated_at = common.text(bundle.get("evaluated_at")) or common.now()
+    now = common.now()
+    evaluated_at = common.text(bundle.get("evaluated_at")) or now
+    evaluated_time = common.parse_timestamp(evaluated_at, field="evaluated_at")
+    recorded_time = common.parse_timestamp(now, field="recorded_at")
+    if evaluated_time > recorded_time:
+        raise ResearchDbError("evaluated_at 不能晚于当前记录时间。")
     assert decision is not None and summary is not None
 
-    now = common.now()
     with connect(common.db_path(project_root)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         try:
@@ -358,12 +362,22 @@ def record_hypothesis_evaluation(project_root: Path, bundle: dict[str, Any]) -> 
             if hypothesis is None:
                 raise ResearchDbError(f"Hypothesis Set 不存在：{hypothesis_slug}")
             analysis = connection.execute(
-                "SELECT id, status, design_id FROM analysis_runs WHERE slug = ?", (analysis_slug,)
+                "SELECT id, status, design_id, completed_at FROM analysis_runs WHERE slug = ?",
+                (analysis_slug,),
             ).fetchone()
             if analysis is None:
                 raise ResearchDbError(f"Analysis 不存在：{analysis_slug}")
             if analysis["status"] != "completed":
                 raise ResearchDbError("Hypothesis Evaluation 只能引用 completed Analysis。")
+            if analysis["completed_at"] is None:
+                raise ResearchDbError("completed Analysis 缺少 completed_at，不能记录 Hypothesis Evaluation。")
+            completed_time = common.parse_timestamp(
+                analysis["completed_at"], field="Analysis completed_at"
+            )
+            if evaluated_time < completed_time:
+                raise ResearchDbError(
+                    "Hypothesis Evaluation 的 evaluated_at 不能早于 Analysis completed_at。"
+                )
 
             hypothesis_set_id = int(hypothesis["id"])
             analysis_id = int(analysis["id"])

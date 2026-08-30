@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import sqlite3
 import subprocess
+from datetime import datetime, timedelta
 import sys
 import tempfile
 import unittest
@@ -243,6 +245,28 @@ A 相对 B 的平均处理效应属于哪个预定义效应区域？
         reasons = {item["reason"] for item in before["planning"]["blockers"]}
         self.assertIn("completed_confirmatory_analysis_missing_hypothesis_evaluation", reasons)
 
+        with sqlite3.connect(self.root / ".research" / "research.sqlite") as connection:
+            completed_at = connection.execute(
+                "SELECT completed_at FROM analysis_runs WHERE slug = 'primary'"
+            ).fetchone()[0]
+        premature_evaluation = (
+            datetime.fromisoformat(completed_at) - timedelta(seconds=1)
+        ).isoformat()
+
+        with self.assertRaisesRegex(ResearchDbError, "不能早于.*completed_at"):
+            record_hypothesis_evaluation(
+                self.root,
+                {
+                    "hypothesis_set_slug": "treatment-effect",
+                    "analysis_slug": "primary",
+                    "resolution_status": "unresolved",
+                    "decision": "premature evaluation",
+                    "summary": "该评价时间早于 Analysis 完成时间，必须拒绝。",
+                    "source_path": "analysis/primary/result.csv",
+                    "evaluated_at": premature_evaluation,
+                },
+            )
+
         record_hypothesis_evaluation(
             self.root,
             {
@@ -271,6 +295,16 @@ A 相对 B 的平均处理效应属于哪个预定义效应区域？
                     "source_path": "analysis/primary/result.csv",
                 },
             )
+
+        with sqlite3.connect(self.root / ".research" / "research.sqlite") as connection:
+            connection.execute(
+                "UPDATE hypothesis_evaluations SET evaluated_at = ? WHERE analysis_id = 1",
+                (premature_evaluation,),
+            )
+        self._commit("TEST: persist invalid evaluation chronology")
+        invalid = validate_completion(self.root)
+        reasons = {item["reason"] for item in invalid["planning"]["blockers"]}
+        self.assertIn("hypothesis_evaluation_before_analysis_completion", reasons)
 
     def test_dataset_can_append_provenance_artifact_without_changing_identity(self) -> None:
         self._record_planning_and_dataset()

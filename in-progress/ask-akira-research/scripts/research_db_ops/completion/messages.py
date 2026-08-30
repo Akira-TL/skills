@@ -67,6 +67,15 @@ def append_downstream_errors(errors: list[str], blockers: list[dict[str, Any]]) 
             errors.append(f"已完成 Analysis {blocker.get('analysis')} 没有登记主要 estimate artifact。")
         elif reason == "completed_analysis_missing_project_observation":
             errors.append(f"已完成 Analysis {blocker.get('analysis')} 没有登记项目自身 Observation。")
+        elif reason == "analysis_timestamp_invalid":
+            errors.append(f"Analysis {blocker.get('analysis')} 的 started_at/completed_at/updated_at 时间戳无效。")
+        elif reason == "analysis_completed_before_started":
+            errors.append(f"Analysis {blocker.get('analysis')} 的 completed_at 早于 started_at。")
+        elif reason == "analysis_completed_after_last_update":
+            errors.append(
+                f"Analysis {blocker.get('analysis')} 的 completed_at 晚于最后一次数据库 updated_at；"
+                "完成时间不能指向尚未发生的未来时刻。"
+            )
         elif reason == "confirmatory_analysis_missing_freeze_commit":
             errors.append(f"确认性 Analysis {blocker.get('analysis')} 缺少结果可见前 freeze commit。")
         elif reason == "analysis_freeze_commit_missing":
@@ -182,6 +191,16 @@ def append_planning_errors(errors: list[str], blockers: list[dict[str, Any]]) ->
             errors.append(
                 f"确认性 Analysis {blocker.get('analysis')} 已完成并实现 Research Design {blocker.get('design')}，"
                 f"但尚未记录对 Hypothesis Set {blocker.get('hypothesis_set')} 的结果后 Evaluation。"
+            )
+        elif reason == "hypothesis_evaluation_timestamp_invalid":
+            errors.append(
+                f"Hypothesis Evaluation 的时间戳无效：Analysis {blocker.get('analysis')}，"
+                f"Hypothesis Set {blocker.get('hypothesis_set')}。"
+            )
+        elif reason == "hypothesis_evaluation_before_analysis_completion":
+            errors.append(
+                f"Hypothesis Evaluation 早于其所引用 Analysis {blocker.get('analysis')} 的 completed_at："
+                f"evaluated_at={blocker.get('evaluated_at')}，completed_at={blocker.get('completed_at')}。"
             )
         elif reason == "planning_schema_missing":
             errors.append(

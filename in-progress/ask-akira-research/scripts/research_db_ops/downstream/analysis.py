@@ -440,7 +440,8 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
     analysis_path = common.local_path(project_root, bundle.get("analysis_path"), field="analysis_path")
     code_path = common.local_path(project_root, bundle.get("code_path"), field="code_path")
     freeze_commit = common.text(bundle.get("freeze_commit"))
-    started_at = common.text(bundle.get("started_at")) or common.now()
+    now = common.now()
+    started_at = common.text(bundle.get("started_at")) or now
     completed_at = common.text(bundle.get("completed_at"))
     if analysis_mode == "confirmatory" and status in {"frozen", "completed"} and not freeze_commit:
         raise ResearchDbError("confirmatory analysis 进入 frozen/completed 时必须记录结果可见前的 freeze_commit。")
@@ -477,12 +478,27 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
         completed_at=completed_at,
     )
 
-    now = common.now()
     with connect(common.db_path(project_root)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         try:
             dataset_ids = _dataset_ids(connection, bundle.get("dataset_slugs"))
             existing = connection.execute("SELECT * FROM analysis_runs WHERE slug = ?", (slug,)).fetchone()
+            effective_started_at = existing["started_at"] if existing is not None else spec.started_at
+            effective_completed_at = spec.completed_at
+            if existing is not None and existing["status"] == "completed":
+                effective_completed_at = spec.completed_at or existing["completed_at"]
+            elif spec.status == "completed" and effective_completed_at is None:
+                effective_completed_at = now
+            started_time = common.parse_timestamp(effective_started_at, field="started_at")
+            recorded_time = common.parse_timestamp(now, field="recorded_at")
+            if started_time > recorded_time:
+                raise ResearchDbError("started_at 不能晚于当前记录时间。")
+            if effective_completed_at is not None:
+                completed_time = common.parse_timestamp(effective_completed_at, field="completed_at")
+                if completed_time < started_time:
+                    raise ResearchDbError("completed_at 不能早于 started_at。")
+                if completed_time > recorded_time:
+                    raise ResearchDbError("completed_at 不能晚于当前记录时间。")
             design_id = _resolve_design(connection, bundle, existing, spec)
             analysis_id = _upsert_analysis_run(connection, existing, spec, design_id, now)
             _attach_dataset_inputs(connection, analysis_id, dataset_ids)

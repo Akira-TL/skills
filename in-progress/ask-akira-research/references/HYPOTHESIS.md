@@ -89,7 +89,7 @@ Prediction 必须在看到将用于判别的新结果前写清楚，避免结果
 - `weakened`：关键预测受到可信 evidence 挑战；
 - `ruled_out_within_scope`：在明确 scope 和 decision boundary 下被足够判别性的 evidence 排除。
 
-不使用 `proven` / `confirmed` 作为常规终态。一次 completed Analysis 对整个 Hypothesis Set 的结果后判别，使用 `research-db record-hypothesis-evaluation` 保存为不可覆盖的 Evaluation 事件。`resolution_status` 按当前证据对预定义 discriminator 的可解释性与判别程度选择：
+不使用 `proven` / `confirmed` 作为常规终态。一次 completed Analysis 对整个 Hypothesis Set 的结果后判别，使用 `research-db record-hypothesis-evaluation` 保存为不可覆盖的 Evaluation 事件；`evaluated_at` 必须不早于所引用 Analysis 的 `completed_at`，否则不构成结果后评价。`resolution_status` 按当前证据对预定义 discriminator 的可解释性与判别程度选择：
 
 - `unresolved`：目标对比（target contrast）仍可解释，但区间、精度或结果模式仍同时兼容多个竞争假设（competing hypotheses）；
 - `partially_resolved`：证据已经区分部分关键预测（prediction）或假设，但当前主要科学不确定性（Active Uncertainty）仍保留至少两个会改变答案的可行状态；
