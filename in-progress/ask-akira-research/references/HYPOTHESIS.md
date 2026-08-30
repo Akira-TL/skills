@@ -89,7 +89,14 @@ Prediction 必须在看到将用于判别的新结果前写清楚，避免结果
 - `weakened`：关键预测受到可信 evidence 挑战；
 - `ruled_out_within_scope`：在明确 scope 和 decision boundary 下被足够判别性的 evidence 排除。
 
-不使用 `proven` / `confirmed` 作为常规终态。一次 completed Analysis 对整个 Hypothesis Set 的结果后判别，使用 `research-db record-hypothesis-evaluation` 保存为不可覆盖的 Evaluation 事件，并区分 `unresolved`、`partially_resolved`、`resolved` 与 `not_interpretable`。Evaluation 必须指回当前 Analysis 已登记的解释/结果 artifact；它记录“这次证据做了什么”，而不是覆盖 Hypothesis Set 的结果前 freeze 历史。单个 H1/H2/H3 的 `live/favored/weakened/...` 仍写在 canonical hypothesis artifact 中，不拆成数据库行。
+不使用 `proven` / `confirmed` 作为常规终态。一次 completed Analysis 对整个 Hypothesis Set 的结果后判别，使用 `research-db record-hypothesis-evaluation` 保存为不可覆盖的 Evaluation 事件。`resolution_status` 按当前证据对预定义 discriminator 的可解释性与判别程度选择：
+
+- `unresolved`：目标对比（target contrast）仍可解释，但区间、精度或结果模式仍同时兼容多个竞争假设（competing hypotheses）；
+- `partially_resolved`：证据已经区分部分关键预测（prediction）或假设，但当前主要科学不确定性（Active Uncertainty）仍保留至少两个会改变答案的可行状态；
+- `resolved`：目标估计量（estimand）在当前适用范围（scope）内得到足够识别，结果跨过预定义决策边界（decision boundary），剩余替代解释不再改变当前主要答案；
+- `not_interpretable`：当前分析（Analysis）因测量、样本映射、缺失数据、研究设计或分析失败而不能可靠观测或识别预定义判别证据，因此这次结果不能用于给竞争假设排序。科学问题本身仍可保持开放；不要把这种识别失败软化成普通 `unresolved`。
+
+Evaluation 必须指回当前 Analysis 已登记的解释/结果 artifact；它记录“这次证据做了什么”，而不是覆盖 Hypothesis Set 的结果前 freeze 历史。单个 H1/H2/H3 的 `live/favored/weakened/...` 仍写在 canonical hypothesis artifact 中，不拆成数据库行。
 
 ## 6. 完成条件
 
