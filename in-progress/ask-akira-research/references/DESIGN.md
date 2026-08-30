@@ -29,6 +29,8 @@ Design 的任务是把 Hypothesis set 中的 discriminator 变成能够实际获
 
 若无法把 discriminator 写成可测 target contrast，设计尚未开始完成。
 
+随机试验预计可能出现不依从（nonadherence）时，必须在结果可见前区分**随机分配效应**与**实际接受处理效应**。若科研问题针对分配某一处理策略的总体效果，主要目标通常是意向治疗效应（intention-to-treat effect, ITT effect），分组依据保持为随机分配，不因后续实际接受状态改变。若科研问题针对实际接受处理本身的因果效应，则必须另行定义目标总体与目标估计量，例如全部目标单位中的处理接受效应，或在明确识别条件下的依从者平均因果效应（complier average causal effect, CACE）/局部平均处理效应（local average treatment effect, LATE）。随机化本身不自动识别这些处理接受效应，因为实际接受处理与依从性属于随机分配后的变量；若采用工具变量（instrumental variable, IV）或其他识别策略，相关性、排除限制、单调性及其他所需假设必须根据具体设计明确，而不能由“研究是随机试验”这一事实代替。
+
 ## 3. 项目设计 artifact
 
 当设计需要独立保存时，按需创建 `designs/<slug>.md`。它是该研究动作的 canonical design artifact；`RESEARCH.md` 只保留当前 Active Work 和 pointer。Design 一旦成为真实数据产生或未来结果判别的依据，使用 `research-db record-design` 登记其关联 Hypothesis Set、主要估计目标、主要结局、实验单位、feasibility 状态和 artifact path；冻结时记录真实 Git `freeze_commit`。数据库不复制完整组别表、预测矩阵或判定边界正文。
