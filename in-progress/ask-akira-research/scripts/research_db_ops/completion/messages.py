@@ -242,6 +242,12 @@ def append_project_state_errors(errors: list[str], blockers: list[dict[str, Any]
             errors.append(
                 "RESEARCH.md 的 Active Work 为空；完成时必须写明下一条真实动作、等待/blocker 或有边界停止状态。"
             )
+        elif reason == "research_state_competing_explanation_is_evidence_status":
+            errors.append(
+                "RESEARCH.md 的 Competing explanations 把证据/工作状态写成了科学竞争解释："
+                + ", ".join(str(marker) for marker in blocker.get("markers", []))
+                + "。竞争解释必须描述科学对象可能处于的替代状态；证据不足或当前无法判断应写入 Discriminating gap / Current State。"
+            )
         elif reason == "research_state_active_work_stale_completion":
             errors.append(
                 "RESEARCH.md 的 Active Work 仍描述 Git/validator 收尾动作，说明 current state 尚未在最终提交前刷新："

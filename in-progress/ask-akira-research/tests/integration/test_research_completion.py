@@ -165,6 +165,51 @@ class ResearchCompletionTests(unittest.TestCase):
         )
         self.assertIn("bootstrap", blocker["markers"])
 
+    def test_project_state_rejects_evidence_status_as_competing_explanation(self) -> None:
+        invalid = VALID_RESEARCH_MD.replace(
+            "当前最需要区分的科学解释是什么？",
+            """Question: 候选中介是否承担非零因果中介作用？
+
+Competing explanations:
+- E1：候选中介承担非零因果中介作用。
+- E2：现有相关与回归系数衰减不足以区分候选中介的因果作用，因此当前证据不能识别中介效应。
+
+Discriminating gap: 缺少能够区分候选中介作用与其他处理后路径的判别证据。
+
+Best next evidence: 定义可识别的中介估计目标并取得对应判别证据。""",
+        )
+        (self.root / "RESEARCH.md").write_text(invalid, encoding="utf-8")
+
+        result = project_state_readiness(self.root)
+
+        self.assertFalse(result["ready"])
+        blocker = next(
+            item
+            for item in result["blockers"]
+            if item["reason"] == "research_state_competing_explanation_is_evidence_status"
+        )
+        self.assertIn("不足以区分", blocker["markers"])
+        self.assertIn("当前证据不能", blocker["markers"])
+
+    def test_project_state_accepts_scientific_competing_explanation(self) -> None:
+        valid = VALID_RESEARCH_MD.replace(
+            "当前最需要区分的科学解释是什么？",
+            """Question: 候选中介是否承担非零因果中介作用？
+
+Competing explanations:
+- E1：候选中介承担非零因果中介作用。
+- E2：总处理效应主要经候选中介以外的处理诱导路径产生，候选中介不是该总效应的必要因果中介。
+
+Discriminating gap: 当前普通条件回归不能区分这两个科学状态。
+
+Best next evidence: 定义可识别的中介估计目标并取得对应判别证据。""",
+        )
+        (self.root / "RESEARCH.md").write_text(valid, encoding="utf-8")
+
+        result = project_state_readiness(self.root)
+
+        self.assertTrue(result["ready"], result["blockers"])
+
     def _insert_reviewed_candidate(
         self,
         candidate_id: int,

@@ -38,6 +38,19 @@ _STALE_COMPLETION_MARKERS = (
     "git tracking",
 )
 
+_EVIDENCE_STATUS_EXPLANATION_MARKERS = (
+    "尚无证据",
+    "证据不足",
+    "当前证据不能",
+    "当前无法判断",
+    "尚无法判断",
+    "不足以区分",
+    "不能识别",
+    "无法识别",
+    "尚未设计",
+    "尚未形成设计",
+)
+
 
 def _sections(text: str) -> dict[str, str]:
     headings = list(re.finditer(r"(?m)^##\s+(.+?)\s*$", text))
@@ -47,6 +60,29 @@ def _sections(text: str) -> dict[str, str]:
         end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
         sections[match.group(1).strip()] = text[start:end].strip()
     return sections
+
+
+def _evidence_status_competing_explanations(active_uncertainty: str) -> list[dict[str, Any]]:
+    match = re.search(
+        r"(?ims)^Competing explanations:\s*(.*?)(?=^\s*(?:Discriminating gap|Best next evidence|Question):|\Z)",
+        active_uncertainty,
+    )
+    if match is None:
+        return []
+
+    invalid: list[dict[str, Any]] = []
+    for line in match.group(1).splitlines():
+        explanation = line.strip()
+        if not re.match(r"^[-*]\s+", explanation):
+            continue
+        markers = [
+            marker
+            for marker in _EVIDENCE_STATUS_EXPLANATION_MARKERS
+            if marker in explanation
+        ]
+        if markers:
+            invalid.append({"explanation": explanation, "markers": markers})
+    return invalid
 
 
 def project_state_readiness(project_root: Path) -> dict[str, Any]:
@@ -70,6 +106,24 @@ def project_state_readiness(project_root: Path) -> dict[str, Any]:
             {
                 "reason": "research_state_invalid_current_loop",
                 "current_loop": current_loop,
+            }
+        )
+
+    active_uncertainty = sections.get("Active Uncertainty", "").strip()
+    evidence_status_explanations = _evidence_status_competing_explanations(active_uncertainty)
+    if evidence_status_explanations:
+        markers = sorted(
+            {
+                marker
+                for item in evidence_status_explanations
+                for marker in item["markers"]
+            }
+        )
+        blockers.append(
+            {
+                "reason": "research_state_competing_explanation_is_evidence_status",
+                "markers": markers,
+                "explanations": evidence_status_explanations,
             }
         )
 
