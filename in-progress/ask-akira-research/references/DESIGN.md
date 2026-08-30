@@ -95,6 +95,8 @@ Design 必须主动检查什么会让 target contrast 不能回答原问题：
 
 同样，**某条件下的因果效应**与**对该条件的特异反应/易感性效应**必须分开。若所有实验单位在结局阶段都处于同一个挑战条件，设计可以识别该条件下 intervention 的效应；除非另有相应条件对照并估计 intervention × condition 的交互或等价 target contrast，否则不能把这个效应改写为“增加了对该挑战的特异易感性”。
 
+当问题涉及中介作用（mediation）或机制路径时，必须在结果前区分总效应（total effect）与具体的直接/间接效应估计目标。随机化处理并不等于随机化候选中介变量；若计划估计受控直接效应（controlled direct effect, CDE）、自然直接效应（natural direct effect, NDE）、自然间接效应（natural indirect effect, NIE）或其他中介效应，需明确候选中介的时间顺序、处理－中介交互、基线中介－结局混杂因素，以及是否存在**暴露诱导的中介－结局混杂因素（exposure-induced mediator–outcome confounder）**。存在这类处理后共同原因时，普通回归调整或标准自然效应分解不能仅凭处理随机化获得识别；应改用与目标 estimand 和因果结构相容的方法，或通过直接中介扰动、救援/阻断等设计取得更直接的机制判别证据。
+
 ## 5. Primary 与 exploratory 边界
 
 用于改变 hypothesis 状态的关键 discriminator 必须在观察对应结果前明确为 primary / confirmatory target，包括主要 outcome、contrast、time window 和 decision boundary。

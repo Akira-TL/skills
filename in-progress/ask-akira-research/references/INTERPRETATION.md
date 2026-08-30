@@ -81,6 +81,8 @@ What assumption is required for this interpretation?
 - mediator/pathway 的 perturbation、mediation、rescue 或其他 discriminator 能排除仅仅相关/下游响应；
 - 关键 alternative pathway 得到足够处理。
 
+随机化处理只能直接支持处理分配的因果效应，不会自动把候选中介变量变成随机化暴露。加入处理后中介变量后处理系数衰减、跨过 0 或失去统计显著性，不能单独证明“完全中介”，也不能在没有明确 estimand 与识别条件时称为直接效应。解释中必须区分总效应、受控直接效应（controlled direct effect, CDE）、自然直接效应（natural direct effect, NDE）和自然间接效应（natural indirect effect, NIE）等不同目标；若存在暴露诱导的中介－结局混杂因素，普通条件回归中的处理系数尤其不能替代这些因果量。机制状态只有在预定义的中介因果问题得到相应识别，或存在直接扰动、救援、阻断等能区分替代路径的证据时才可升级。
+
 基因组功能潜力、单个 transcript、相关 metabolite、histology proxy 等可以提供 mechanistic lead / indirect support，但不自动构成 mediation proof。
 
 ## 7. External validity 与 translation
