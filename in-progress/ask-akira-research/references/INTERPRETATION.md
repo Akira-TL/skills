@@ -25,6 +25,8 @@ Interpretation 的任务是把项目 Analysis 结果与已有 literature evidenc
 
 Analysis 的统计强度不能越过 Design 的 identification 边界。观察性数据即使 `P` 很小、样本很大，也不会因此自动成为 causal evidence。
 
+随机试验也要区分**随机分配时的可比性**与**结果后可观测样本的可比性**。随机化（randomization）支持分配时处理组之间的交换性（exchangeability）；若随后按结局是否观测、脱落、依从性或其他结果后变量形成分析子集，这个选择过程可以破坏原有交换性。因而完整病例中的显著处理差异不能仅凭“原研究是随机试验”就升级为全部随机分配单位的因果效应。组间缺失比例不同本身也不证明偏倚存在或决定偏倚方向；关键是当前数据与可辩护假设是否足以识别目标估计量。若这一识别条件尚未满足，先按 [`ANALYSIS.md`](ANALYSIS.md) 处理缺失数据假设与敏感性边界，再做 Hypothesis 更新。
+
 ## 3. 与 competing hypotheses 对照
 
 对每个关键 result 明确：
