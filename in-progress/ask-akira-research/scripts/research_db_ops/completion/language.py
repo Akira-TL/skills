@@ -125,6 +125,10 @@ def _academic_language_paths(project_root: Path) -> list[Path]:
             for row in connection.execute("SELECT analysis_path FROM analysis_runs ORDER BY id"):
                 path = Path(str(row["analysis_path"]))
                 paths.append(path if path.is_absolute() else project_root / path)
+        if "analysis_artifacts" in tables:
+            for row in connection.execute("SELECT path FROM analysis_artifacts ORDER BY id"):
+                path = Path(str(row["path"]))
+                paths.append(path if path.is_absolute() else project_root / path)
         if "hypothesis_sets" in tables:
             for row in connection.execute("SELECT artifact_path FROM hypothesis_sets ORDER BY id"):
                 path = Path(str(row["artifact_path"]))

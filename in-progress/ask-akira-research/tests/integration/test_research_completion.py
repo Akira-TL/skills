@@ -462,6 +462,60 @@ class ResearchCompletionTests(unittest.TestCase):
         self.assertFalse(changed["ready"])
         self.assertTrue(any(item["path"] == "RESEARCH.md" for item in blockers))
 
+    def test_academic_language_checks_registered_analysis_markdown_artifacts(self) -> None:
+        (self.root / "RESEARCH.md").write_text(
+            "# 研究\n\n这是一个中文科研项目，用于验证登记到分析对象的人类可读结果解释也受学术语言规范约束。"
+            "当前研究问题、证据边界、统计结果与后续判断均采用规范中文科研表述。\n",
+            encoding="utf-8",
+        )
+        analysis_dir = self.root / "analysis" / "example"
+        analysis_dir.mkdir(parents=True)
+        (analysis_dir / "README.md").write_text(
+            "# 分析入口\n\n主要结果与解释均在登记的分析文件中保存。\n",
+            encoding="utf-8",
+        )
+        interpretation = analysis_dir / "INTERPRETATION.md"
+        interpretation.write_text(
+            "# 结果解释\n\n当前 exploratory analysis 仅用于生成后续研究线索。\n",
+            encoding="utf-8",
+        )
+        now = "2026-08-30T00:00:00+00:00"
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO analysis_runs(
+                    slug, title, analysis_mode, status, target_uncertainty, estimand,
+                    unit_of_inference, primary_analysis, analysis_path, code_path,
+                    started_at, created_at, updated_at
+                ) VALUES (
+                    'example', '示例分析', 'exploratory', 'planned', '测试问题', '测试估计量',
+                    'participant', '测试分析', 'analysis/example/README.md',
+                    'analysis/example/README.md', ?, ?, ?
+                )
+                """,
+                (now, now, now),
+            )
+            connection.execute(
+                """
+                INSERT INTO analysis_artifacts(
+                    analysis_id, role, path, git_tracking, created_at
+                ) VALUES (?, 'other', 'analysis/example/INTERPRETATION.md', 'required', ?)
+                """,
+                (int(cursor.lastrowid), now),
+            )
+
+        result = academic_language_readiness(self.root)
+
+        self.assertFalse(result["ready"])
+        blockers = [
+            item
+            for item in result["blockers"]
+            if item["reason"] == "bare_english_term_in_chinese_research_text"
+        ]
+        self.assertEqual(len(blockers), 1)
+        self.assertEqual(blockers[0]["path"], "analysis/example/INTERPRETATION.md")
+        self.assertEqual(blockers[0]["terms"], ["analysis", "exploratory"])
+
     def test_academic_language_ignores_inline_code_paths(self) -> None:
         (self.root / "RESEARCH.md").write_text(
             "# 研究\n\n这是一个中文科研项目，用于验证分析文件路径不会被误判为英文科研叙述。"
