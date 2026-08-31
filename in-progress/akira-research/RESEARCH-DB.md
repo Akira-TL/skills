@@ -1,6 +1,6 @@
 # Research SQLite Contract
 
-本文件定义 `ask-akira-research` 的项目级科研知识数据库契约。当前已实现 schema migration、`init`、`migrate`、`ingest-paper`、`ingest-reading`、`ingest-critical`、`status`、`validate`、FTS 检索与 `evidence` 查询。
+本文件定义 `akira-research` 的项目级科研知识数据库契约。当前已实现 schema migration、`init`、`migrate`、`ingest-paper`、`ingest-reading`、`ingest-critical`、`status`、`validate`、FTS 检索与 `evidence` 查询。
 
 ## 1. Source of truth
 

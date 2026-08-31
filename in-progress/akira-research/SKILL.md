@@ -1,10 +1,10 @@
 ---
-name: ask-akira-research
+name: akira-research
 description: 管理一个可审计、可持续迭代的科研项目；围绕当前 Active Uncertainty 路由文献、假设、设计、数据、分析、解释与写作，而不是按固定线性阶段推进。
 disable-model-invocation: true
 ---
 
-# Ask Akira Research
+# Akira Research
 
 本 Skill 是 Akira 科研工作的主 Router。科研项目以 Git 仓库承载；`RESEARCH.md` 保存当前研究状态，项目级 `research.sqlite` 保存详细结构化科研知识，原始论文与补充材料作为外部 artifact 保留并由数据库记录身份、路径、版本、来源与获取时间。
 

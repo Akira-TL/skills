@@ -506,7 +506,7 @@ def cmd_communications(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="research-db",
-        description="ask-akira-research 的项目级 SQLite 管理工具。",
+        description="akira-research 的项目级 SQLite 管理工具。",
     )
     parser.add_argument(
         "--project",

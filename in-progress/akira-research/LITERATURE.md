@@ -1,6 +1,6 @@
 # Literature Protocol
 
-本文件定义 `ask-akira-research` 的文献发现、全文阅读、批判审阅与跨论文证据综合。已知目标论文的合法全文获取由 `literature-access` 负责；本文件负责决定为什么找、哪些论文进入队列、读什么、如何批判以及如何把结果写入研究知识库。
+本文件定义 `akira-research` 的文献发现、全文阅读、批判审阅与跨论文证据综合。已知目标论文的合法全文获取由 `literature-access` 负责；本文件负责决定为什么找、哪些论文进入队列、读什么、如何批判以及如何把结果写入研究知识库。
 
 ## 1. Discovery，不把日常科研伪装成 Systematic Review
 
