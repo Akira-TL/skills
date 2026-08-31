@@ -1,6 +1,19 @@
-# Literature Protocol
+---
+name: akira-literature
+description: 围绕科研项目的 Active Uncertainty 执行文献发现、全文获取路由、论文重建、批判性评估与跨论文证据综合；当需要用现有文献区分 competing explanations、核验方法或边界条件、寻找下一条判别性 evidence，或用户直接要求完整 Literature Research 时使用。继续使用同一 RESEARCH.md 与 research.sqlite，不替代 akira-research 的项目级科学状态与路线决策。
+---
 
-本文件定义 `akira-research` 的文献发现、全文阅读、批判审阅与跨论文证据综合。已知目标论文的合法全文获取由 `literature-access` 负责；本文件负责决定为什么找、哪些论文进入队列、读什么、如何批判以及如何把结果写入研究知识库。
+# Akira Literature
+
+本 Skill 负责文献发现、全文阅读、批判审阅与跨论文证据综合。已知目标论文的合法全文获取由 `literature-access` 负责；本 Skill 决定为什么找、哪些论文进入队列、读什么、如何批判以及文献 evidence 如何进入同一个科研项目。
+
+## 0. 进入项目与科研边界
+
+先定位当前科研项目并读取 `RESEARCH.md`，以其中的 Objective、唯一 primary Active Uncertainty、Current State 与 Open Threads 约束本轮文献工作。用户直接从零发起 Literature Research、当前尚无科研项目时，按 [`akira-research` 的项目状态契约](../akira-research/PROJECT-STATE.md) 建立最小项目；不维护第二套 literature-only research state。
+
+项目级 `research.sqlite`、migration、CLI 与完成门禁继续使用 [`akira-research` 的数据库契约](../akira-research/RESEARCH-DB.md)。这些是共享科研项目的内部实现，不形成独立 Skill。所有人类可读科研表述遵守 [`ACADEMIC-LANGUAGE.md`](../akira-research/references/standards/ACADEMIC-LANGUAGE.md)。当前 Active Uncertainty 需要重写或拆分时读取 [`ACTIVE-UNCERTAINTY.md`](../akira-research/references/ACTIVE-UNCERTAINTY.md)；文献工作产生值得持续追踪的新科学猜想、用户判断或用户对猜想的明确决策时，按 [`RESEARCH-COLLABORATION.md`](../akira-research/references/collaboration/RESEARCH-COLLABORATION.md) 保留来源，不把 Agent-generated hypothesis 改写成用户观点。
+
+论文 Reconstruction、Critical Audit、evidence-to-claim 判断和跨论文科研综合仍由当前主会话模型直接完成；获取、解析、检索、事务写入与校验工具只承担确定性工作，不代替科学语义判断。
 
 ## 1. Discovery，不把日常科研伪装成 Systematic Review
 
@@ -177,4 +190,6 @@ Evidence Map 不再人工维护为大量 Markdown，而是由 SQLite 中的 Obse
 
 主题型 Literature Discovery 在形成项目级综合时，关键的跨论文判断也必须进入 canonical relation graph，而不能只存在 derived synthesis Markdown。至少把真正改变项目判断的跨论文 `INDIRECTLY_SUPPORTS / QUALIFIES / CONTRADICTS / DOES_NOT_TEST / LIMITS / CHALLENGES / WEAKENS` 等关系落库，并在 `note` 中说明 inference gap 或限定。`SHARES_SAMPLES_WITH`、`SHARES_DATA_WITH` 与 `CITES` 只描述来源关系，不能替代跨论文 Evidence Synthesis。已有至少两篇完成 Critical Audit 的论文、且执行了主题型 Discovery 时，`validate --completion` 要求至少存在一条跨不同 Paper 的 scientific relation。
 
-Literature Research 完成后必须把最重要的 `unresolved`、竞争解释与最有判别力的下一条证据写回 `RESEARCH.md`，再由总 Router 重新选择下一动作。文献工作流 `completion=true` 只表示本轮文献发现、获取、阅读、批判和综合已经闭合；它不意味着整个科研 Objective 已经解决，也不构成机械进入 `HYPOTHESIS` 或 `DESIGN` 的理由。若现有项目数据已经能取得下一条判别性证据，应直接路由到 `ANALYSIS`；只有确实需要把竞争解释转成不同预测或取得新的 sampling / measurement / intervention 时才进入对应环节。
+Literature Research 完成后，必须把真正改变项目判断的新 evidence、最重要的 `unresolved`、仍存的竞争解释与最有判别力的下一条证据写入同一个项目的 canonical sources；值得持续追踪的新猜想同时保留正确 proposal provenance。`RESEARCH.md` 只接收仍然影响当前路线的高层变化，不能变成文献日志。
+
+文献工作流 `completion=true` 只表示本轮文献发现、获取、阅读、批判和综合已经闭合；它不意味着整个科研 Objective 已经解决，也不构成机械进入 `HYPOTHESIS` 或 `DESIGN` 的理由。完成 Literature Research 后把控制权交回 `akira-research`，由当前 Scientific State 重新选择下一动作：现有项目数据已经能取得判别性证据时应进入 `ANALYSIS`；需要把竞争解释转成不同预测时进入 `HYPOTHESIS`；确实需要新的 sampling、measurement 或 intervention 时才进入 `DESIGN`。Literature Skill 不另行维护一套项目路线或最终科学结论。
