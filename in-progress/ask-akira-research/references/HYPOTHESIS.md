@@ -26,6 +26,8 @@ Hypothesis 以集合为单位设计。每个集合对应一个 Active Uncertaint
 
 这些不是固定模板；只有与当前 evidence 相容且能产生不同预测的解释才进入集合。
 
+在把这些解释写成正式 Hypothesis Set 之前，先按 [`collaboration/RESEARCH-COLLABORATION.md`](collaboration/RESEARCH-COLLABORATION.md) 保留 proposal provenance。Agent 主动生成的解释记录为 `origin=agent` 并说明 rationale；用户主动提出的猜想记录为 `origin=user`，Agent 后续将其操作化时不得改写来源。用户明确同意探索 Agent proposal 时另记 User Hypothesis Decision，不能把该同意回写成 user-origin hypothesis，也不能把它解释成 scientific support。schema v18 起新建 Hypothesis Set 必须通过 `proposal_slugs` 指回至少一个已记录 proposal；迁移前已有集合不追溯补造来源历史。
+
 ## 3. 每个 Hypothesis 的最小字段
 
 当详细预测超过 `RESEARCH.md` 可承载的短状态时，在项目中按需创建 `hypotheses/<slug>.md`。该文件是当前 hypothesis set 的 canonical working artifact；`RESEARCH.md` 只保留 Active Uncertainty 与 pointer，不复制全部预测矩阵。
