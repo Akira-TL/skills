@@ -15,6 +15,17 @@ description: 围绕科研项目的 Active Uncertainty 执行文献发现、全�
 
 论文 Reconstruction、Critical Audit、evidence-to-claim 判断和跨论文科研综合仍由当前主会话模型直接完成；获取、解析、检索、事务写入与校验工具只承担确定性工作，不代替科学语义判断。
 
+### 完整工作流的执行闭环
+
+用户要求完整 Literature Research，或 `akira-research` 已把当前动作正式路由到本 Skill 时，本轮进入闭环执行。除非出现必须由用户完成的全文登录/文件提供、权限或伦理等真实外部 blocker，或当前环境客观无法继续执行，否则持续推进到本轮 Literature completion gate 已实际运行并通过；工作量大、已经形成初步科学判断、已有可汇报的阶段结果、Candidate 队列尚未闭合、`discovery-status.ready_for_saturation=false` 或 `validate --completion` 尚未通过，都表示**继续执行下一项未闭合工作**，不是结束本次任务的理由。
+
+闭环中的状态只按两类对外返回：
+
+- `COMPLETED`：全文 acquisition / reading / Critical Audit / synthesis / canonical 写回 / Git 收口均满足本轮适用门禁，已经实际运行 `research-db validate --completion`，且输出中的 `discovery.ready_for_saturation=true`、`literature.ready=true`、适用的 `academic_language` / `project_state` 与 Git provenance 均已闭合；若全局 `completion=false` 仅由与本轮 Literature 无关的既存 Design / Analysis / Communication 等工作流 blocker 导致，不把它误判为 Literature 未完成，但必须如实保留该项目级欠账；
+- `BLOCKED`：存在当前 Agent 无法自行解除且必须等待用户或外部条件的真实 blocker。此时保存已完成 provenance，在 `RESEARCH.md` 的 `Active Work` 写明 blocker 与解除条件，再向用户请求最小必要协同。
+
+普通的 `pending`、`queued`、`not ready`、未完成深读、未完成 relation 或 working tree 尚未收口都不是第三种返回状态。不得以“本轮尚未完成”为最终答复替代继续执行。
+
 ## 1. Discovery，不把日常科研伪装成 Systematic Review
 
 默认模式为 `DISCOVERY`：目标是高召回地理解领域、发现术语、方法、矛盾、边界条件与关键工作。检索式允许迭代；每次检索作为独立 Search Run 写入数据库，保留 purpose、source、query、filters、parent run、reason、result count、what we learned 与 next decision，并显式记录 `discovery_method`：`seed_search | query_expansion | backward_citation | forward_citation | related_work | method_search | update_search | exact_work | other`。`exact_work` 只表示已知论文的定向检索，不计作独立的 discovery strategy。
@@ -192,4 +203,6 @@ Evidence Map 不再人工维护为大量 Markdown，而是由 SQLite 中的 Obse
 
 Literature Research 完成后，必须把真正改变项目判断的新 evidence、最重要的 `unresolved`、仍存的竞争解释与最有判别力的下一条证据写入同一个项目的 canonical sources；值得持续追踪的新猜想同时保留正确 proposal provenance。`RESEARCH.md` 只接收仍然影响当前路线的高层变化，不能变成文献日志。
 
-文献工作流 `completion=true` 只表示本轮文献发现、获取、阅读、批判和综合已经闭合；它不意味着整个科研 Objective 已经解决，也不构成机械进入 `HYPOTHESIS` 或 `DESIGN` 的理由。完成 Literature Research 后把控制权交回 `akira-research`，由当前 Scientific State 重新选择下一动作：现有项目数据已经能取得判别性证据时应进入 `ANALYSIS`；需要把竞争解释转成不同预测时进入 `HYPOTHESIS`；确实需要新的 sampling、measurement 或 intervention 时才进入 `DESIGN`。Literature Skill 不另行维护一套项目路线或最终科学结论。
+Literature completion 只表示本轮文献发现、获取、阅读、批判和综合已经闭合；它不意味着整个科研 Objective 已经解决，也不构成机械进入 `HYPOTHESIS` 或 `DESIGN` 的理由。准备结束完整 Literature Research 前，最后一次检查 `discovery-status`、适用的 acquisition / reading / Critical Audit / cross-paper relation 要求、canonical state、Git 状态与 `validate --completion` 的 Literature-specific readiness；其中任何本工作流未闭合项若不是前述真实外部 blocker，就继续执行而不是返回阶段总结。不要要求与本轮 Literature 无关的其他科研工作流同时完成。
+
+只有达到 `COMPLETED` 后才把控制权交回 `akira-research`，由更新后的 Scientific State 重新选择下一动作：现有项目数据已经能取得判别性证据时应进入 `ANALYSIS`；需要把竞争解释转成不同预测时进入 `HYPOTHESIS`；确实需要新的 sampling、measurement 或 intervention 时才进入 `DESIGN`。若状态为 `BLOCKED`，控制权停在当前 Literature work，并把解除 blocker 作为项目下一条真实 `Active Work`。Literature Skill 不另行维护一套项目路线或最终科学结论。
