@@ -12,7 +12,11 @@ SCRIPT_DIR = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from research_db_core import MIGRATION_DIR, database_path, init_database  # noqa: E402
-from research_db_ops.planning import record_design, record_hypothesis_set  # noqa: E402
+from research_db_ops.planning import (  # noqa: E402
+    record_design,
+    record_hypothesis_proposal,
+    record_hypothesis_set,
+)
 from research_db_ops.completion import (  # noqa: E402
     academic_language_readiness,
     literature_completion_readiness,
@@ -630,6 +634,15 @@ Best next evidence: 定义可识别的中介估计目标并取得对应判别证
             text=True,
         ).stdout.strip()
 
+        record_hypothesis_proposal(
+            self.root,
+            {
+                "slug": "causal-direct-effect",
+                "origin": "agent",
+                "original_statement": "目标因素可能具有独立因果贡献。",
+                "rationale": "该解释与当前目标不确定性一致，并需要与替代解释形成可判别预测。",
+            },
+        )
         record_hypothesis_set(
             self.root,
             {
@@ -639,6 +652,7 @@ Best next evidence: 定义可识别的中介估计目标并取得对应判别证
                 "artifact_path": "hypotheses/causal-set.md",
                 "status": "frozen",
                 "freeze_commit": freeze_commit,
+                "proposal_slugs": ["causal-direct-effect"],
             },
         )
         record_design(

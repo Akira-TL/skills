@@ -164,6 +164,11 @@ def append_planning_errors(errors: list[str], blockers: list[dict[str, Any]]) ->
                 f"Hypothesis Set {blocker.get('hypothesis_set')} 的 canonical artifact 在所声明 freeze commit 中不存在："
                 f"{blocker.get('path')}"
             )
+        elif reason == "hypothesis_set_missing_proposal_provenance":
+            errors.append(
+                f"Hypothesis Set {blocker.get('hypothesis_set')} 是 schema v18 provenance 启用后新建的集合，"
+                "但没有链接任何 Hypothesis Proposal。"
+            )
         elif reason in {"design_freeze_commit_missing", "design_freeze_commit_not_found"}:
             errors.append(
                 f"Research Design {blocker.get('design')} 缺少有效 freeze commit：{blocker.get('freeze_commit')}。"

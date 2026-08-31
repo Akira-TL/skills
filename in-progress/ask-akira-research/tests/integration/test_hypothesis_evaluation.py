@@ -17,6 +17,7 @@ from research_db_ops.downstream import record_analysis, record_dataset  # noqa: 
 from research_db_ops.planning import (  # noqa: E402
     record_design,
     record_hypothesis_evaluation,
+    record_hypothesis_proposal,
     record_hypothesis_set,
 )
 
@@ -122,6 +123,15 @@ A 相对 B 的平均处理效应属于哪个预定义效应区域？
         scientific_freeze = self._commit("RESEARCH: freeze question and design")
         uncertainty = "A 相对 B 的平均处理效应属于哪个预定义效应区域？"
         estimand = "E[Y(A)-Y(B)]"
+        record_hypothesis_proposal(
+            self.root,
+            {
+                "slug": "treatment-effect-regions",
+                "origin": "agent",
+                "original_statement": "处理效应可能落在预定义的不同效应区域。",
+                "rationale": "该 proposal 将当前 Active Uncertainty 操作化为可由预定义边界判别的竞争状态。",
+            },
+        )
         record_hypothesis_set(
             self.root,
             {
@@ -131,6 +141,7 @@ A 相对 B 的平均处理效应属于哪个预定义效应区域？
                 "artifact_path": "hypotheses/treatment-effect.md",
                 "status": "frozen",
                 "freeze_commit": scientific_freeze,
+                "proposal_slugs": ["treatment-effect-regions"],
             },
         )
         record_design(

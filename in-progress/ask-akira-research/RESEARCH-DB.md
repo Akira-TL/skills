@@ -42,6 +42,10 @@ analysis_dataset_artifact_timing
 analysis_artifacts
 analysis_amendments
 project_observations
+hypothesis_proposals
+hypothesis_set_proposals
+user_hypothesis_decisions
+research_judgments
 hypothesis_sets
 research_designs
 hypothesis_evaluations
@@ -191,6 +195,10 @@ Candidate ID 主要供数据库内部使用。
 `research-db validate --completion` 会把已登记且需要 Git 跟踪的 data/analysis artifact 纳入 canonical path gate。`data/` 或 `analysis/` 下已经被 Git 跟踪但没有进入上述 provenance 的文件会阻止完成；实际生成 curated 数据、主要结果、敏感性结果或关键诊断的项目脚本即使位于 `scripts/`，也应作为 Dataset / Analysis artifact 登记，从而进入同一 canonical Git gate。已完成的确认性 Analysis 还必须证明其 freeze commit 是当前 HEAD 的祖先、主要计划/代码/输入以及未被该 Analysis 标为 `post_result_context` 的 canonical Dataset artifact 在 freeze 时已经存在，并且这些路径在 `freeze_commit..HEAD` 的提交历史中从未被改写；中间改写后再 revert 也不能恢复原 freeze 资格。本轮结果 artifact 在 freeze 时必须尚不存在。`post_result_context` artifact 仍进入 canonical Git gate；completion 要求它在该 Analysis 的 freeze 时不存在，且它首次进入 Git 历史的提交中已经存在当前 Analysis 的至少一个已登记 result artifact，防止把仅仅“晚于 freeze”但实际早于结果的 provenance 事后洗成 post-result context。
 
 从 schema v14 起，Hypothesis Set 与 Research Design 经过真实设计黑盒后已经显示出稳定的身份与冻结审计需求，因此进入最小结构化 provenance：`hypothesis_sets` 保存 target uncertainty、canonical `hypotheses/<slug>.md`、**artifact 生命周期状态**与 freeze commit；`research_designs` 保存关联 Hypothesis Set、主要 estimand、primary outcome、experimental unit、canonical `designs/<slug>.md`、feasibility 状态与 freeze commit。`hypothesis_sets.status=frozen` 表示结果前版本被冻结，不等于科学上“假设已确认”。
+
+从 schema v18 起，Hypothesis 形成过程进一步保存来源而不把不同主体的判断混成一条叙事。`hypothesis_proposals` 保存一个值得持续追踪的科学猜想最初由 `user|agent` 谁提出、原始表述、后续可检验操作化及其执行者；Agent-origin proposal 必须保存 rationale。Proposal 的来源字段不可覆盖；允许后续一次性补入 `operationalized_statement + operationalized_by`，已有操作化表述不得改写。科学语义实质改变时建立新 proposal。`hypothesis_set_proposals` 把正式 Hypothesis Set 指回形成它的 proposal；v18 之后新建的 Hypothesis Set 至少需要一个 proposal link，迁移前已经存在的集合按 `hypothesis_provenance_started_at` 保持 grandfathered，不追溯补造来源历史。
+
+`user_hypothesis_decisions` 只记录用户明确对某个 proposal 作出的 `accepted_for_exploration | prioritized | deferred | rejected | modified` 追加式决策，并强制保留用户的 `source_statement`。用户接受 Agent proposal 后不会改变其 `origin=agent`，也不会改变任何科学证据状态。`modified` 必须通过 `resulting_proposal_id` 指向一个新 Proposal；其他 decision 不得携带 resulting proposal。`research_judgments` 保存影响科研路线但不等同于 hypothesis/evidence 的判断，每条记录只有一个 `actor=user|agent`；Agent judgment 必须记录 `basis`，用户 judgment 必须保留 `source_statement`。因此“谁提出”“用户后来怎样选择”“Agent 与用户各自如何判断路线”“证据目前支持到什么程度”由不同对象回答，不能互相替代。
 
 从 schema v15 起，完整的 pre-data → Analysis → Interpretation 黑盒进一步稳定暴露出 `hypothesis_evaluations`：一次 Evaluation 连接一个 Hypothesis Set、一个 completed Analysis 和该 Analysis 已登记的具体解释/结果 artifact，并记录本轮总体判别为 `unresolved | partially_resolved | resolved | not_interpretable`、decision、summary 与时间。Evaluation 是追加式科研事件，同一 Hypothesis Set 可以被后续不同 Analysis 继续产生新的 Evaluation；同一 Analysis 对同一 Hypothesis Set 的评价不可覆盖。这样保存证据更新历史，而不把“最新科学状态”错误塞进 Hypothesis Set 的 freeze 生命周期字段。
 
@@ -538,6 +546,12 @@ research-db record-dataset [bundle]
 research-db datasets
 research-db record-analysis [bundle]
 research-db analyses
+research-db record-hypothesis-proposal [bundle]
+research-db hypothesis-proposals
+research-db record-user-hypothesis-decision [bundle]
+research-db user-hypothesis-decisions [--proposal <slug>]
+research-db record-research-judgment [bundle]
+research-db research-judgments [--actor user|agent]
 research-db record-hypothesis-set [bundle]
 research-db hypothesis-sets
 research-db record-design [bundle]

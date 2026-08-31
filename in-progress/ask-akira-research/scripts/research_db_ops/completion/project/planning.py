@@ -28,18 +28,39 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
                 "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
             )
         }
-        required = {"hypothesis_sets", "research_designs", "hypothesis_evaluations"}
+        required = {
+            "hypothesis_sets",
+            "hypothesis_proposals",
+            "hypothesis_set_proposals",
+            "user_hypothesis_decisions",
+            "research_judgments",
+            "research_designs",
+            "hypothesis_evaluations",
+        }
         missing = sorted(required - tables)
         if missing:
             return {
                 "ready": False,
                 "blockers": [{"reason": "planning_schema_missing", "tables": missing}],
                 "hypothesis_set_count": 0,
+                "hypothesis_proposal_count": 0,
+                "user_hypothesis_decision_count": 0,
+                "research_judgment_count": 0,
                 "design_count": 0,
                 "frozen_design_count": 0,
+                "hypothesis_evaluation_count": 0,
             }
 
         hypothesis_count = int(connection.execute("SELECT COUNT(*) FROM hypothesis_sets").fetchone()[0])
+        hypothesis_proposal_count = int(
+            connection.execute("SELECT COUNT(*) FROM hypothesis_proposals").fetchone()[0]
+        )
+        user_hypothesis_decision_count = int(
+            connection.execute("SELECT COUNT(*) FROM user_hypothesis_decisions").fetchone()[0]
+        )
+        research_judgment_count = int(
+            connection.execute("SELECT COUNT(*) FROM research_judgments").fetchone()[0]
+        )
         design_count = int(connection.execute("SELECT COUNT(*) FROM research_designs").fetchone()[0])
         frozen_design_count = int(
             connection.execute(
@@ -49,6 +70,34 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
         hypothesis_evaluation_count = int(
             connection.execute("SELECT COUNT(*) FROM hypothesis_evaluations").fetchone()[0]
         )
+
+        provenance_row = connection.execute(
+            "SELECT value FROM meta WHERE key = 'hypothesis_provenance_started_at'"
+        ).fetchone()
+        provenance_started_at = str(provenance_row["value"]) if provenance_row is not None else None
+        if provenance_started_at:
+            for hypothesis in connection.execute(
+                "SELECT id, slug, created_at FROM hypothesis_sets ORDER BY id"
+            ):
+                is_post_v18 = connection.execute(
+                    "SELECT julianday(?) >= julianday(?)",
+                    (hypothesis["created_at"], provenance_started_at),
+                ).fetchone()[0]
+                if not is_post_v18:
+                    continue
+                proposal_count = int(
+                    connection.execute(
+                        "SELECT COUNT(*) FROM hypothesis_set_proposals WHERE hypothesis_set_id = ?",
+                        (int(hypothesis["id"]),),
+                    ).fetchone()[0]
+                )
+                if proposal_count == 0:
+                    blockers.append(
+                        {
+                            "reason": "hypothesis_set_missing_proposal_provenance",
+                            "hypothesis_set": hypothesis["slug"],
+                        }
+                    )
 
         registered_hypotheses = {
             str(row["artifact_path"])
@@ -240,6 +289,9 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
         "ready": not blockers,
         "blockers": blockers,
         "hypothesis_set_count": hypothesis_count,
+        "hypothesis_proposal_count": hypothesis_proposal_count,
+        "user_hypothesis_decision_count": user_hypothesis_decision_count,
+        "research_judgment_count": research_judgment_count,
         "design_count": design_count,
         "frozen_design_count": frozen_design_count,
         "hypothesis_evaluation_count": hypothesis_evaluation_count,

@@ -20,6 +20,50 @@ _HYPOTHESIS_ORDER = {"draft": 0, "frozen": 1, "closed": 2, "superseded": 2}
 _DESIGN_ORDER = {"draft": 0, "frozen": 1, "execution_ready": 2, "superseded": 2}
 
 
+def _slug_list(value: object, *, field: str) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ResearchDbError(f"{field} 必须是 JSON array。")
+    result: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        slug = common.slug(item, field=field)
+        if slug in seen:
+            continue
+        seen.add(slug)
+        result.append(slug)
+    return result
+
+
+def _has_table(connection: Any, table: str) -> bool:
+    return (
+        connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+            (table,),
+        ).fetchone()
+        is not None
+    )
+
+
+def _proposal_ids(connection: Any, proposal_slugs: list[str]) -> dict[str, int]:
+    if not proposal_slugs:
+        return {}
+    if not _has_table(connection, "hypothesis_proposals"):
+        raise ResearchDbError("当前 research.sqlite 尚未支持 Hypothesis Proposal provenance；先运行 migrate。")
+    rows = connection.execute(
+        "SELECT id, slug FROM hypothesis_proposals WHERE slug IN ("
+        + ",".join("?" for _ in proposal_slugs)
+        + ")",
+        proposal_slugs,
+    ).fetchall()
+    mapping = {str(row["slug"]): int(row["id"]) for row in rows}
+    missing = [slug for slug in proposal_slugs if slug not in mapping]
+    if missing:
+        raise ResearchDbError("Hypothesis Set 引用了不存在的 proposal：" + ", ".join(missing))
+    return mapping
+
+
 def record_hypothesis_set(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
     slug = common.slug(bundle.get("slug"))
     title = common.text(bundle.get("title"), required=True, field="title")
@@ -33,6 +77,7 @@ def record_hypothesis_set(project_root: Path, bundle: dict[str, Any]) -> dict[st
         bundle.get("status"), HYPOTHESIS_STATUSES, default="draft", field="hypothesis status"
     )
     freeze_commit = common.text(bundle.get("freeze_commit"))
+    proposal_slugs = _slug_list(bundle.get("proposal_slugs"), field="proposal_slugs")
     if status == "frozen" and not freeze_commit:
         raise ResearchDbError("Hypothesis Set 进入 frozen 时必须记录 freeze_commit。")
 
@@ -40,10 +85,16 @@ def record_hypothesis_set(project_root: Path, bundle: dict[str, Any]) -> dict[st
     with connect(common.db_path(project_root)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         try:
+            proposal_schema = _has_table(connection, "hypothesis_proposals")
+            proposal_mapping = _proposal_ids(connection, proposal_slugs) if proposal_slugs else {}
             existing = connection.execute(
                 "SELECT * FROM hypothesis_sets WHERE slug = ?", (slug,)
             ).fetchone()
             if existing is None:
+                if proposal_schema and not proposal_slugs:
+                    raise ResearchDbError(
+                        "新建 Hypothesis Set 必须通过 proposal_slugs 指回至少一个已记录的 Hypothesis Proposal。"
+                    )
                 cursor = connection.execute(
                     """
                     INSERT INTO hypothesis_sets(
@@ -81,6 +132,25 @@ def record_hypothesis_set(project_root: Path, bundle: dict[str, Any]) -> dict[st
                             + ", ".join(changed)
                             + "。需要显式建立新版本/新集合。"
                         )
+                    if proposal_slugs and proposal_schema:
+                        linked = {
+                            str(row["slug"])
+                            for row in connection.execute(
+                                """
+                                SELECT p.slug
+                                FROM hypothesis_set_proposals hp
+                                JOIN hypothesis_proposals p ON p.id = hp.proposal_id
+                                WHERE hp.hypothesis_set_id = ?
+                                """,
+                                (hypothesis_set_id,),
+                            )
+                        }
+                        new_links = [proposal for proposal in proposal_slugs if proposal not in linked]
+                        if new_links:
+                            raise ResearchDbError(
+                                "Hypothesis Set 冻结后不能补写新的 proposal provenance："
+                                + ", ".join(new_links)
+                            )
                 old_status = str(existing["status"])
                 if old_status in {"closed", "superseded"} and status != old_status:
                     raise ResearchDbError(f"{old_status} Hypothesis Set 不能重新激活。")
@@ -114,6 +184,17 @@ def record_hypothesis_set(project_root: Path, bundle: dict[str, Any]) -> dict[st
                         (status, freeze_commit, now, hypothesis_set_id),
                     )
 
+            if proposal_schema:
+                for proposal_slug in proposal_slugs:
+                    connection.execute(
+                        """
+                        INSERT OR IGNORE INTO hypothesis_set_proposals(
+                            hypothesis_set_id, proposal_id, created_at
+                        ) VALUES (?, ?, ?)
+                        """,
+                        (hypothesis_set_id, proposal_mapping[proposal_slug], now),
+                    )
+
             connection.execute(
                 """
                 INSERT INTO change_log(timestamp, action, entity_type, entity_id, reason, summary)
@@ -123,7 +204,7 @@ def record_hypothesis_set(project_root: Path, bundle: dict[str, Any]) -> dict[st
                     now,
                     str(hypothesis_set_id),
                     f"Hypothesis Set state recorded as {status}.",
-                    f"hypothesis_set={slug}; status={status}",
+                    f"hypothesis_set={slug}; status={status}; proposals={','.join(proposal_slugs) or 'legacy/untracked'}",
                 ),
             )
             connection.commit()
@@ -135,6 +216,7 @@ def record_hypothesis_set(project_root: Path, bundle: dict[str, Any]) -> dict[st
         "hypothesis_set_id": hypothesis_set_id,
         "slug": slug,
         "status": status,
+        "proposal_slugs": proposal_slugs,
     }
 
 
@@ -303,13 +385,35 @@ def record_design(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
 
 def list_hypothesis_sets(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
     with connect(common.db_path(project_root)) as connection:
-        rows = [
-            dict(row)
-            for row in connection.execute(
-                "SELECT * FROM hypothesis_sets ORDER BY id LIMIT ?", (limit,)
+        proposal_schema = _has_table(connection, "hypothesis_set_proposals")
+        rows: list[dict[str, Any]] = []
+        for row in connection.execute(
+            "SELECT * FROM hypothesis_sets ORDER BY id LIMIT ?", (limit,)
+        ):
+            item = dict(row)
+            item["proposal_slugs"] = (
+                [
+                    str(link["slug"])
+                    for link in connection.execute(
+                        """
+                        SELECT p.slug
+                        FROM hypothesis_set_proposals hp
+                        JOIN hypothesis_proposals p ON p.id = hp.proposal_id
+                        WHERE hp.hypothesis_set_id = ?
+                        ORDER BY hp.created_at, p.id
+                        """,
+                        (int(row["id"]),),
+                    )
+                ]
+                if proposal_schema
+                else None
             )
-        ]
-    return {"ok": True, "hypothesis_sets": rows}
+            rows.append(item)
+    return {
+        "ok": True,
+        "schema_capabilities": {"hypothesis_proposal_provenance": proposal_schema},
+        "hypothesis_sets": rows,
+    }
 
 
 def list_designs(project_root: Path, *, limit: int = 100) -> dict[str, Any]:

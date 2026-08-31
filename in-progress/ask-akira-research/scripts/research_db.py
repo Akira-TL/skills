@@ -37,10 +37,16 @@ from research_db_ops.downstream import (
 from research_db_ops.planning import (
     list_designs,
     list_hypothesis_evaluations,
+    list_hypothesis_proposals,
     list_hypothesis_sets,
+    list_research_judgments,
+    list_user_hypothesis_decisions,
     record_design,
     record_hypothesis_evaluation,
+    record_hypothesis_proposal,
     record_hypothesis_set,
+    record_research_judgment,
+    record_user_hypothesis_decision,
 )
 from research_db_ingest import PaperIngestBundle, ingest_paper
 from research_db_ops.query import (
@@ -67,6 +73,9 @@ BUNDLE_DEFAULTS = {
     "ingest-critical": "critical.json",
     "record-dataset": "dataset.json",
     "record-analysis": "analysis.json",
+    "record-hypothesis-proposal": "hypothesis-proposal.json",
+    "record-user-hypothesis-decision": "user-hypothesis-decision.json",
+    "record-research-judgment": "research-judgment.json",
     "record-hypothesis-set": "hypothesis-set.json",
     "record-design": "design.json",
     "record-hypothesis-evaluation": "hypothesis-evaluation.json",
@@ -395,6 +404,37 @@ def cmd_analyses(args: argparse.Namespace) -> int:
     return 0
 
 
+PROVENANCE_RECORDERS: dict[str, Callable[[Path, dict[str, Any]], dict[str, Any]]] = {
+    "record-hypothesis-proposal": record_hypothesis_proposal,
+    "record-user-hypothesis-decision": record_user_hypothesis_decision,
+    "record-research-judgment": record_research_judgment,
+}
+
+def cmd_record_planning_provenance(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    recorder = PROVENANCE_RECORDERS[args.command]
+    emit(recorder(project_root, _load_json_object(project_root, args.command, args.bundle)))
+    return 0
+
+
+def cmd_planning_provenance_list(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    if args.command == "hypothesis-proposals":
+        payload = list_hypothesis_proposals(project_root, limit=args.limit)
+    elif args.command == "user-hypothesis-decisions":
+        payload = list_user_hypothesis_decisions(project_root, proposal_slug=args.proposal, limit=args.limit)
+    else:
+        payload = list_research_judgments(
+            project_root,
+            actor=args.actor,
+            judgment_type=args.judgment_type,
+            proposal_slug=args.proposal,
+            limit=args.limit,
+        )
+    emit(payload)
+    return 0
+
+
 def cmd_record_hypothesis_set(args: argparse.Namespace) -> int:
     project_root = discover_project_root(args.project)
     emit(
@@ -626,6 +666,7 @@ def build_parser() -> argparse.ArgumentParser:
     for name, help_text, handler in (
         ("datasets", "列出项目级 Dataset provenance。", cmd_datasets),
         ("analyses", "列出项目级 Analysis Run、artifact、修订与项目 Observation。", cmd_analyses),
+        ("hypothesis-proposals", "列出 Hypothesis Proposal 的来源、操作化与最新用户决策。", cmd_planning_provenance_list),
         ("hypothesis-sets", "列出项目级 Hypothesis Set provenance。", cmd_hypothesis_sets),
         ("hypothesis-evaluations", "列出结果后 Hypothesis Evaluation 历史。", cmd_hypothesis_evaluations),
         ("designs", "列出项目级 Research Design provenance。", cmd_designs),
@@ -635,7 +676,52 @@ def build_parser() -> argparse.ArgumentParser:
         downstream_parser.add_argument("--limit", type=int, default=100)
         downstream_parser.set_defaults(handler=handler)
 
+    user_decisions_parser = subparsers.add_parser(
+        "user-hypothesis-decisions",
+        help="列出用户对 Hypothesis Proposal 的追加式决策历史。",
+    )
+    user_decisions_parser.add_argument("--proposal", help="只返回指定 proposal slug 的决策。")
+    user_decisions_parser.add_argument("--limit", type=int, default=100)
+    user_decisions_parser.set_defaults(handler=cmd_planning_provenance_list)
+
+    judgments_parser = subparsers.add_parser(
+        "research-judgments",
+        help="按来源分别列出 Agent 或用户的科研判断、优先级与战略偏好。",
+    )
+    judgments_parser.add_argument("--actor", choices=["user", "agent"])
+    judgments_parser.add_argument(
+        "--judgment-type",
+        choices=[
+            "scientific_assessment",
+            "research_priority",
+            "strategic_preference",
+            "resource_constraint",
+            "recommendation",
+        ],
+    )
+    judgments_parser.add_argument("--proposal", help="只返回与指定 proposal slug 关联的判断。")
+    judgments_parser.add_argument("--limit", type=int, default=100)
+    judgments_parser.set_defaults(handler=cmd_planning_provenance_list)
+
     bundle_commands = [
+        (
+            "record-hypothesis-proposal",
+            "记录一个不可覆盖的 Hypothesis Proposal，并保留 user/agent 原始来源。",
+            "Hypothesis Proposal JSON bundle；默认 .research/bundles/hypothesis-proposal.json；传 '-' 从 stdin 读取。",
+            cmd_record_planning_provenance,
+        ),
+        (
+            "record-user-hypothesis-decision",
+            "记录用户对 Hypothesis Proposal 的接受、优先、暂缓、拒绝或修改事件。",
+            "User Hypothesis Decision JSON bundle；默认 .research/bundles/user-hypothesis-decision.json；传 '-' 从 stdin 读取。",
+            cmd_record_planning_provenance,
+        ),
+        (
+            "record-research-judgment",
+            "分别记录 Agent 与用户的科研判断、研究优先级或战略偏好。",
+            "Research Judgment JSON bundle；默认 .research/bundles/research-judgment.json；传 '-' 从 stdin 读取。",
+            cmd_record_planning_provenance,
+        ),
         (
             "record-hypothesis-set",
             "登记或冻结项目 Hypothesis Set 及其 canonical artifact。",

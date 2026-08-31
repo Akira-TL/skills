@@ -111,8 +111,25 @@ def _check_downstream_project(project_root: Path, connection, errors: list[str])
 
 
 def _check_planning_project(project_root: Path, connection, errors: list[str]) -> None:
+    tables = {
+        str(row["name"])
+        for row in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+        )
+    }
+    proposal_schema = {
+        "hypothesis_proposals",
+        "hypothesis_set_proposals",
+        "user_hypothesis_decisions",
+        "research_judgments",
+    }.issubset(tables)
+    provenance_row = connection.execute(
+        "SELECT value FROM meta WHERE key = 'hypothesis_provenance_started_at'"
+    ).fetchone()
+    provenance_started_at = str(provenance_row["value"]) if provenance_row is not None else None
+
     for row in connection.execute(
-        "SELECT id, slug, artifact_path, status, freeze_commit FROM hypothesis_sets ORDER BY id"
+        "SELECT id, slug, artifact_path, status, freeze_commit, created_at FROM hypothesis_sets ORDER BY id"
     ):
         path = Path(str(row["artifact_path"]))
         if not path.is_absolute():
@@ -127,6 +144,56 @@ def _check_planning_project(project_root: Path, connection, errors: list[str]) -
             errors.append(
                 f"hypothesis set {row['slug']} 已 frozen，但缺少 freeze_commit。"
             )
+        if proposal_schema and provenance_started_at:
+            is_post_v18 = connection.execute(
+                "SELECT julianday(?) >= julianday(?)",
+                (row["created_at"], provenance_started_at),
+            ).fetchone()[0]
+            if is_post_v18:
+                proposal_count = int(
+                    connection.execute(
+                        "SELECT COUNT(*) FROM hypothesis_set_proposals WHERE hypothesis_set_id = ?",
+                        (int(row["id"]),),
+                    ).fetchone()[0]
+                )
+                if proposal_count == 0:
+                    errors.append(
+                        f"hypothesis set {row['slug']} 是 proposal provenance 启用后新建的集合，"
+                        "但没有链接任何 Hypothesis Proposal。"
+                    )
+
+    if proposal_schema:
+        for row in connection.execute(
+            """
+            SELECT hp.hypothesis_set_id, hp.proposal_id,
+                   h.id AS hypothesis_exists, p.id AS proposal_exists
+            FROM hypothesis_set_proposals hp
+            LEFT JOIN hypothesis_sets h ON h.id = hp.hypothesis_set_id
+            LEFT JOIN hypothesis_proposals p ON p.id = hp.proposal_id
+            ORDER BY hp.hypothesis_set_id, hp.proposal_id
+            """
+        ):
+            if row["hypothesis_exists"] is None or row["proposal_exists"] is None:
+                errors.append(
+                    "hypothesis_set_proposals 存在悬空 provenance link："
+                    f"hypothesis_set_id={row['hypothesis_set_id']}; proposal_id={row['proposal_id']}"
+                )
+        for row in connection.execute(
+            """
+            SELECT d.id, d.proposal_id, d.resulting_proposal_id,
+                   p.id AS proposal_exists, rp.id AS resulting_exists
+            FROM user_hypothesis_decisions d
+            LEFT JOIN hypothesis_proposals p ON p.id = d.proposal_id
+            LEFT JOIN hypothesis_proposals rp ON rp.id = d.resulting_proposal_id
+            ORDER BY d.id
+            """
+        ):
+            if row["proposal_exists"] is None:
+                errors.append(f"user hypothesis decision {row['id']} 引用不存在的 proposal。")
+            if row["resulting_proposal_id"] is not None and row["resulting_exists"] is None:
+                errors.append(
+                    f"user hypothesis decision {row['id']} 的 resulting proposal 不存在。"
+                )
 
     for row in connection.execute(
         """
