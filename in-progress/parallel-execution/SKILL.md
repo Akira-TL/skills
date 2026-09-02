@@ -30,11 +30,33 @@ Worker 可以在 claim 前只读查看 Execution Map、Parent Gate 与 frontier 
 Claim 的事务边界是：
 
 1. 先取得确定性互斥。
-2. 再把 Task 的 Ownership 与 Status 投影到 Issue Tracker。
-3. Tracker 更新失败时释放刚取得的互斥，使两处状态回到未领取。
-4. 互斥失败时不写 Tracker。
+2. 重新读取 Task，确认它仍是 `ready-for-agent`、blocker 仍已满足，且 Coordinator 没有取消或改写当前执行范围。
+3. 用一次 Tracker 更新把 Ownership 与 Status 投影为当前 Worker / `in-progress`，随后重新读取并核对。
+4. Tracker 更新、复核或前置条件任一步失败时，把 Tracker 恢复到领取前状态（若发生过写入），释放刚取得的互斥，再用 `status` 验证互斥已经消失；任何回滚无法确认时继续保持只读并报告 Coordinator。
+5. 互斥失败时不写 Tracker。
 
 完成条件：Tracker 与确定性 claim 对同一 Task、同一 Worker 一致，Task 状态为 `in-progress`。
+
+### 确定性 helper
+
+使用当前 `parallel-execution` Skill 的 sibling 脚本 `scripts/parallel_claim.py`。`<skill-root>` 表示当前已加载 Skill 的实际根目录，不要把脚本复制到项目仓库：
+
+```bash
+uv run <skill-root>/scripts/parallel_claim.py status \
+  --task '<stable-task-reference>' --repo '<worktree>'
+
+uv run <skill-root>/scripts/parallel_claim.py claim \
+  --task '<stable-task-reference>' --owner '<worker-identity>' --repo '<worktree>'
+
+uv run <skill-root>/scripts/parallel_claim.py release \
+  --task '<stable-task-reference>' --owner '<worker-identity>' --repo '<worktree>'
+```
+
+`stable-task-reference` 使用 Tracker 中能唯一定位该 Parallel Task 的稳定引用；本地 Tracker 使用完整 issue 文件路径，不使用仅供展示的标题。`worker-identity` 必须在当前 Worker 会话内稳定且能与 Tracker Ownership 对应；多个 Agent 共用同一 GitHub/GitLab 用户时不能只填共享账号名。
+
+helper 通过 `git rev-parse --git-common-dir` 把同一 repository 的所有 worktree 映射到同一个 claim store，并用原子文件创建决定唯一 winner。claim 文件只是同机互斥的实现细节，**不是第二套协作状态**；Issue Tracker 仍是唯一 canonical collaboration state。`status` 在 claim store 尚不存在时不会创建目录，因此 claim 前的查询保持只读。
+
+CLI 退出码：`0` 表示操作成功或查询成功；`1` 表示可预期的 ownership 冲突；`2` 表示 Git 环境、元数据或文件系统状态无法安全确认。`claim` 对同一 Task + owner 是幂等的；不同 owner 只有一个可以成功。
 
 ## 3. 恢复实现上下文
 
@@ -72,7 +94,7 @@ ready-for-agent
 - Coordinator 才能把 Task 更新为 `accepted`、`changes-requested` 或 `cancelled`。
 - Worker 不直接 close Parallel Task，也不自行宣布 Gate 通过。
 
-当 Task 离开 `in-progress` 时释放执行期互斥；Ownership 仍保留在 Tracker，直到 Coordinator 接受、取消或明确重新分配。
+当 Task 离开 `in-progress` 时，先把新的 Task 状态可靠写入并复核 Tracker，再用 helper `release` 释放执行期互斥，最后用 `status` 验证已释放。释放失败或结果不确定时不继续新的实现写入，立即把残留 claim 作为 Coordination impact 报告 Coordinator。Ownership 仍保留在 Tracker，直到 Coordinator 接受、取消或明确重新分配。
 
 ## 5. Worker 实现与提交
 
@@ -95,7 +117,7 @@ Worker 只实现当前 Task。若发现需要拆分/合并 Task、改变 blocker
 - Matt `code-review` 已完成，且 Worker 已处理当前范围内必须修复的问题。
 - Commit、Task、Parent Gate 与 Source Matt Ticket 的对应关系可从 Tracker 与 Git 复核。
 
-更新 `ready-for-review` 后释放执行期互斥，保留 Ownership，等待 Coordinator 审查。
+更新并复核 `ready-for-review` 后按本 Skill 的统一释放规则释放执行期互斥，保留 Ownership，等待 Coordinator 审查。
 
 ## 7. Worker 阶段汇报
 
