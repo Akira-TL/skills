@@ -67,9 +67,9 @@ Rapid / Emergency / Competition 的模式策略可以继续使用多 Agent，但
 - 把当前 mode 与已经确认的 Work State 作为上游来源交给 Coordinator，不因为进入 Parallel 补造 Matt Spec/Ticket。
 - 当前 Akira mode 不切换；Coordinator 与 Worker 都继续遵守该 mode 的 Execution Policy。
 - Worker 任务由 model-invoked 的 `parallel-execution` 负责 claim、生命周期和阶段汇报。
-- `devspace-orchestration` 只在已经决定具体执行任务后负责 Agent、tmux 与 worktree 落地，不拥有 Task 拆分、blocking、claim、Ownership 或 acceptance。
+- Parallel 不规定 Worker 必须由哪一种 Agent harness、CLI、进程模型或 worktree 管理器启动；实际执行只使用当前环境已经提供且可验证的能力。
 
-若只是当前父 Agent 临时并行两个只读查找或完全隔离的短任务，不需要持久 Tracker 状态，则按当前模式的 coordination Router 直接使用执行器即可，不为此建立 Execution Map。
+若只是当前父 Agent 临时并行两个只读查找或完全隔离的短任务，不需要持久 Tracker 状态，则按当前模式的 coordination Router 使用当前 harness 已有的并行能力；没有并行能力时保持串行，不为此建立 Execution Map。
 
 ## 6. 风险只提高验证强度
 

@@ -5,7 +5,7 @@
 先判断是否需要持久协作状态：
 
 - **正式 Parallel**：调查会跨会话持续、需要多个 Worker 自主领取、调查结果会阻塞后续 Gate，或需要把一个写入型修复 Task 与多个只读调查 Task 放在同一协作图中 → 让用户进入 `/parallel-coordinator`，把当前 incident scope / tight feedback loop 作为 Source Mode Work。
-- **临时调查**：父 Agent 只需要同时检查少量日志、diff、版本区间或外部状态，结果会立即回到当前会话 → 直接使用 `devspace-orchestration`，不建立 Execution Map。
+- **临时调查**：父 Agent 只需要同时检查少量日志、diff、版本区间或外部状态，结果会立即回到当前会话 → 使用当前 harness 已提供的并行能力；没有对应能力时保持串行，不建立 Execution Map。
 
 正式 Parallel 中：
 
@@ -15,4 +15,4 @@
 - 写入型修复 Worker 继续当前 Emergency execution 分支，只实施恢复 incident 所需的最小 patch。
 - 新证据统一回到同一个 tight feedback loop 验证。Coordinator 可以验收调查 Task，但不能因为多个 Worker 给出相同猜测就宣布根因成立。
 
-`devspace-orchestration` 只负责已决定任务的执行环境；不拥有 claim、Task 状态、root-cause 裁决或 Gate acceptance。
+具体 Worker 由哪一种 Agent harness、CLI、进程或终端会话执行不属于 Emergency Parallel 协议；这些实现不能拥有 claim、Task 状态、root-cause 裁决或 Gate acceptance。
