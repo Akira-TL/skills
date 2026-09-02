@@ -58,11 +58,24 @@ Matt 继续负责能力本身的方法论。Akira Router 可以直接交给当�
 
 Matt 的 user-invoked Skill 不是 Akira 可以隐式调用的依赖。Akira 若要省略或替代其 ceremony，应在自己的分支文件中定义该特殊模式所需的更短流程。
 
-## 5. 风险只提高验证强度
+## 5. 正式 Parallel 协作
+
+Rapid / Emergency / Competition 的模式策略可以继续使用多 Agent，但模式与 Parallel 是两个正交层：模式决定**做什么、优先级和验证强度**，Parallel 只决定**如何让多个 Worker 通过 Tracker 安全协作**。
+
+当协作需要 Execution Map、Gate、可领取 Parallel Task、跨会话 Ownership、动态 frontier 或 Coordinator 双层验收时，路由到 user-invoked 的 `/parallel-coordinator`：
+
+- 把当前 mode 与已经确认的 Work State 作为上游来源交给 Coordinator，不因为进入 Parallel 补造 Matt Spec/Ticket。
+- 当前 Akira mode 不切换；Coordinator 与 Worker 都继续遵守该 mode 的 Execution Policy。
+- Worker 任务由 model-invoked 的 `parallel-execution` 负责 claim、生命周期和阶段汇报。
+- `devspace-orchestration` 只在已经决定具体执行任务后负责 Agent、tmux 与 worktree 落地，不拥有 Task 拆分、blocking、claim、Ownership 或 acceptance。
+
+若只是当前父 Agent 临时并行两个只读查找或完全隔离的短任务，不需要持久 Tracker 状态，则按当前模式的 coordination Router 直接使用执行器即可，不为此建立 Execution Map。
+
+## 6. 风险只提高验证强度
 
 Akira 模式控制的是执行策略，不是安全豁免。当前工作暴露出数据迁移、权限、安全、不可逆写入、广泛 blast radius 或其他高风险因素时，在当前模式内提高验证强度；不要仅因为追求速度而把已经识别出的风险降级。
 
-## 6. 进入模式
+## 7. 进入模式
 
 - `rapid` → 读取 [`rapid/ROUTER.md`](rapid/ROUTER.md)。
 - `emergency` → 读取 [`emergency/ROUTER.md`](emergency/ROUTER.md)。

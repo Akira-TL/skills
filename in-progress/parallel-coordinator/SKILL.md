@@ -1,6 +1,6 @@
 ---
 name: parallel-coordinator
-description: 以当前会话作为主 Agent，基于 Matt Spec/Tickets 建立或恢复 Execution Map、Gate 与 Parallel Tasks，维护动态 frontier，并负责 Task 与 Gate 的跨任务集成验收。
+description: 以当前会话作为主 Agent，基于既有 Matt Spec/Tickets 或 Akira 模式 Work State 建立或恢复 Execution Map、Gate 与 Parallel Tasks，维护动态 frontier，并负责 Task 与 Gate 的跨任务验收。
 disable-model-invocation: true
 ---
 
@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 本 Skill 把当前会话确立为并行开发的主 Agent（Coordinator）。它建立执行地图（Execution Map）、门禁（Gate）和并行任务（Parallel Task），维护动态 frontier，并负责双层验收；它不创建另一套 Spec、TDD、code-review 或 implement 方法论。
 
-Matt 仍是工程方法论骨架：`to-spec` 保存跨 Ticket 的 Implementation Decisions / Testing Decisions，`to-tickets` 保存纵向交付切片与 blocking edges，Worker 写代码时继续使用 Matt `implement`、`tdd` 与 `code-review`。
+Parallel 不重写上游工程方法。标准 Matt 流程中，`to-spec` 保存跨 Ticket 的 Implementation Decisions / Testing Decisions，`to-tickets` 保存纵向交付切片与 blocking edges，Worker 写代码时继续使用 Matt `implement`、`tdd` 与 `code-review`。若 Parallel 是从 Rapid / Emergency / Competition 进入，则保留该模式已经确认的 Work State 与 Execution Policy，不为了并行补造 Matt Spec/Ticket。
 
 进入本 Skill 后先加载 `parallel-execution`，以其中的 Task 生命周期、claim、Ownership 和 Worker Report 语义作为唯一事实来源；本 Skill 不重复定义这些规则。
 
@@ -17,14 +17,13 @@ Matt 仍是工程方法论骨架：`to-spec` 保存跨 Ticket 的 Implementation
 读取并确认：
 
 1. 配置好的 Issue Tracker 规则；协作状态只写入该 Tracker。
-2. Source Spec 与相关 ADR。
-3. 本次执行涉及的 Matt Tickets 及其 blocking edges。
-4. 已存在的 Execution Map（若用户要求恢复而不是新建）。
-5. 当前 Git integration ref / fixed point。
+2. 当前上游工作来源：Matt 流程读取 Source Spec、相关 ADR、Matt Tickets 与 blocking edges；Akira 特殊模式读取当前 mode、已经确认的 Work State、切片 / incident scope / Demo Critical Path 与验证要求。
+3. 已存在的 Execution Map（若用户要求恢复而不是新建）。
+4. 当前 Git integration ref / fixed point；纯只读调查没有代码集成时仍记录当前基线，作为“未发生项目写入”的复核点。
 
 `/parallel-coordinator` 的显式调用即表示当前会话承担 Coordinator 角色；若用户给出已有 Execution Map，则恢复该 Map，不另建第二份状态。
 
-完成条件：Coordinator 能从 Tracker 与 Git 指出 Source Spec、Matt Tickets、当前 integration ref，以及是否已有活跃 Gate。
+完成条件：Coordinator 能从 Tracker、当前模式上下文与 Git 指出真实上游来源、当前 integration ref，以及是否已有活跃 Gate。
 
 ## 2. 建立或恢复 Execution Map
 
@@ -33,11 +32,14 @@ Execution Map 是整个多 Agent 执行工作的根 Issue，只保存执行索�
 最小字段：
 
 ```markdown
-## Source Spec
-<canonical spec reference>
+## Execution Policy
+<Matt standard | Akira rapid | Akira emergency | Akira competition>
 
-## Matt Tickets
-<参与本次并行执行的 Matt Ticket 引用>
+## Source Work
+<参与本次并行执行的 Matt Ticket；或当前 Akira 模式的稳定 Work State / slice / incident scope 引用。若这些 Work State 只存在于当前对话，则在这里一次性记录执行所需的最小已确认事实，使 Execution Map 成为后续 Worker 可读取的稳定来源>
+
+## Source Spec
+<canonical spec reference；没有正式 Spec 时写 none，不为 Parallel 新建>
 
 ## Gates
 <Gate 标题与引用；只做索引>
@@ -52,7 +54,7 @@ Execution Map 是整个多 Agent 执行工作的根 Issue，只保存执行索�
 <尚未解决、确实影响并行协调的事项；没有则 none>
 ```
 
-若 Map 已存在，只更新发生变化的索引与 coordination facts；不要把 Gate、Task、Spec 或 ADR 内容复制进 Map。
+若 Map 已存在，只更新发生变化的索引与 coordination facts；不要把 Gate、Task、Spec、ADR 或模式正文复制进 Map。唯一例外是 Akira mode 的 Work State 还没有任何稳定 artifact：首次建 Map 时必须把后续 Worker 真正需要的已确认目标、切片 / incident scope / Demo Critical Path 与验证事实压缩记录到 `Source Work`，但仍不复制 Execution Policy。
 
 ## 3. 建 Gate
 
@@ -87,7 +89,7 @@ Gate 只有 Coordinator 可以判定 `accepted`。所有 required Task 已 `acce
 
 ## 4. 发布 Parallel Tasks
 
-Parallel Task 是 Gate 的 child Issue，是执行期分工，不替代 Matt Ticket。允许：
+Parallel Task 是 Gate 的 child Issue，是执行期分工，不替代上游工作来源。标准 Matt 流程中它不替代 Matt Ticket；Akira 特殊模式中它不替代模式已经确认的切片、incident scope 或 Demo Critical Path。允许：
 
 - `1 Matt Ticket = N Parallel Tasks`。
 - `N Matt Tickets = 1 shared foundation Task`。
@@ -100,10 +102,13 @@ Parallel Task 是 Gate 的 child Issue，是执行期分工，不替代 Matt Tic
 <Gate reference>
 
 ## Source Matt Ticket
-<Matt Ticket reference>
+<Matt Ticket reference；非 Matt 来源时省略>
 
-## What to implement
-<当前执行范围；不复制全局 Implementation Decisions>
+## Source Mode Work
+<Akira mode Work State / slice / incident reference；Matt 来源时省略>
+
+## What to execute
+<当前执行范围；不复制全局 Implementation Decisions 或模式策略>
 
 ## Blocked by
 <Parallel Task / Gate blocker，或 none>
@@ -120,6 +125,7 @@ ready-for-agent
 
 只有真实协作需要时才增加：
 
+- `Task Kind: read-only`：明确禁止项目写入的调查 Task；普通写入 Task 不必增加该字段。
 - `Provides`
 - `Consumes`
 - `Shared dependencies`
@@ -143,19 +149,16 @@ Emergency 场景默认更保守，通常保持单 Writer + 多只读调查 Agent
 
 ## 6. 验收 ready-for-review Task
 
-Worker Report 只是索引。Task review 必须读取：
+Worker Report 只是索引。Task review 必须读取 Parallel Task 当前 Issue、Acceptance Criteria、Parent Gate 与真实上游来源，然后按 Task 类型取证：
 
-1. Parallel Task 当前 Issue 状态与 Acceptance Criteria。
-2. Worker 提交的 Git commit。
-3. 该 commit 相对适当 fixed point 的 diff。
-4. Worker 记录的测试、检查和 Matt `code-review` 结果；必要时复跑针对性验证。
-5. Parent Gate、Source Matt Ticket、Source Spec / ADR 的相关约束。
+- **写入型 Task**：读取 Worker commit、相对适当 fixed point 的 diff、测试/检查与当前执行策略要求的 review 结果；有 Source Matt Ticket 时同时核对 Source Spec / ADR。
+- **只读调查 Task**：读取 Worker 给出的命令、位置、日志或其他可复核证据，并确认 Git/project state 相对领取前基线没有该 Worker 留下的写入；`Commit(s)` 应为 `none`。
 
 检查至少覆盖：
 
-- 实现范围是否落在当前 Task ownership 内。
-- Commit 是否只包含归属明确的当前修改。
-- Task 是否满足 Source Matt Ticket 与 Parent Gate 的要求。
+- 执行范围是否落在当前 Task ownership 内。
+- 写入型 Task 的 Commit 是否只包含归属明确的当前修改；只读 Task 是否确实没有项目写入。
+- Task 是否满足其真实上游工作来源与 Parent Gate 的要求。
 - 是否引入未协调的跨 Task 接口、共享资源或 integration 假设。
 
 结果只有两种：
@@ -169,7 +172,9 @@ Coordinator 不以 Worker 的“已完成”自述代替证据。
 
 当 Gate 所有 required Task 都已 `accepted` 后，开始 Gate review；不要自动推进下一 Gate。
 
-以 Gate 的 integration base → 当前 integration HEAD 为 fixed point，优先复用 Matt `code-review` 做 Standards + Spec 审查。Akira 只额外检查跨 Task 集成问题：
+若 Gate 包含代码写入，以 Gate 的 integration base → 当前 integration HEAD 为 fixed point：标准 Matt 来源优先复用 Matt `code-review` 做 Standards + Spec 审查；Akira 特殊模式按该模式原有 verification 要求验收，并在需要时复用 Matt 专业能力。若 Gate 全部是只读调查，不制造代码 review，只把跨 Task 证据组合后验证 Gate Goal / Exit Gate。
+
+对含写入的 Gate，Coordinator 额外检查跨 Task 集成问题：
 
 - 重复 abstraction 或重复实现。
 - 跨 Task 接口漂移。

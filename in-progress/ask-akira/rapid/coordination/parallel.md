@@ -2,9 +2,17 @@
 
 并行只用于真正独立的 frontier，不用并发掩盖未解决的依赖。
 
-- 优先并行只读调查、独立模块或互不重叠的纵向切片。
-- 多个写入 Agent 必须有清楚 ownership；无法隔离时使用独立 worktree，或退回串行。
-- 父 Agent 保留集成责任：读取真实输出、检查 diff、运行必要验证，不能把子 Agent 的“完成”当成证据。
-- 并发数量以减少关键路径为准，不为了占满 Agent 数量继续拆分。
+先判断是否需要持久协作状态：
 
-具体 DevSpace 编排交给 `devspace-orchestration`。
+- **正式 Parallel**：多个 Worker 会跨会话工作、需要动态 frontier / Ownership / Gate 验收，或写入任务之间存在后续集成关系 → 让用户进入 `/parallel-coordinator`。把当前 Rapid Work State 与切片直接作为 Source Mode Work；不要为了 Parallel 补造 Matt Spec/Ticket。
+- **临时并行**：当前父 Agent 只需要同时执行少量只读调查或完全隔离、无需 Tracker 生命周期的短任务 → 直接使用 `devspace-orchestration`，完成后回到当前 Rapid Router。
+
+进入正式 Parallel 后，Rapid 的执行策略仍然有效：
+
+- 优先把当前已经确认的纵向切片映射为最少数量的 Parallel Tasks；不要为提高并发数继续细拆。
+- 并行度随真实 frontier 变化，不固定 Worker 数量。
+- 多个写入 Task 必须有可复核的 ownership；无法安全隔离时保持串行或使用独立 worktree。
+- Worker 通过 `parallel-execution` 完成确定性 claim 后，才允许执行器为该 Task 创建实现 branch/worktree 或开始项目写入。
+- Coordinator 负责 Task / Gate 验收；`devspace-orchestration` 只负责已经决定且已领取任务的 Agent、tmux 与 worktree 执行，不重新拆 Task 或判定 blocker。
+
+并发是否值得的判断标准仍是减少 Rapid 的关键路径，而不是占满 Agent 数量。

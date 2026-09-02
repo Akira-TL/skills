@@ -20,7 +20,7 @@ skills/
 
 ## 当前 Skills
 
-- `engineering/devspace-orchestration`：DevSpace 多 Agent、tmux 与 Git worktree 编排。
+- `engineering/devspace-orchestration`：执行已定义的多 Agent 工作单元，负责 Agent、tmux 与 Git worktree 落地，不拥有 Parallel 状态与验收。
 - `productivity/general-word-document-generation`：Word 原生语义的正式 DOCX 生成与修订。
 - `productivity/scientific-presentation-authoring`：科研与学术类 PPT 的结构、页面文案和结果页图文编排。
 - `productivity/browser-access`：按当前 harness 能力发现并复用可控浏览器，支持持久登录态、动态网页、网络资源解析和表单操作。

@@ -1,23 +1,42 @@
-# DevSpace 多 Agent 编排
+# DevSpace 多 Agent 执行
 
-`devspace-orchestration` 用于在 DevSpace 中安全地组织并行子 Agent、tmux 长任务和 Git worktree 隔离。
+`devspace-orchestration` 用于把**已经定义好的工作单元**放到 DevSpace 的原生 Agent、tmux 或 Git worktree 中执行，并把真实输出、Git 结果和失败状态交回上游流程。
 
-它解决的是“如何编排多个执行者”，而不是要求所有任务都使用多 Agent。单 Agent 可以清晰完成时应直接执行。
+它是执行层，不是任务协调层。Task 如何拆、谁能领取、哪些 blocker 已解除、当前 frontier 是什么、Task/Gate 是否通过，都不由本 Skill 决定。
 
 ## 适用场景
 
-- 多个子任务可以独立并行并由父 Agent 汇总。
-- 长任务适合在 tmux 中持续运行。
-- 多个写入型 Agent 需要隔离文件范围或使用独立 worktree。
-- 需要明确记录每个子 Agent 的模型、工作目录、任务边界和预期输出。
+- 已经明确任务边界，需要启动一个或多个 Agent 执行。
+- 长任务适合在 tmux 中持续运行并稍后收集结果。
+- 已领取的写入型 Parallel Task 需要独立 Git worktree。
+- 少量临时只读调查适合并行，但无需建立正式 Execution Map。
 
-## 核心原则
+如果工作还没有拆清，或需要持久的 Execution Map、Gate、claim、Ownership 和动态 frontier，应先进入 `parallel-coordinator`；正式 Parallel Worker 的领取与生命周期由 `parallel-execution` 管理。
 
-短时并行优先 Claude 原生 Agent；长时间、终端化任务使用 tmux。默认执行模型为 Sonnet，复杂独立判断使用 Opus，机械查找使用 Haiku。
+## 核心边界
 
-只读 Agent 可以共享工作目录；写入型 Agent 不得同时修改相同文件或模块。无法安全按文件范围隔离时使用独立 worktree。
+正式 Parallel 中的顺序是：Worker 先完成确定性 claim，Tracker 已复核为 `in-progress`，然后执行器才可以创建该 Task 的实现 branch/worktree 或开始项目写入。`devspace-orchestration` 不代替 Worker claim，也不会因为“准备执行”就抢先创建写入环境。
 
-父 Agent 负责最终验收，必须读取实际输出和代码变更，不能把子 Agent 的自述当作成功证据。任务结束后清理对应 tmux session。
+临时并行没有正式 Parallel Tracker 生命周期时，可以直接使用本 Skill，但调用方仍需先给出明确任务范围、是否允许写入和预期输出。本 Skill不会自行扩大并发数或把一个任务重新拆成更多任务。
+
+## 执行方式
+
+短时、需要调用方立即收集结果的任务优先使用宿主原生 Agent；长时间、终端化任务使用 tmux。写入任务需要 Git 隔离时使用独立 worktree，只读任务通常不需要为了形式上的隔离创建 worktree。
+
+每个子 Agent 显式选择模型：默认执行使用 Sonnet，复杂架构、根因裁决或关键审查使用 Opus，简单机械核对使用 Haiku；Fable 只用于明确需要超长上下文或重型规划的少数任务。模型选择不改变 ownership、claim 或 acceptance。
+
+## 输出与验收
+
+执行器返回的是证据，不是“已验收”结论：
+
+- 子 Agent 的实际输出；
+- 写入任务的 commit/diff 或失败状态；
+- 关键命令、测试和调查证据；
+- 尚未完成或需要上游处理的事项。
+
+正式 Parallel 由 Coordinator 读取 Issue、Git 与 Gate 证据后验收；Rapid、Emergency、Competition 的临时并行由当前模式流程验收。子 Agent 自述“完成”不能替代这些证据。
+
+任务结束后清理对应 tmux session 和确认不再需要的临时执行资源，不遗留空闲 Agent 进程。
 
 ## 与 Akira Lattice 的关系
 
@@ -27,9 +46,7 @@ Skill runtime source 位于：
 engineering/devspace-orchestration/SKILL.md
 ```
 
-Akira Lattice 的全局 `core/AGENTS.md` 只保留“什么时候考虑多 Agent、默认模型和写入隔离”等长期策略；具体编排步骤由本 Skill 按需加载。
-
-DevSpace 的 `workspaceId`、linked worktree 恢复方式等低频工具事实继续由 Lattice 的 `core/references/devspace.md` 管理，避免把 workflow 和运行环境 reference 混为一体。
+Akira Lattice 的全局规则只保留长期执行原则；Parallel 状态模型由 `parallel-coordinator` / `parallel-execution` 负责，DevSpace 的 workspace、linked worktree 恢复和共享 Git common directory 等工具事实继续由 Lattice reference 管理。
 
 ## 安装
 

@@ -1,11 +1,11 @@
 ---
 name: parallel-execution
-description: 当实现工作项带有 Execution Map、Parent Gate 或 Parallel Task 元数据，或并行协调流程需要统一 Task 生命周期、claim 与 Worker 汇报语义时使用；只补并行协作协议，不替代 Matt implement、TDD 或 code-review。
+description: 当执行工作项带有 Execution Map、Parent Gate 或 Parallel Task 元数据，或并行协调流程需要统一 Task 生命周期、claim 与 Worker 汇报语义时使用；只补并行协作协议，不替代 Matt implement、TDD 或 code-review。
 ---
 
 # Parallel Execution
 
-本 Skill 是 Matt 实现流程外侧的并行协作增量。它只定义并行任务（Parallel Task）的领取、状态、上下文恢复与执行 Agent（Worker）汇报；工程实现仍由 Matt `implement`、`tdd`、测试与 `code-review` 负责。
+本 Skill 是工程执行流程外侧的并行协作增量。它只定义并行任务（Parallel Task）的领取、状态、上下文恢复与执行 Agent（Worker）汇报；有 Matt Ticket 的写入任务继续由 Matt `implement`、`tdd`、测试与 `code-review` 负责，Akira 特殊模式产生的任务则继续遵守当前模式已经确定的执行策略。
 
 Issue Tracker 是协作状态的唯一事实来源。Worker 的口头汇报只是跨会话索引，不替代 Issue、Git commit、diff 或测试证据。
 
@@ -63,11 +63,12 @@ CLI 退出码：`0` 表示操作成功或查询成功；`1` 表示可预期的 o
 Claim 成功后按引用链读取，而不是依赖 Worker 自述：
 
 1. Parent Gate：确认当前 Gate、Goal、Entry Conditions、Exit Gate 与 Integration Ref。
-2. Source Matt Ticket：确认这个 Parallel Task 对应的纵向交付范围与 blocking 关系。
-3. Source Spec 与相关 ADR：恢复跨 Ticket 的 Implementation Decisions、接口、Schema/API contract 与 Testing Decisions。
-4. Parallel Task：只读取当前任务的 What to implement、Acceptance Criteria、Blocked by、Ownership，以及存在时的 Provides / Consumes / Shared dependencies / Integration Notes。
+2. Source Matt Ticket（若存在）：确认这个 Parallel Task 对应的纵向交付范围与 blocking 关系。
+3. Source Spec 与相关 ADR（若存在）：恢复跨 Ticket 的 Implementation Decisions、接口、Schema/API contract 与 Testing Decisions。
+4. Akira Mode Work State（若该 Task 来自 Rapid / Emergency / Competition）：恢复当前模式、已经确认的切片或 incident scope、关键路径和验证要求；不要为了进入 Parallel 补造 Matt Spec/Ticket。
+5. Parallel Task：只读取当前任务的执行范围、Acceptance Criteria、Blocked by、Ownership，以及存在时的 Provides / Consumes / Shared dependencies / Integration Notes。
 
-Parallel Task 不替代 Source Matt Ticket，Source Matt Ticket 也不替代 Source Spec/ADR。
+Parallel Task 不替代上游工作来源。有 Matt Ticket 时，Matt Ticket 不替代 Source Spec/ADR；来自 Akira 特殊模式时，Parallel 也不重新定义该模式的 Work State 或 Execution Policy。
 
 如果本 Skill 是从 Matt `implement` 内部加载的，完成上述协作预检后**返回原 `implement` 流程**；不要再次调用 `implement` 形成递归。
 
@@ -96,26 +97,25 @@ ready-for-agent
 
 当 Task 离开 `in-progress` 时，先把新的 Task 状态可靠写入并复核 Tracker，再用 helper `release` 释放执行期互斥，最后用 `status` 验证已释放。释放失败或结果不确定时不继续新的实现写入，立即把残留 claim 作为 Coordination impact 报告 Coordinator。Ownership 仍保留在 Tracker，直到 Coordinator 接受、取消或明确重新分配。
 
-## 5. Worker 实现与提交
+## 5. Worker 执行
 
-协作预检完成后，继续 Matt 的实现方法：
+协作预检完成后先按 Task 自身范围判断是否允许生产写入：
 
-- 使用 Matt `implement` 执行当前 Task。
-- 按 Matt `tdd` 与项目测试约束验证单 Task 行为。
-- 使用 Matt `code-review` 完成 Worker 层审查。
-- 按当前项目 Git 原子提交规则形成一个或多个归属明确的 commit。
+- **有 Source Matt Ticket 的写入型 Task**：继续 Matt 的实现方法。使用 Matt `implement` 执行当前 Task，按 Matt `tdd` 与项目测试约束验证行为，使用 Matt `code-review` 完成 Worker 层审查，并按当前项目 Git 原子提交规则形成归属明确的 commit。
+- **来自 Akira 特殊模式的写入型 Task**：继续当前 Rapid / Emergency / Competition 已选择的 execution 分支；Parallel 只增加领取、状态和汇报，不把模式重新包装成 Matt `implement` ceremony。需要 Matt 的专业能力时仍按当前模式 Router 原有边界调用。
+- **明确只读的调查 Task**：不进入 `implement`，不创建实现 branch/worktree，不修改生产文件，也不制造“调查 commit”。按 Task 要求返回可复核事实、命令/位置、证据与它支持或排除的判断；需要专业方法时仍复用相应 Matt 能力，例如 `diagnosing-bugs` 或 `research`。
 
-Worker 只实现当前 Task。若发现需要拆分/合并 Task、改变 blocker、移动 Gate、重画 ownership 或新增跨 Task 约定，不直接修改全局拓扑；先向 Coordinator 报告，由 Coordinator 决定并更新 Tracker。
+Worker 只执行当前 Task。若发现需要拆分/合并 Task、改变 blocker、移动 Gate、重画 ownership 或新增跨 Task 约定，不直接修改全局拓扑；先向 Coordinator 报告，由 Coordinator 决定并更新 Tracker。
 
 ## 6. 进入 ready-for-review
 
 只有以下证据都存在时，Worker 才能把 Task 更新为 `ready-for-review`：
 
-- 当前 Task 的实现已提交。
 - Task Acceptance Criteria 已逐项核对。
-- 目标测试/检查已记录结果。
-- Matt `code-review` 已完成，且 Worker 已处理当前范围内必须修复的问题。
-- Commit、Task、Parent Gate 与 Source Matt Ticket 的对应关系可从 Tracker 与 Git 复核。
+- 目标测试、检查或调查证据已记录结果。
+- 写入型 Task 已形成归属明确的 commit，完成 Matt `code-review`，并处理当前范围内必须修复的问题。
+- 明确只读的调查 Task 能给出可复核事实与证据，并确认没有留下项目写入；其 `Commit(s)` 为 `none`。
+- Task、Parent Gate 与其真实上游来源（Source Matt Ticket 或 Akira Mode Work State）的对应关系可从 Tracker 复核；写入型 Task 还必须能从 Git 复核对应 commit。
 
 更新并复核 `ready-for-review` 后按本 Skill 的统一释放规则释放执行期互斥，保留 Ownership，等待 Coordinator 审查。
 
