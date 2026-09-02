@@ -74,6 +74,7 @@ Agent 不得自行把多个已有概念拼接成一个新术语，再把它当�
 - 统计关联（association）写成因果效应（causal effect）；
 - 功能潜力（functional potential）写成功能活性（functional activity）；
 - 预测功能写成实测功能；
+- 由代谢物浓度比值、组学丰度、评分或模型输出计算出的派生指标写成对目标过程、活性、通量或反应的直接测量；作者把该指标命名为 `function`、`capacity`、`rate` 等也不能代替对实际 measurement 的核验；
 - 相关机制写成已建立机制。
 
 如果最准确的标准术语会让结论显得更弱，也必须使用准确术语。
