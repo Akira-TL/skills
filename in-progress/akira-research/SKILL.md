@@ -18,9 +18,27 @@ disable-model-invocation: true
 
 `Current Loop` 只表示研究当前主要位于哪里，不规定下一步。允许的定位词为：`EXPLORE`、`QUESTION`、`HYPOTHESIS`、`DESIGN`、`DATA`、`ANALYSIS`、`INTERPRETATION`、`COMMUNICATION`。
 
-每轮先判断当前最阻塞研究的不确定性，再选择信息增益最高且成本合理的下一动作。当前问题混有多个子问题、已有 competing explanations、或需要决定什么 evidence 最能改变当前判断时，读取 [`references/ACTIVE-UNCERTAINTY.md`](references/ACTIVE-UNCERTAINTY.md)；需要把 competing explanations 变成可判别预测时继续读取 [`references/HYPOTHESIS.md`](references/HYPOTHESIS.md)；需要判断哪些新证据、矛盾、猜想或路线分叉应主动呈现给用户，或需要分开记录 Agent 判断、用户主动判断与用户对猜想的明确决策时，读取 [`references/collaboration/RESEARCH-COLLABORATION.md`](references/collaboration/RESEARCH-COLLABORATION.md)；判别 evidence 需要新的 sampling、measurement、control 或 intervention 时读取 [`references/DESIGN.md`](references/DESIGN.md)；需要接收、整理、冻结或追溯项目自身数据时读取 [`references/DATA.md`](references/DATA.md)；需要用冻结数据估计 target contrast、检查 sensitivity 或检验 predictions 时读取 [`references/ANALYSIS.md`](references/ANALYSIS.md)；需要把项目结果与文献 evidence 合并、更新 Claim 层级或重写 Active Uncertainty 时读取 [`references/INTERPRETATION.md`](references/INTERPRETATION.md)；存在论文、报告、摘要、图表、答辩或其他传播目标时读取 [`references/COMMUNICATION.md`](references/COMMUNICATION.md)。需要文献发现、全文获取、论文阅读、批判审阅或跨论文证据综合时，调用 [`akira-literature`](../akira-literature/SKILL.md)。正式路由到完整 Literature Research 后，`pending`、Candidate 队列未闭合、`ready_for_saturation=false` 或尚未运行 completion validation 都表示 Literature 继续执行；只有该 Skill 返回 `COMPLETED` 才回到本 Router，立即重读更新后的 Scientific State 并在同一科研任务中重新选择下一动作，除非用户本来只要求 Literature Research，否则不能把 Literature 阶段总结当作整个 Router 任务的终点。返回 `BLOCKED` 时则保持当前 Literature work 并向用户请求解除 blocker 所需的最小协同。需要持久化、检索、校验或生成证据视图时，读取 [`RESEARCH-DB.md`](RESEARCH-DB.md)。
+每轮先判断当前最阻塞研究的不确定性，再选择信息增益最高且成本合理的下一动作。当前问题混有多个子问题、已有 competing explanations、或需要决定什么 evidence 最能改变当前判断时，读取 [`references/ACTIVE-UNCERTAINTY.md`](references/ACTIVE-UNCERTAINTY.md)；需要把 competing explanations 变成可判别预测时继续读取 [`references/HYPOTHESIS.md`](references/HYPOTHESIS.md)；需要判断哪些新证据、矛盾、猜想或路线分叉应主动呈现给用户，或需要分开记录 Agent 判断、用户主动判断与用户对猜想的明确决策时，读取 [`references/collaboration/RESEARCH-COLLABORATION.md`](references/collaboration/RESEARCH-COLLABORATION.md)；判别 evidence 需要新的 sampling、measurement、control 或 intervention 时读取 [`references/DESIGN.md`](references/DESIGN.md)；需要接收、整理、冻结或追溯项目自身数据时读取 [`references/DATA.md`](references/DATA.md)；需要用冻结数据估计 target contrast、检查 sensitivity 或检验 predictions 时读取 [`references/ANALYSIS.md`](references/ANALYSIS.md)；需要把项目结果与文献 evidence 合并、更新 Claim 层级或重写 Active Uncertainty 时读取 [`references/INTERPRETATION.md`](references/INTERPRETATION.md)；存在论文、报告、摘要、图表、答辩或其他传播目标时读取 [`references/COMMUNICATION.md`](references/COMMUNICATION.md)。需要文献发现、全文获取、论文阅读、批判审阅或跨论文证据综合时，调用 [`akira-literature`](../akira-literature/SKILL.md)。正式路由到完整 Literature Research 后，`pending`、Candidate 队列未闭合、`ready_for_saturation=false` 或尚未运行 completion validation 都表示 Literature 继续执行；只有该 Skill 返回 `COMPLETED` 才回到本 Router。返回 `BLOCKED` 时则保持当前 Literature work 并向用户请求解除 blocker 所需的最小协同。需要持久化、检索、校验或生成证据视图时，读取 [`RESEARCH-DB.md`](RESEARCH-DB.md)。
 
-不要把科研过程强制推进成单向流水线；文献、假设、实验设计、数据分析和解释可以反复回到彼此。
+### 连续科研循环
+
+除非用户明确把请求限制为单个工作流（例如只做 Literature Research、只完成一次 Analysis 或只写传播产物），上述路由动作都是当前科研任务的**中间步骤**，不是面向用户的终点。任一动作达到其自身完成条件后：
+
+1. 先按该动作的契约持久化 evidence / decision / provenance，并完成适用的 Git 与 completion gate；这些门禁只证明该有边界动作闭合，不代表整个 Scientific Objective 已完成。
+2. 立即重新读取 `RESEARCH.md` 与刚形成的 canonical evidence，重新判断 primary Active Uncertainty。
+3. 选择下一条当前可执行、信息增益最高的科研动作，并**实际进入相应分支继续执行**；不能只修改 `Current Loop`、把下一动作写进 `Active Work`、生成阶段总结或记录“下一步应当……”后就结束。
+4. 每个后续动作完成后继续重复本循环；文献、假设、设计、数据、分析和解释允许按证据需要反复回到彼此，不按固定阶段单向推进。
+
+广义的“继续科研”“接管并继续”“从零完整研究”等请求默认持续执行本循环，直到出现以下真实停止边界之一：
+
+- 用户明确要求的有边界科研范围已经完成；
+- Objective 或用户当前科学问题已经在现有证据边界内得到足够回答，剩余 uncertainty 不再改变核心结论；
+- 下一条真正有判别力的 evidence 必须依赖当前项目中尚不存在的新样本、新实验、新测量、伦理/机构批准、权限、凭据或其他外部现实输入，并且在等待这些输入前仍可由 Agent 完成的 Hypothesis / Design / Analysis / Interpretation 工作已经完成；
+- 存在当前 Agent 无法自行解除、必须等待用户或外部条件的真实 blocker。
+
+如果 `RESEARCH.md` 的 `Active Work` 仍指向一个当前环境下可以立即执行的科研动作，则广义科研任务尚未到达停止边界。`validate --completion=true`、某个子工作流返回 `COMPLETED`、Current Loop 已切换、或“已经选出下一步”都不能单独构成停止理由。
+
+不要把科研过程强制推进成单向流水线；连续循环的目标是持续降低 Active Uncertainty，而不是机械经过所有阶段。
 
 ## 3. 科研语义判断由主模型完成
 
