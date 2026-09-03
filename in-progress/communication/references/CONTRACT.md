@@ -1,6 +1,6 @@
 # Research Communication Contract
 
-Communication 的任务是把已经建立的研究状态、证据边界、方法与不确定性准确地转成论文、报告、摘要、图表、答辩或其他面向人的产物。传播形式可以变化，但科研 Claim 不能因为进入写作阶段而升级。所有术语选择、中文/英文首次出现方式、新概念命名和近义词使用统一遵守 [`ACADEMIC-LANGUAGE.md`](standards/ACADEMIC-LANGUAGE.md)。
+Communication 的任务是把已经建立的研究状态、证据边界、方法与不确定性准确地转成论文、报告、摘要、图表、答辩或其他面向人的产物。传播形式可以变化，但科研 Claim 不能因为进入写作阶段而升级。所有术语选择、中文/英文首次出现方式、新概念命名和近义词使用统一遵守 [`ACADEMIC-LANGUAGE.md`](../../akira-research/references/standards/ACADEMIC-LANGUAGE.md)。
 
 ## 1. 进入条件
 
@@ -63,7 +63,7 @@ Discussion 可以提出解释，但必须区分：
 - unresolved question；
 - future hypothesis。
 
-Conclusions 使用 [`INTERPRETATION.md`](INTERPRETATION.md) 得出的最窄 evidence boundary，不在最后一段为了“impact”重新升级。Association、causality、mechanism、translation 的层级在标题、摘要、图示模型和结论中保持一致。
+Conclusions 使用 [`interpretation`](../../interpretation/SKILL.md) 得出的最窄 evidence boundary，不在最后一段为了“impact”重新升级。Association、causality、mechanism、translation 的层级在标题、摘要、图示模型和结论中保持一致。
 
 若主要推断依赖尚未核验的独立实验单位、随机分配、抽样结构或其他识别条件，**标题和摘要同样必须保留这一条件性**。不能在正文中写“在名义独立记录假设下”，却在标题中无条件宣称“总体均值已经不同”或“处理有效”；应改用数据集层级描述，或明确写出必要条件/适用范围。
 

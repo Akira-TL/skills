@@ -73,6 +73,6 @@ Competing explanations 是当前科学对象的替代解释模型或互斥状态
 
 ## 6. 何时进入 Hypothesis / Design
 
-当 primary uncertainty 已有至少两个可判别 explanations，且需要明确它们的预测才能决定下一证据时，按 [`HYPOTHESIS.md`](HYPOTHESIS.md) 进入 `HYPOTHESIS`。当判别所需 evidence 需要新的 sampling、measurement、control 或 intervention 时再进入 `DESIGN`。
+当 primary uncertainty 已有至少两个可判别 explanations，且需要明确它们的预测才能决定下一证据时，按 [`hypothesis`](../../hypothesis/SKILL.md) 进入 `HYPOTHESIS`。当判别所需 evidence 需要新的 sampling、measurement、control 或 intervention 时再进入 `DESIGN`。
 
 因此 `HYPOTHESIS` 与 `DESIGN` 是降低 uncertainty 的工具，不是必经阶段。

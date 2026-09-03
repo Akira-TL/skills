@@ -1,8 +1,25 @@
 # Research Tree Model
 
-## Node
+本模型是项目内部的科研进程表示，不是新的科学方法论。对象名称沿用通常科研概念；文件、Dataset、代码等 provenance 优先映射现有标准，而不是全部升格为科研节点。
 
-每个 Node 是可独立研究、讨论、验证或关闭的科研对象。最小字段：
+## Scientific nodes
+
+首版只把会改变科学推理结构的对象作为候选节点：
+
+```text
+objective
+question
+hypothesis
+design
+study
+analysis
+observation
+claim
+```
+
+并非每个研究都必须出现全部类型。探索性或描述性研究可以没有 formal Hypothesis；已有公开数据的项目可以没有本项目自己的 Study。
+
+节点最小信息：
 
 ```text
 id
@@ -10,20 +27,40 @@ kind
 label
 parent
 spawned_from
-status
-current_question_or_claim
+workflow_status
+scientific_scope
 linked_objects
 created_at
 closed_at
 ```
 
-`kind` 首版允许：`objective`、`question`、`hypothesis`、`design`、`dataset`、`analysis`、`observation`、`claim`、`interpretation`、`communication`。
+`scientific_scope` 用于保存该对象实际覆盖的人群、系统、时间、条件或其他必要边界，不承担完整科研正文。
 
-只在该对象会改变研究结构时建 Node。单篇论文、单张图、单个脚本、一次参数修改默认作为 linked artifact / evidence，不自动成为 Node。
+## Resources and provenance objects
 
-## Edge
+下列对象默认作为 resource / provenance object，而不是主树节点：
 
-结构父边保证主树可读；横向 Edge 表达科学关系。Edge 至少记录：
+```text
+Paper
+Dataset
+Sample
+File
+Code
+Figure
+Table
+Model
+Protocol
+Software
+Instrument
+```
+
+当某个 resource 本身成为独立科学问题时，可以由 Question 指向它，但不因为存在文件就创建 Tree Node。
+
+研究对象与 provenance 的底层关系优先兼容 W3C PROV 的 `Entity / Activity / Agent` 思路；具体结构由 `study`、`data`、`analysis` 等 Skill 维护。
+
+## Edges
+
+结构父边用于形成可读主树；横向 Edge 表达真实科研关系。至少记录：
 
 ```text
 source
@@ -33,10 +70,16 @@ basis
 created_at
 ```
 
-`basis` 必须指向产生该关系的讨论、evidence、analysis result 或 canonical research object，避免只保存无依据的箭头。
+`basis` 指向 Observation、论文、Analysis result、Design decision 或其他 canonical source。没有 basis 的箭头不能作为科学结论依据。
+
+Evidence 默认是有依据的关系，而不是单独实体。例如：
+
+```text
+Observation O1 --supports--> Hypothesis H1
+Observation O1 --weakens--> Hypothesis H2
+Claim C1 --spawns--> Question Q2
+```
 
 ## Active path
 
-Active path 是 Root 到当前 active Node 的一条结构路径。它用于恢复“现在正在研究哪一支”，不表示其他 open branch 被否定。
-
-新结果出现后，允许 active path 跳到另一个 open branch；切换理由应是信息增益、依赖解除或用户优先级变化，而不是顺序编号。
+Active path 是 Root 到当前 primary active Node 的主要结构路径，只用于恢复当前研究焦点，不表示其他 open branch 已被否定。多个分支可以并行执行，但总 Router 必须能指出当前 primary branch 与切换理由。

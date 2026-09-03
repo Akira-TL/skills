@@ -1,13 +1,13 @@
 # Research Analysis Contract
 
-Analysis 的任务是用已经冻结、可追溯的数据去估计 [`DESIGN.md`](DESIGN.md) 定义的 target contrast，并判断结果是否真正区分 [`HYPOTHESIS.md`](HYPOTHESIS.md) 中的 competing hypotheses。统计显著性不是 Analysis 的终点；effect、uncertainty、assumption 与 sensitivity 一起决定结果能支持到什么层级。具体 Python、R、统计/生信工具、机器学习、绘图与运行环境的执行规范交给 [`analysis`](../../analysis/SKILL.md)；本文件只定义科研分析语义、freeze、amendment 与 Interpretation 边界。
+Analysis 的任务是用已经冻结、可追溯的数据去估计 [`design`](../../design/SKILL.md) 定义的 target contrast，并判断结果是否真正区分 [`hypothesis`](../../hypothesis/SKILL.md) 中的 competing hypotheses。统计显著性不是 Analysis 的终点；effect、uncertainty、assumption 与 sensitivity 一起决定结果能支持到什么层级。具体 Python、R、统计/生信工具、机器学习、绘图与运行环境的执行规范由本 Skill 的执行 references 约束；本文件定义科研分析语义、freeze、amendment 与 Interpretation 边界。
 
 ## 1. 进入条件
 
 进入 `ANALYSIS` 前至少确认：
 
 - 当前 primary Active Uncertainty 与 target discriminator 仍明确；
-- 使用的数据满足 [`DATA.md`](DATA.md) 的 provenance / freeze / sample identity 条件；
+- 使用的数据满足 [`data`](../../data/SKILL.md) 的 provenance / freeze / sample identity 条件；
 - unit of inference、primary contrast、outcome 和主要 dependence structure 已知；
 - confirmatory target 与 exploratory work 已区分。
 
@@ -125,7 +125,7 @@ Exploration 可以用于发现：
 
 ## 9. 完成条件
 
-Analysis 可以按 [`INTERPRETATION.md`](INTERPRETATION.md) 进入 Interpretation 时，至少满足：
+Analysis 可以按 [`interpretation`](../../interpretation/SKILL.md) 进入 Interpretation 时，至少满足：
 
 1. primary contrast 已按 Design 或明确 amendment 执行；
 2. effect、uncertainty、independent `n` 与 multiplicity 边界可解释；

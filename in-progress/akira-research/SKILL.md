@@ -1,69 +1,91 @@
 ---
 name: akira-research
-description: 管理一个可审计、可持续迭代的科研项目；围绕当前 Active Uncertainty 路由文献、假设、设计、数据、分析、解释与写作，而不是按固定线性阶段推进。
+description: 统一管理可审计、可持续迭代的科研项目；根据 Research Question、当前 evidence、research-tree 与适用科研规范，路由 literature、hypothesis、design、study、data、analysis、interpretation 与 communication，而不是按固定线性阶段推进。
 disable-model-invocation: true
 ---
 
 # Akira Research
 
-本 Skill 是 Akira 科研工作的主 Router。科研项目以 Git 仓库承载；`RESEARCH.md` 保存当前研究状态，项目级 `research.sqlite` 保存详细结构化科研知识，原始论文与补充材料作为外部 artifact 保留并由数据库记录身份、路径、版本、来源与获取时间。
+`akira-research` 是科研系列 Skills 的总 Router。它管理项目级 Scientific Objective、当前科研状态、research-tree、适用规范、子 Skill 路由与停止边界；具体文献、假设、设计、实施、数据、分析、解释和传播规则由对应子 Skill 负责。
 
-## 1. 进入项目
+科研项目以 Git repository 承载；`RESEARCH.md` 保存短小的当前科研状态，`.research/research.sqlite` 保存已有结构化科研 provenance 与知识对象，原始论文、Dataset、代码、模型、图片等仍作为独立 artifact 保存并通过 pointer / provenance 关联。
 
-先确认当前目录是否为科研项目，并读取 `RESEARCH.md`。不存在时进入 bootstrap；bootstrap 的最小文件、状态字段与 Git 约定按需读取 [`PROJECT-STATE.md`](PROJECT-STATE.md)。接管已有项目、缺少前序会话上下文、或当前数据库版本可能落后于 Skill 时，同样读取 `PROJECT-STATE.md` 的接管规则：先恢复科学状态和 Git 冻结历史，再把 schema / validator 兼容性作为独立基础设施状态处理，不为让检查通过而自动重做科研工作或改写历史。获得维护授权后如需迁移，按 [`RESEARCH-DB.md`](RESEARCH-DB.md) 的正式 `migrate` 契约执行；迁移对后来新增的语言门禁保留旧文本 Git 基线，但任何迁移后修改的科研文本仍立即适用当前学术语言规范。
+## 1. 进入或接管项目
 
-完成标准：当前 Objective、Current Loop、唯一 primary Active Uncertainty、Current State 与 Active Work 均已明确，且后续动作可以解释为在降低该 uncertainty。
+先读取 `RESEARCH.md`；不存在时按 [`PROJECT-STATE.md`](PROJECT-STATE.md) bootstrap。接管已有项目时同时运行 `research-db status`，用数据库对象、canonical artifacts 与 Git history 恢复 Objective、Active Uncertainty、冻结点、结果边界、当前分支和下一条真实工作。
 
-## 2. 按 Active Uncertainty 路由
+数据库 schema / validator 兼容性是基础设施状态，不等于科学状态。需要迁移时按 [`RESEARCH-DB.md`](RESEARCH-DB.md) 的正式契约处理，不为了让 validator 通过而重写历史科研事实。
 
-`Current Loop` 只表示研究当前主要位于哪里，不规定下一步。允许的定位词为：`EXPLORE`、`QUESTION`、`HYPOTHESIS`、`DESIGN`、`DATA`、`ANALYSIS`、`INTERPRETATION`、`COMMUNICATION`。
+完成标准：能够说明当前 Objective、primary Research Question / Active Uncertainty、Current Loop、Current State、Active Work、主要 open branches 与已有 blocker。
 
-每轮先判断当前最阻塞研究的不确定性，再选择信息增益最高且成本合理的下一动作。当前问题已经形成多个可独立推进的 Question、Hypothesis、Analysis 或其他科研分支，或一个结果产生了新的科研问题时，调用 [`research-tree`](../research-tree/SKILL.md) 维护分叉、横向关系与当前 active path；树只管理研究结构，当前节点内部仍由本 Skill 推进。当前问题混有多个子问题、已有 competing explanations、或需要决定什么 evidence 最能改变当前判断时，读取 [`references/ACTIVE-UNCERTAINTY.md`](references/ACTIVE-UNCERTAINTY.md)；需要把 competing explanations 变成可判别预测时继续读取 [`references/HYPOTHESIS.md`](references/HYPOTHESIS.md)；需要判断哪些新证据、矛盾、猜想或路线分叉应主动呈现给用户，或需要分开记录 Agent 判断、用户主动判断与用户对猜想的明确决策时，读取 [`references/collaboration/RESEARCH-COLLABORATION.md`](references/collaboration/RESEARCH-COLLABORATION.md)；判别 evidence 需要新的 sampling、measurement、control 或 intervention 时读取 [`references/DESIGN.md`](references/DESIGN.md)；需要接收、整理、冻结或追溯项目自身数据时读取 [`references/DATA.md`](references/DATA.md)；需要用冻结数据估计 target contrast、检查 sensitivity 或检验 predictions 时先读取 [`references/ANALYSIS.md`](references/ANALYSIS.md) 确定科研分析契约，再调用 [`analysis`](../analysis/SKILL.md) 执行 Python、R、统计/生信工具、机器学习与绘图；需要把项目结果与文献 evidence 合并、更新 Claim 层级或重写 Active Uncertainty 时读取 [`references/INTERPRETATION.md`](references/INTERPRETATION.md)；存在论文、报告、摘要、图表、答辩或其他传播目标时读取 [`references/COMMUNICATION.md`](references/COMMUNICATION.md)。需要文献发现、全文获取、论文阅读、批判审阅或跨论文证据综合时，调用 [`literature`](../literature/SKILL.md)。正式路由到完整 Literature Research 后，`pending`、Candidate 队列未闭合、`ready_for_saturation=false` 或尚未运行 completion validation 都表示 Literature 继续执行；只有该 Skill 返回 `COMPLETED` 才回到本 Router。返回 `BLOCKED` 时则保持当前 Literature work 并向用户请求解除 blocker 所需的最小协同。需要持久化、检索、校验或生成证据视图时，读取 [`RESEARCH-DB.md`](RESEARCH-DB.md)。
+## 2. 先确定科研问题、分支与适用规范
 
-### 连续科研循环
+Research Question、Active Uncertainty、分支和跨对象关系由 [`research-tree`](../research-tree/SKILL.md) 管理。多个独立问题同时存在时，明确 primary active branch；其他分支保持 open / blocked / resolved 状态，不压回一个线性版本序列。
 
-除非用户明确把请求限制为单个工作流（例如只做 Literature Research、只完成一次 Analysis 或只写传播产物），上述路由动作都是当前科研任务的**中间步骤**，不是面向用户的终点。任一动作达到其自身完成条件后：
+当研究类型、研究实施、metadata、provenance、统计方法或报告要求会影响当前动作时，调用 [`research-standards`](../research-standards/SKILL.md) 从当前权威来源核验适用规范。Akira 只负责采用和编排已有规范，不把内部 workflow 当作新的科研方法论；reporting guideline、design guidance、metadata standard、provenance standard、方法学依据和软件文档必须按各自职责使用。
 
-1. 先按该动作的契约持久化 evidence / decision / provenance，并完成适用的 Git 与 completion gate；这些门禁只证明该有边界动作闭合，不代表整个 Scientific Objective 已完成。
-2. 立即重新读取 `RESEARCH.md` 与刚形成的 canonical evidence，重新判断 primary Active Uncertainty。
-3. 选择下一条当前可执行、信息增益最高的科研动作，并**实际进入相应分支继续执行**；不能只修改 `Current Loop`、把下一动作写进 `Active Work`、生成阶段总结或记录“下一步应当……”后就结束。
-4. 每个后续动作完成后继续重复本循环；文献、假设、设计、数据、分析和解释允许按证据需要反复回到彼此，不按固定阶段单向推进。
+## 3. 路由到专业 Skill
 
-广义的“继续科研”“接管并继续”“从零完整研究”等请求默认持续执行本循环，直到出现以下真实停止边界之一：
+`Current Loop` 只用于定位当前主要研究区域，可取：`EXPLORE`、`QUESTION`、`HYPOTHESIS`、`DESIGN`、`STUDY`、`DATA`、`ANALYSIS`、`INTERPRETATION`、`COMMUNICATION`。它不规定下一步。
 
-- 用户明确要求的有边界科研范围已经完成；
-- Objective 或用户当前科学问题已经在现有证据边界内得到足够回答，剩余 uncertainty 不再改变核心结论；
-- 下一条真正有判别力的 evidence 必须依赖当前项目中尚不存在的新样本、新实验、新测量、伦理/机构批准、权限、凭据或其他外部现实输入，并且在等待这些输入前仍可由 Agent 完成的 Hypothesis / Design / Analysis / Interpretation 工作已经完成；
+每轮根据当前 primary branch 选择信息增益最高、当前可执行且最可能改变核心科学判断的动作：
+
+- 不知道已有研究、关键方法、矛盾或边界条件 → [`literature`](../literature/SKILL.md)；
+- 存在真正 competing explanations，需要结果前 prediction / discriminator → [`hypothesis`](../hypothesis/SKILL.md)；
+- 需要新的 estimand、sampling、comparison、measurement、controls 或 protocol → [`design`](../design/SKILL.md)；
+- frozen Design 已进入真实采样、实验、观察或 Assay 实施，需要记录实际执行与 deviation → [`study`](../study/SKILL.md)；
+- 已有 raw / external data，需要 identity、metadata、QC、curation、sample mapping 或 freeze → [`data`](../data/SKILL.md)；
+- 已有可分析 Dataset，需要统计、生物信息、Python、R、机器学习、sensitivity 或 exploratory computation → [`analysis`](../analysis/SKILL.md)；
+- 已有 Observation / result，需要与 Design、Hypothesis 和 literature evidence 综合并形成最窄 Claim → [`interpretation`](../interpretation/SKILL.md)；
+- 已有稳定 scientific state 且存在真实论文、报告、图表、答辩或其他传播目标 → [`communication`](../communication/SKILL.md)。
+
+不是所有研究都必须经过所有 Skill。探索性研究可以没有 formal Hypothesis；公开数据研究可以没有本项目自己的 Study；已有证据足以回答问题时也不机械进入 Design。
+
+需要判断 Agent proposal、用户主动判断或用户对科学猜想的决定来源时，读取 [`references/collaboration/RESEARCH-COLLABORATION.md`](references/collaboration/RESEARCH-COLLABORATION.md)。
+
+## 4. 子 Skill 返回后重新路由
+
+任一子 Skill 完成当前有边界动作后：
+
+1. 持久化本轮新增的 scientific objects、evidence relations、decision、artifact pointers 与 provenance；
+2. 把新的 Question / Hypothesis / Design / Study / Analysis / Observation / Claim 及其关系接回 `research-tree`；
+3. 更新当前 branch 的 open / active / blocked / resolved / closed 状态；
+4. 重新读取 `RESEARCH.md` 与刚形成的 canonical evidence；
+5. 重新比较所有当前可执行分支，选择新的 primary active branch 与下一 Skill，并实际继续执行。
+
+子 Skill 可以提供 next-action candidate，但最终路由权属于 `akira-research`。不得因为某个子工作流 `COMPLETED`、Current Loop 已切换、一次 validation 通过或已经生成阶段总结就自动结束整个科研任务。
+
+正式路由到完整 `literature` 工作流后，遵守其自身 `COMPLETED / BLOCKED` 契约；Candidate 队列、全文、Critical Audit 或 discovery closure 未完成时继续该工作流，而不是把阶段进度当作最终完成。
+
+## 5. 连续科研循环与停止边界
+
+广义的“继续科研”“接管并继续”“从零完整研究”等请求默认持续执行上述循环。只有出现以下边界之一才停止：
+
+- 用户明确限定的科研范围已经完成；
+- Objective 或当前科学问题已经在现有 evidence boundary 内得到足够回答，剩余 uncertainty 不再改变核心结论；
+- 下一条真正有判别力的 evidence 必须依赖当前项目不存在的新样本、新实验、新测量、伦理/机构批准、权限、凭据或其他外部现实输入，而且等待前仍可由 Agent 完成的研究工作已完成；
 - 存在当前 Agent 无法自行解除、必须等待用户或外部条件的真实 blocker。
 
-如果 `RESEARCH.md` 的 `Active Work` 仍指向一个当前环境下可以立即执行的科研动作，则广义科研任务尚未到达停止边界。`validate --completion=true`、某个子工作流返回 `COMPLETED`、Current Loop 已切换、或“已经选出下一步”都不能单独构成停止理由。
+如果 `Active Work` 仍指向当前环境下可以实际执行的研究动作，则广义科研任务尚未到达停止边界。
 
-不要把科研过程强制推进成单向流水线；连续循环的目标是持续降低 Active Uncertainty，而不是机械经过所有阶段。
+## 6. 科研判断、术语与证据边界
 
-## 3. 科研语义判断由主模型完成
+论文理解、Method / Study / Observation / Claim 区分、Critical Audit、evidence-to-claim fit、Hypothesis 更新和科学结论都由当前主会话模型直接判断。脚本和确定性工具负责获取、解析、结构校验、事务写入、检索与关系展开，不自行升级 scientific Claim。
 
-论文理解、Method / Experiment / Observation / Claim 区分、Critical Audit、证据能否支持某个 Claim、跨论文综合和科研结论都由当前主会话模型直接完成。不要把这些科研语义判断委派给子 Agent、轻量模型或本地小模型。
+所有面向用户或进入科研项目的人类可读 scientific prose 遵守 [`references/standards/ACADEMIC-LANGUAGE.md`](references/standards/ACADEMIC-LANGUAGE.md)。优先使用已有标准学术术语；重要专业术语首次出现采用规范中文与 established English term / acronym 的对应方式。没有现成术语时用描述性语言，不把 Akira 内部标签包装成学术概念；真正需要提出新概念时先与用户讨论并获得明确批准。
 
-脚本与其他确定性工具只承担全文获取、文本/文件解析、格式转换、结构校验、事务写入、检索与关系展开；它们不得自行生成或升级科学 Claim、Issue、support relation 或结论。机械性信息摘取可以由工具辅助，但进入科研知识库前必须由主模型核对原文和证据边界。
+## 7. 项目状态与 provenance
 
-## 4. 学术术语与科研表述
+`RESEARCH.md` 只保存仍影响路线的 Objective、Current Loop、Active Uncertainty、Current State、Active Work、Open Threads、Key Decisions 与重要 pointers，不变成日志或数据库 dump。
 
-所有面向用户或进入科研项目的人类可读 scientific prose，包括 `RESEARCH.md`、论文 sidecar、跨论文综合、derived report、论文/摘要/图注草稿，都必须遵守 [`references/standards/ACADEMIC-LANGUAGE.md`](references/standards/ACADEMIC-LANGUAGE.md)。优先使用领域已经存在并可核验的标准学术术语；中文科研写作中重要专业术语首次出现时优先采用“中文标准术语（English standard term）”。对中文译名、英文近义词或领域惯例不确定时，先查同行评议文献或权威术语来源，不凭语言感觉替换。
+详细 paper knowledge、Hypothesis/Design provenance、Dataset、Analysis、Observation、Evaluation、Communication Product 等继续使用项目 `research.sqlite` 的已有结构化能力；数据库尚未覆盖的新 Study / research-tree 语义先用 canonical artifact + Git +明确 pointer 保存，不用散写 SQL 临时创造非正式 schema。
 
-Agent 不得为了叙事自行创造新词、组合词、效应名、模式名、闭环名或其他命名概念，也不得把内部工作流标签冒充学术概念。尚无固定术语的现象用普通描述性语言表达。确实需要提出新概念时，只能先与用户讨论其必要性、边界和操作性定义；只有用户明确批准名称与定义后，才可进入 canonical scientific prose，并把该决定记录到 `RESEARCH.md` 的 `Key Decisions`。
+大型 Dataset、模型、中间矩阵和大量图片不因 provenance 要求而强制进入 Git。代码、配置、计划、manifest、关键科研文本和需要冻结的对象按其 Skill 契约进入 Git；外部 artifact 使用稳定 identity、version、location、producer、input 和所属研究对象保持可追溯。
 
-## 5. 更新研究状态
+## 8. 审计与提交
 
-一次科研动作结束后，只把仍然影响当前路线的高层状态写回 `RESEARCH.md`。详细的论文知识、方法、实验、观察、作者声明、批判问题、检索记录和关系进入 `research.sqlite`；面向人的论文 sidecar 只保留精简核心，不复制数据库。
+科研历史依赖 Git 保存版本演化，结构化数据库另保留其语义 change log。每个可独立解释的科研事件按全局原子提交规则收口。
 
-内部 acquisition / reconstruction / critical bundle 默认放在 `.research/bundles/`，属于 Agent 与数据库脚本之间的内部事务载荷，不放在项目根目录，也不作为科研知识的 canonical source。
+准备声明一个有边界科研工作流或里程碑完成前，先提交本轮 owned canonical artifacts / derived outputs，再运行 `research-db validate --completion`。该门禁证明当前已实现的 provenance / workflow 条件闭合，不证明 Scientific Objective 已被“验证为真”。
 
-用户显式需要完整的人类可读科研评估时，可以额外保存 derived report。它只是原始 artifacts + `research.sqlite` 的派生视图，不形成第四个 canonical source；报告必须指回对应 Paper identity、数据库与原文，任何只存在于报告而没有进入应有 canonical source 的重要 Observation、Claim、Issue 或 evidence boundary 都视为尚未持久化完成。
-
-完成标准：新的 evidence、decision 或 uncertainty 已进入对应 canonical source；`RESEARCH.md` 仍然是短小的 current research map，而不是日志或数据库。
-
-## 6. 审计与提交
-
-科研历史依赖 Git 保存版本演化；结构化数据库内部另保留语义 change log。提交围绕科研事件命名，避免 `update research` 一类无信息提交。
-
-本 Skill 当前处于 `in-progress`。`research-db` 已实现 schema migration、Discovery Search Run / Candidate 队列、Candidate identity reconciliation、论文 acquisition、Pass 1 Reconstruction、Pass 2 Critical Audit、FTS/evidence 检索、跨论文 relation、Discovery closure，以及项目自身 Hypothesis Proposal / User Hypothesis Decision / attributed Research Judgment / Hypothesis Set / Research Design / Dataset / Analysis Run / Analysis Amendment / Project Observation / Hypothesis Evaluation / Communication Product 的最小 provenance 和最终 `validate --completion` 门禁。确认性 Analysis 可以显式连接其已冻结 Research Design，结果后的 Hypothesis Evaluation 作为不可覆盖事件保存证据更新，而不覆盖结果前 freeze 历史；传播产物则记录其 pre-communication source commit 与实际派生 artifact，但仍保持为 canonical scientific evidence 的派生输出。搜索、候选发现、canonical artifact、论文知识单元、项目假设/设计身份、项目数据/分析结果、传播产物、批判问题、关系与 change log 均由同一项目数据库记录必要语义和 pointer；完整 Hypothesis/Design 科研正文、原始论文、数据、代码、结果文件和传播稿仍保持为独立 artifact。Evidence Synthesis 规则见 [`references/RESEARCH-SYNTHESIS.md`](references/RESEARCH-SYNTHESIS.md)。Agent 通过脚本维护数据库，不把直接散写 SQL 作为正常科研工作流。
+完成标准：项目状态、research-tree、适用规范、子工作流结果、provenance 与 Git history 彼此一致，且总 Router 能解释为什么下一步继续、切换分支或在真实边界停止。

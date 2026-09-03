@@ -11,7 +11,7 @@ description: 围绕科研项目的 Active Uncertainty 执行文献发现、全�
 
 先定位当前科研项目并读取 `RESEARCH.md`，以其中的 Objective、唯一 primary Active Uncertainty、Current State 与 Open Threads 约束本轮文献工作。用户直接从零发起 Literature Research、当前尚无科研项目时，按 [`akira-research` 的项目状态契约](../akira-research/PROJECT-STATE.md) 建立最小项目；不维护第二套 literature-only research state。
 
-项目级 `research.sqlite`、migration、CLI 与完成门禁继续使用 [`akira-research` 的数据库契约](../akira-research/RESEARCH-DB.md)。这些是共享科研项目的内部实现，不形成独立 Skill。所有人类可读科研表述遵守 [`ACADEMIC-LANGUAGE.md`](../akira-research/references/standards/ACADEMIC-LANGUAGE.md)。当前 Active Uncertainty 需要重写或拆分时读取 [`ACTIVE-UNCERTAINTY.md`](../akira-research/references/ACTIVE-UNCERTAINTY.md)；文献工作产生值得持续追踪的新科学猜想、用户判断或用户对猜想的明确决策时，按 [`RESEARCH-COLLABORATION.md`](../akira-research/references/collaboration/RESEARCH-COLLABORATION.md) 保留来源，不把 Agent-generated hypothesis 改写成用户观点。
+项目级 `research.sqlite`、migration、CLI 与完成门禁继续使用 [`akira-research` 的数据库契约](../akira-research/RESEARCH-DB.md)。这些是共享科研项目的内部实现，不形成独立 Skill。所有人类可读科研表述遵守 [`ACADEMIC-LANGUAGE.md`](../akira-research/references/standards/ACADEMIC-LANGUAGE.md)。当前 Active Uncertainty 需要重写或拆分时读取 [`research-tree` 的 Active Uncertainty 契约](../research-tree/references/ACTIVE-UNCERTAINTY.md)；文献工作产生值得持续追踪的新科学猜想、用户判断或用户对猜想的明确决策时，按 [`RESEARCH-COLLABORATION.md`](../akira-research/references/collaboration/RESEARCH-COLLABORATION.md) 保留来源，不把 Agent-generated hypothesis 改写成用户观点。
 
 论文 Reconstruction、Critical Audit、evidence-to-claim 判断和跨论文科研综合仍由当前主会话模型直接完成；获取、解析、检索、事务写入与校验工具只承担确定性工作，不代替科学语义判断。
 

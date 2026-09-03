@@ -13,6 +13,8 @@
 
 ## Objective
 
+## Applicable Standards
+
 ## Current Loop
 
 ## Active Uncertainty
@@ -31,8 +33,9 @@
 ## 字段语义
 
 - `Objective`：当前研究试图理解、解释或解决什么；尚未形成具体问题时允许保持宽泛。
-- `Current Loop`：只用于定位当前主要研究区域，取 `EXPLORE`、`QUESTION`、`HYPOTHESIS`、`DESIGN`、`DATA`、`ANALYSIS`、`INTERPRETATION`、`COMMUNICATION` 之一；它不规定下一步。
-- `Active Uncertainty`：当前最值得解决、且真实阻塞研究推进的一项 primary uncertainty。它必须能作为一个独立问题被回答；其选择、competing explanations、discriminating gap 与 next evidence 按 [`references/ACTIVE-UNCERTAINTY.md`](references/ACTIVE-UNCERTAINTY.md) 执行。若多个问题需要不同下一动作，只保留信息增益最高的一个，其余移入 `Open Threads`。
+- `Applicable Standards`：可选；只列当前真正约束研究的 design/conduct、reporting、metadata、provenance、domain 或其他正式规范及其 pointer。完整核验按 `research-standards` 执行，不复制 checklist。
+- `Current Loop`：只用于定位当前主要研究区域，取 `EXPLORE`、`QUESTION`、`HYPOTHESIS`、`DESIGN`、`STUDY`、`DATA`、`ANALYSIS`、`INTERPRETATION`、`COMMUNICATION` 之一；它不规定下一步。
+- `Active Uncertainty`：当前最值得解决、且真实阻塞研究推进的一项 primary uncertainty。它必须能作为一个独立问题被回答；其选择、competing explanations、discriminating gap 与 next evidence 按 [`research-tree` 的 Active Uncertainty 契约](../research-tree/references/ACTIVE-UNCERTAINTY.md) 执行。若多个问题需要不同下一动作，只保留信息增益最高的一个，其余移入 `Open Threads`。
 - `Current State`：让新的 Agent 在较短文本内理解“目前已经知道什么、还不知道什么”的 current synthesis。
 - `Active Work`：现在正在做什么，以及它为什么能降低 Active Uncertainty；与 uncertainty 本身分开记录。
 - `Open Threads`：已经发现但当前不追的其他问题，避免研究被每个新线索带走。
@@ -66,7 +69,7 @@
 
 一次科研动作结束后，只把仍然影响当前路线的内容写回 `RESEARCH.md`：新的 Active Uncertainty、Current State、Active Work、Open Threads、仍然有效的 Key Decisions，以及必要 pointer。准备声明本轮工作流完成前，必须在所有分析、解释、数据库写入和提交动作结束后**最后再读一次 `RESEARCH.md`**：`Active Work` 应描述下一条真实尚未完成的动作、明确的等待/blocker 或当前有边界的停止状态，不能继续写“正在提交结果”“正在运行 validation”等事实上已经完成的操作。
 
-`validate --completion` 对这一 current-state contract 只做保守的机械检查：`Objective`、`Current Loop`、`Active Uncertainty`、`Current State`、`Active Work`、`Open Threads`、`Key Decisions`、`References` 八个二级 section 必须存在；`Current Loop` 必须是本文件定义的八个定位词之一；`Active Work` 不能为空，也不能仍把项目 `bootstrap`、`git commit`、`research-db validate --completion`、`clean-tree` 等已经完成的基础设施/收尾动作写成当前工作。若 `Active Uncertainty` 明确采用 `Competing explanations:` 列表，门禁还会保守拦截把“证据不足”“当前无法判断”“不足以区分”“无法识别”等证据/工作状态直接写成 competing explanation 的明显违规；完整科学语义仍按 [`references/ACTIVE-UNCERTAINTY.md`](references/ACTIVE-UNCERTAINTY.md) 由主模型判断。这个检查用于捕获“最终提交后状态地图仍停留在收尾过程”或把知识状态伪装成科学替代状态的低歧义错误，不替代主模型判断 Objective、Active Uncertainty、Current State 或下一条 evidence 在科学上是否准确。
+`validate --completion` 对这一 current-state contract 只做保守的机械检查：`Objective`、`Current Loop`、`Active Uncertainty`、`Current State`、`Active Work`、`Open Threads`、`Key Decisions`、`References` 八个二级 section 必须存在；`Current Loop` 必须是本文件定义的九个定位词之一；`Active Work` 不能为空，也不能仍把项目 `bootstrap`、`git commit`、`research-db validate --completion`、`clean-tree` 等已经完成的基础设施/收尾动作写成当前工作。若 `Active Uncertainty` 明确采用 `Competing explanations:` 列表，门禁还会保守拦截把“证据不足”“当前无法判断”“不足以区分”“无法识别”等证据/工作状态直接写成 competing explanation 的明显违规；完整科学语义仍按 [`research-tree` 的 Active Uncertainty 契约](../research-tree/references/ACTIVE-UNCERTAINTY.md) 由主模型判断。这个检查用于捕获“最终提交后状态地图仍停留在收尾过程”或把知识状态伪装成科学替代状态的低歧义错误，不替代主模型判断 Objective、Active Uncertainty、Current State 或下一条 evidence 在科学上是否准确。
 
 详细文献知识、检索历史、方法、实验、观察、声明、批判问题和关系进入项目级 SQLite；原始 PDF 与 supplement 保持为独立 artifact。Git 负责保存 `RESEARCH.md` 与数据库的版本演化，因此不额外维护重复的 research log。每个可独立解释的科研事件完成后提交本轮 owned changes；用户已有、与本轮无关的工作区修改不触碰、不暂存、不重置。
 

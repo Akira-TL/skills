@@ -1,6 +1,6 @@
 # Evidence Synthesis Contract
 
-`research-db evidence` 输出的是 provenance-preserving evidence packet，不是科研结论。Evidence Synthesis 是 Agent 在读取 packet、原始 artifact 和必要全文上下文后的解释步骤。所有面向用户的科研表述同时遵守 [`ACADEMIC-LANGUAGE.md`](standards/ACADEMIC-LANGUAGE.md)；本文件中的 `supported`、`qualified`、`evidence_families` 等是内部工作流/数据结构标签，不自动属于学界术语，不能在用户科研文本中被包装成新概念。
+`research-db evidence` 输出的是 provenance-preserving evidence packet，不是科研结论。Evidence Synthesis 是 Agent 在读取 packet、原始 artifact 和必要全文上下文后的解释步骤。所有面向用户的科研表述同时遵守 [`ACADEMIC-LANGUAGE.md`](../../akira-research/references/standards/ACADEMIC-LANGUAGE.md)；本文件中的 `supported`、`qualified`、`evidence_families` 等是内部工作流/数据结构标签，不自动属于学界术语，不能在用户科研文本中被包装成新概念。
 
 ## 输入
 

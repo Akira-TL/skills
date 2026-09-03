@@ -21,6 +21,7 @@ CURRENT_LOOPS = {
     "QUESTION",
     "HYPOTHESIS",
     "DESIGN",
+    "STUDY",
     "DATA",
     "ANALYSIS",
     "INTERPRETATION",

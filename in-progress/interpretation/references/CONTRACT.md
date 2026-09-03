@@ -7,9 +7,9 @@ Interpretation 的任务是把项目 Analysis 结果与已有 literature evidenc
 进入 `INTERPRETATION` 时至少需要：
 
 - 当前 Active Uncertainty；
-- [`HYPOTHESIS.md`](HYPOTHESIS.md) 中的 competing hypotheses / predictions；
-- [`ANALYSIS.md`](ANALYSIS.md) 要求下产生的可重建结果、diagnostics 与 sensitivity；
-- 与目标问题相关时，通过 [`RESEARCH-SYNTHESIS.md`](RESEARCH-SYNTHESIS.md) 得到的 literature evidence boundary。
+- [`hypothesis`](../../hypothesis/SKILL.md) 中的 competing hypotheses / predictions；
+- [`analysis`](../../analysis/SKILL.md) 要求下产生的可重建结果、diagnostics 与 sensitivity；
+- 与目标问题相关时，通过 [`EVIDENCE-SYNTHESIS.md`](EVIDENCE-SYNTHESIS.md) 得到的 literature evidence boundary。
 
 如果 primary result 仍存在未解决的数据、model 或 design failure，使 target contrast 本身不可解释，先回上游解决，不把技术失败解释成科学结论。
 
@@ -25,7 +25,7 @@ Interpretation 的任务是把项目 Analysis 结果与已有 literature evidenc
 
 Analysis 的统计强度不能越过 Design 的 identification 边界。观察性数据即使 `P` 很小、样本很大，也不会因此自动成为 causal evidence。
 
-随机试验也要区分**随机分配时的可比性**与**结果后可观测样本的可比性**。随机化（randomization）支持分配时处理组之间的交换性（exchangeability）；若随后按结局是否观测、脱落、依从性或其他结果后变量形成分析子集，这个选择过程可以破坏原有交换性。因而完整病例中的显著处理差异不能仅凭“原研究是随机试验”就升级为全部随机分配单位的因果效应。组间缺失比例不同本身也不证明偏倚存在或决定偏倚方向；关键是当前数据与可辩护假设是否足以识别目标估计量。若这一识别条件尚未满足，先按 [`ANALYSIS.md`](ANALYSIS.md) 处理缺失数据假设与敏感性边界，再做 Hypothesis 更新。
+随机试验也要区分**随机分配时的可比性**与**结果后可观测样本的可比性**。随机化（randomization）支持分配时处理组之间的交换性（exchangeability）；若随后按结局是否观测、脱落、依从性或其他结果后变量形成分析子集，这个选择过程可以破坏原有交换性。因而完整病例中的显著处理差异不能仅凭“原研究是随机试验”就升级为全部随机分配单位的因果效应。组间缺失比例不同本身也不证明偏倚存在或决定偏倚方向；关键是当前数据与可辩护假设是否足以识别目标估计量。若这一识别条件尚未满足，先按 [`analysis`](../../analysis/SKILL.md) 处理缺失数据假设与敏感性边界，再做 Hypothesis 更新。
 
 不依从（nonadherence）本身不会使随机化对**随机分配效应**失效：在结局可解释且其他设计条件成立时，意向治疗效应（intention-to-treat effect, ITT effect）仍然是“被分配到该处理策略”相对于对照策略的因果效应。它可能不同于实际接受处理本身的效应，但这种差异不是授权把 ITT 称为“有偏”并改用更大的按方案结果。按方案分析（per-protocol analysis）或按实际治疗分析（as-treated analysis）若依据结果后的依从性/处理接受状态删除或重分组单位，比较组可能不再保持随机化交换性；其显著性、效应量更大或更符合预期都不能继承原随机试验的因果识别。若要解释实际接受处理或依从者中的因果效应，必须把它作为不同 estimand，说明目标总体和额外识别假设；例如 CACE/LATE 只有在相应工具变量假设成立时才可作该层级解释。
 
@@ -96,7 +96,7 @@ Interpretation 明确结论只覆盖实际 study population / experimental syste
 一次 Interpretation 结束后更新 `RESEARCH.md`：
 
 - `Current State`：只写仍影响路线的最窄 evidence boundary；
-- `Active Uncertainty`：若已解决则关闭并从 Open Threads / synthesis 中选择新的 primary；若只缩小则按 [`ACTIVE-UNCERTAINTY.md`](ACTIVE-UNCERTAINTY.md) 重写 gap / explanations / next evidence；
+- `Active Uncertainty`：若已解决则关闭并从 Open Threads / synthesis 中选择新的 primary；若只缩小则按 [`research-tree` 的 Active Uncertainty 契约](../../research-tree/references/ACTIVE-UNCERTAINTY.md) 重写 gap / explanations / next evidence；
 - `Active Work`：指向下一条真正能降低 uncertainty 的动作；
 - `Open Threads`：保存重要但当前不追的问题；
 - `Key Decisions`：记录仍影响路线的解释/设计决定。
@@ -116,4 +116,4 @@ Interpretation 完成时必须能清楚回答：
 7. primary Active Uncertainty 是否改变，下一条最有信息增益的 evidence 是什么？
 8. 若本轮由已登记 Research Design 的确认性 Analysis 更新了 Hypothesis Set，Hypothesis Evaluation 是否已写入 canonical provenance 并指回完整解释 artifact？
 
-如果第 7 项仍能由文献、分析或设计动作推进，就继续科研循环；只有确有传播/写作目标时才按 [`COMMUNICATION.md`](COMMUNICATION.md) 进入 Communication，它不是 Interpretation 后的强制下一阶段。
+如果第 7 项仍能由文献、分析或设计动作推进，就继续科研循环；只有确有传播/写作目标时才按 [`communication`](../../communication/SKILL.md) 进入 Communication，它不是 Interpretation 后的强制下一阶段。

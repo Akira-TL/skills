@@ -6,7 +6,7 @@ Data 阶段的任务是把真实 observation source 以可追溯、可重建且�
 
 进入 `DATA` 前应知道数据为什么被需要：
 
-- 来自 [`DESIGN.md`](DESIGN.md) 的新采样 / measurement / experiment；或
+- 来自 [`design`](../../design/SKILL.md) 的新采样 / measurement / experiment；或
 - 已存在的数据集被识别为可以直接降低当前 Active Uncertainty。
 
 如果数据访问、伦理审批、样本、设备、凭据或外部机构授权尚未满足，记录为明确 blocker 并停在这里；不得用虚构数据、假设样本量或模型生成值替代真实数据继续 Analysis。
@@ -112,7 +112,7 @@ QC 至少考虑当前 assay 的关键失败模式；例如 sequencing 的 read q
 
 ## 10. 完成条件
 
-按 [`ANALYSIS.md`](ANALYSIS.md) 进入 `ANALYSIS` 前至少满足：
+按 [`analysis`](../../analysis/SKILL.md) 进入 `ANALYSIS` 前至少满足：
 
 1. 当前分析输入的数据身份、来源和版本可确认；
 2. raw / curated / derived 边界清楚，raw 未被静默覆盖；

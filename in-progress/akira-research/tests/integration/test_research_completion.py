@@ -135,6 +135,15 @@ class ResearchCompletionTests(unittest.TestCase):
         self.assertIn("Active Work", blocker["sections"])
         self.assertIn("Open Threads", blocker["sections"])
 
+    def test_project_state_accepts_study_current_loop(self) -> None:
+        study_state = VALID_RESEARCH_MD.replace("QUESTION", "STUDY", 1)
+        (self.root / "RESEARCH.md").write_text(study_state, encoding="utf-8")
+
+        result = project_state_readiness(self.root)
+
+        self.assertTrue(result["ready"], result["blockers"])
+        self.assertEqual(result["current_loop"], "STUDY")
+
     def test_project_state_rejects_stale_completion_active_work(self) -> None:
         stale = VALID_RESEARCH_MD.replace(
             "等待下一条能够区分竞争解释的证据。",

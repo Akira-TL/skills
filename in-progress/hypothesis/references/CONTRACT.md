@@ -6,7 +6,7 @@ Hypothesis 阶段的目标不是选择一个最喜欢的解释，而是把 Activ
 
 仅当以下条件同时成立时进入 `HYPOTHESIS`：
 
-- `RESEARCH.md` 已有一个符合 [`ACTIVE-UNCERTAINTY.md`](ACTIVE-UNCERTAINTY.md) 的 primary uncertainty；
+- `RESEARCH.md` 已有一个符合 [`research-tree` 的 Active Uncertainty 契约](../../research-tree/references/ACTIVE-UNCERTAINTY.md) 的 primary uncertainty；
 - 至少两个 plausible explanations 尚未被现有证据排除；
 - 下一步需要明确这些 explanations 的不同预测，才能选择最有信息增益的 evidence。
 
@@ -26,7 +26,7 @@ Hypothesis 以集合为单位设计。每个集合对应一个 Active Uncertaint
 
 这些不是固定模板；只有与当前 evidence 相容且能产生不同预测的解释才进入集合。
 
-在把这些解释写成正式 Hypothesis Set 之前，先按 [`collaboration/RESEARCH-COLLABORATION.md`](collaboration/RESEARCH-COLLABORATION.md) 保留 proposal provenance。Agent 主动生成的解释记录为 `origin=agent` 并说明 rationale；用户主动提出的猜想记录为 `origin=user`，Agent 后续将其操作化时不得改写来源。用户明确同意探索 Agent proposal 时另记 User Hypothesis Decision，不能把该同意回写成 user-origin hypothesis，也不能把它解释成 scientific support。schema v18 起新建 Hypothesis Set 必须通过 `proposal_slugs` 指回至少一个已记录 proposal；迁移前已有集合不追溯补造来源历史。
+在把这些解释写成正式 Hypothesis Set 之前，先按 [`RESEARCH-COLLABORATION.md`](../../akira-research/references/collaboration/RESEARCH-COLLABORATION.md) 保留 proposal provenance。Agent 主动生成的解释记录为 `origin=agent` 并说明 rationale；用户主动提出的猜想记录为 `origin=user`，Agent 后续将其操作化时不得改写来源。用户明确同意探索 Agent proposal 时另记 User Hypothesis Decision，不能把该同意回写成 user-origin hypothesis，也不能把它解释成 scientific support。schema v18 起新建 Hypothesis Set 必须通过 `proposal_slugs` 指回至少一个已记录 proposal；迁移前已有集合不追溯补造来源历史。
 
 ## 3. 每个 Hypothesis 的最小字段
 
@@ -110,4 +110,4 @@ Hypothesis 阶段完成时必须有：
 4. 下一步 evidence 是否已存在于当前数据中、需要额外分析，还是必须进入新 Design 的判断；
 5. 若已形成独立 canonical `hypotheses/<slug>.md`，其 provenance 已登记；若该集合将作为后续确认性设计/分析的判别依据，已在结果出现前形成 Git freeze。
 
-只有第 4 项指向新的 sampling、measurement、control 或 intervention 时才按 [`DESIGN.md`](DESIGN.md) 进入 `DESIGN`。
+只有第 4 项指向新的 sampling、measurement、control 或 intervention 时才按 [`design`](../../design/SKILL.md) 进入 `DESIGN`。

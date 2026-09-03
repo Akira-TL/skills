@@ -1,71 +1,58 @@
 ---
 name: analysis
-description: 执行可重建、可审计的科研分析；当 akira-research 已确定需要使用 Python、R、命令行统计/生信工具、机器学习、富集分析或绘图来回答一个明确科研问题时使用。
+description: 执行可重建、可审计的科研分析；当已有可分析 Dataset，需要用统计、生物信息、Python、R、机器学习、富集分析或绘图回答明确 Research Question、估计 target contrast、执行 sensitivity 或探索新模式时使用。
 ---
 
 # Analysis
 
-`analysis` 负责**怎么可靠执行分析**。科研问题、estimand、confirmatory / exploratory 边界与结果能支持什么 Claim 由 `akira-research` 决定；研究分叉归属由 `research-tree` 决定。
+`analysis` 同时管理科研分析语义与具体计算执行。Research Question 与 active branch 来自 `akira-research` / `research-tree`；本 Skill 负责让分析目标、统计方法、代码、环境、诊断和结果边界彼此一致。
 
-## 1. 接收分析任务
+## 1. 接收科学分析目标
 
 执行前明确：
 
-- 当前 Question / Active Uncertainty；
-- owning research-tree Node（若项目启用 research-tree）；
-- Dataset identity 与输入位置；
+- 当前 Research Question / Active Uncertainty；
+- owning research-tree Node；
+- Dataset identity、freeze 与输入位置；
 - unit of inference；
-- 目标 Analysis 是 confirmatory、sensitivity 还是 exploratory；
-- 需要交付的结果、诊断与图。
+- estimand / target contrast 或 exploratory objective；
+- confirmatory、sensitivity、exploratory 的边界；
+- 需要返回的 estimate、diagnostics、Observation 与图表。
 
-缺少会改变统计含义的关键信息时，返回 `akira-research` 解决；不要用工具默认值替代科研设计决定。
+科研分析、Design alignment、Estimate-first、sensitivity、amendment 与 Hypothesis Evaluation 的完整规则见 [`references/RESEARCH-CONTRACT.md`](references/RESEARCH-CONTRACT.md)。缺少会改变统计含义的关键信息时返回总 Router，不用软件默认值替代科研决定。
 
-## 2. Docs-first
+## 2. 方法依据与 Docs-first
 
-任何会影响结果含义的工具行为都以**当前安装版本与权威文档**为准。包 API、默认参数、统计方法、输入要求、版本差异或命令语法不确定时，先检查本地版本与 `--help` / package help，再查官方 documentation / vignette / method paper；不能根据记忆猜测。
+统计/生物信息/机器学习方法的科学适用性优先核验方法学论文、正式指南或领域共识；具体软件 API、命令、参数、默认值和版本差异则核验当前官方 documentation、vignette、package help 或 `--help`。两类依据不能互相替代。
 
-详细规则按需读取 [`references/DOCS-FIRST.md`](references/DOCS-FIRST.md)。Python 任务读取 [`references/PYTHON.md`](references/PYTHON.md)，R 任务读取 [`references/R.md`](references/R.md)。
-
-完成标准：关键方法、默认值和参数已经与实际版本对应，任何主动偏离都有可解释理由。
+任何关键实现行为不确定时实际查证，不凭记忆猜测。详细规则见 [`references/DOCS-FIRST.md`](references/DOCS-FIRST.md)；Python 读取 [`references/PYTHON.md`](references/PYTHON.md)，R 读取 [`references/R.md`](references/R.md)。
 
 ## 3. 建立可重建执行入口
 
-分析必须有一个可重复运行的入口，显式连接：
+关键结果必须能从以下链条重建：
 
 ```text
 input → code / command → parameters → environment → outputs
 ```
 
-探索可以使用 Notebook / interactive R，但进入科研 evidence 的关键结果必须能够从脚本、workflow 或明确命令重新生成。
+Notebook / interactive session 可以用于探索，但进入 scientific evidence 的结果必须有脚本、workflow 或明确命令入口。环境、随机性、路径和输出约定见 [`references/EXECUTION.md`](references/EXECUTION.md)。
 
-环境、随机性、路径与输出规则按需读取 [`references/EXECUTION.md`](references/EXECUTION.md)。
+## 4. 运行、诊断与合理替代分析
 
-## 4. 运行与诊断
+先运行与 scientific target 对齐的分析，再检查足以改变结论的 failure mode。工具成功退出不等于模型有效。
 
-先执行与科研问题对齐的 analysis，再检查足以改变结论的失败模式。工具成功退出不等于统计模型有效；至少根据当前方法检查输入假设、样本结构、收敛、批次、缺失、异常值、随机划分、过拟合、数据泄漏和适用的 sensitivity。
+多个合理方法或 specification 可以并存，但必须说明各自回答什么问题。参数微调、兼容修复和等价实现保留在同一 Analysis provenance；scientific question / estimand、population、unit of inference 或 confirmatory target 改变时，通常形成新的 Analysis / research-tree branch。
 
-当存在多个合理方法或 pipeline 时，可以全部执行；每个分析必须说明它回答的科学问题和与其他分析的关系。不要用 `v1 → v9` 作为科研结构，也不要因某个版本更显著或图更漂亮而选为最终证据。
+Sensitivity 的目的用于判断结论对合理分析选择是否稳定，不用于寻找显著结果。Preferred analysis 的选择依据是 scientific alignment、推断单位、measurement/data model、diagnostics、leakage/overfitting、robustness 与 interpretability，而不是 `P` value 或图形吸引力。
 
-## 5. 分析分叉与收敛
+## 5. 结果、图和大型 artifact
 
-一次参数微调、软件兼容修复或等价实现保持在同一 Analysis provenance 中。以下变化通常需要作为新的 Analysis / research-tree branch：
+结果文件、模型、图片和中间矩阵根据体积、可重建性和项目约束决定是否进入 Git。大型 artifact 可以外置，但必须保留 input、producer、parameters、environment、version、path 和 owning Analysis / research node。
 
-- scientific question / estimand 改变；
-- population 或 unit of inference 改变；
-- confirmatory target 改变；
-- 结果后出现新的 subgroup、mechanism 或 prediction；
-- 方法回答的是不同问题，例如 differential abundance 与 prediction。
+分析图用于诊断或呈现 analysis result 时属于本 Skill；面向论文的 panel 组合、版式与传播表达交给 `communication`，但必须从已登记结果派生。
 
-合理替代 pipeline 用于 sensitivity 时保留其结果。最终 preferred analysis 必须按 scientific alignment、正确推断单位、measurement/data model、diagnostics、leakage/overfitting、robustness 与 interpretability 说明选择理由；显著性或视觉吸引力不能成为选择依据。
+## 6. 返回科学结果
 
-## 6. 结果与 artifact
+`analysis` 产生 Observation / estimate、uncertainty、diagnostics、sensitivity boundary、artifact pointers 和 reproduction entrypoint，不自行把结果升级成 causal / mechanistic Claim。科学解释交给 `interpretation`，研究分叉更新交给 `research-tree`，下一步由 `akira-research` 决定。
 
-结果文件、模型、图片和中间数据按可重建性与体积决定是否进入 Git。大型 artifact 可以外置，但必须保留 input、producer、parameters、environment、path 与 owning research node / Analysis pointer。图形应由代码从已登记结果生成；手工修改若会改变科学表达，必须可追溯。
-
-`analysis` 不自行升级 Hypothesis / Claim。完成后把 Observation、diagnostics、sensitivity boundary、artifact pointers 与 reproduction entrypoint 返回 `akira-research` 做 Interpretation，并同步给 `research-tree` 更新节点关系。
-
-## 7. 方法专属注意事项
-
-DESeq2、LEfSe、KEGG、Random Forest 等方法的规则不复制成容易过期的教程。遇到具体方法时先执行 Docs-first，再根据当前版本和科研问题建立方法检查清单；只有经过多次项目验证且长期稳定的高风险注意事项才沉淀到本 Skill 的 method reference。
-
-完成标准：最终报告能说明“运行了什么、为什么这样运行、能否重建、哪些替代方案改变结论、结果只能支持到什么范围”。
+完成标准：能明确说明运行了什么、为什么适用、如何重建、合理替代分析是否改变结论、结果直接显示什么以及哪些科学解释仍超出当前 Analysis 的支持范围。
