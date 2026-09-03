@@ -1,6 +1,6 @@
 # Research Analysis Contract
 
-Analysis 的任务是用已经冻结、可追溯的数据去估计 [`DESIGN.md`](DESIGN.md) 定义的 target contrast，并判断结果是否真正区分 [`HYPOTHESIS.md`](HYPOTHESIS.md) 中的 competing hypotheses。统计显著性不是 Analysis 的终点；effect、uncertainty、assumption 与 sensitivity 一起决定结果能支持到什么层级。
+Analysis 的任务是用已经冻结、可追溯的数据去估计 [`DESIGN.md`](DESIGN.md) 定义的 target contrast，并判断结果是否真正区分 [`HYPOTHESIS.md`](HYPOTHESIS.md) 中的 competing hypotheses。统计显著性不是 Analysis 的终点；effect、uncertainty、assumption 与 sensitivity 一起决定结果能支持到什么层级。具体 Python、R、统计/生信工具、机器学习、绘图与运行环境的执行规范交给 [`akira-analysis`](../../akira-analysis/SKILL.md)；本文件只定义科研分析语义、freeze、amendment 与 Interpretation 边界。
 
 ## 1. 进入条件
 
