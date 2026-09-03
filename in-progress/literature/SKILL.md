@@ -1,9 +1,9 @@
 ---
-name: akira-literature
+name: literature
 description: 围绕科研项目的 Active Uncertainty 执行文献发现、全文获取路由、论文重建、批判性评估与跨论文证据综合；当需要用现有文献区分 competing explanations、核验方法或边界条件、寻找下一条判别性 evidence，或用户直接要求完整 Literature Research 时使用。继续使用同一 RESEARCH.md 与 research.sqlite，不替代 akira-research 的项目级科学状态与路线决策。
 ---
 
-# Akira Literature
+# Literature
 
 本 Skill 负责文献发现、全文阅读、批判审阅与跨论文证据综合。已知目标论文的合法全文获取由 `literature-access` 负责；本 Skill 决定为什么找、哪些论文进入队列、读什么、如何批判以及文献 evidence 如何进入同一个科研项目。
 

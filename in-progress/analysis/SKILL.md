@@ -1,11 +1,11 @@
 ---
-name: akira-analysis
+name: analysis
 description: 执行可重建、可审计的科研分析；当 akira-research 已确定需要使用 Python、R、命令行统计/生信工具、机器学习、富集分析或绘图来回答一个明确科研问题时使用。
 ---
 
-# Akira Analysis
+# Analysis
 
-`akira-analysis` 负责**怎么可靠执行分析**。科研问题、estimand、confirmatory / exploratory 边界与结果能支持什么 Claim 由 `akira-research` 决定；研究分叉归属由 `research-tree` 决定。
+`analysis` 负责**怎么可靠执行分析**。科研问题、estimand、confirmatory / exploratory 边界与结果能支持什么 Claim 由 `akira-research` 决定；研究分叉归属由 `research-tree` 决定。
 
 ## 1. 接收分析任务
 
@@ -62,7 +62,7 @@ input → code / command → parameters → environment → outputs
 
 结果文件、模型、图片和中间数据按可重建性与体积决定是否进入 Git。大型 artifact 可以外置，但必须保留 input、producer、parameters、environment、path 与 owning research node / Analysis pointer。图形应由代码从已登记结果生成；手工修改若会改变科学表达，必须可追溯。
 
-`akira-analysis` 不自行升级 Hypothesis / Claim。完成后把 Observation、diagnostics、sensitivity boundary、artifact pointers 与 reproduction entrypoint 返回 `akira-research` 做 Interpretation，并同步给 `research-tree` 更新节点关系。
+`analysis` 不自行升级 Hypothesis / Claim。完成后把 Observation、diagnostics、sensitivity boundary、artifact pointers 与 reproduction entrypoint 返回 `akira-research` 做 Interpretation，并同步给 `research-tree` 更新节点关系。
 
 ## 7. 方法专属注意事项
 
