@@ -78,7 +78,7 @@ Research Question、Active Uncertainty、分支和跨对象关系由 [`research-
 
 `RESEARCH.md` 只保存仍影响路线的 Objective、Current Loop、Active Uncertainty、Current State、Active Work、Open Threads、Key Decisions 与重要 pointers，不变成日志或数据库 dump。
 
-详细 paper knowledge、Hypothesis/Design provenance、Dataset、Analysis、Observation、Evaluation、Communication Product 等继续使用项目 `research.sqlite` 的已有结构化能力；数据库尚未覆盖的新 Study / research-tree 语义先用 canonical artifact + Git +明确 pointer 保存，不用散写 SQL 临时创造非正式 schema。
+详细 paper knowledge、Research Tree、Hypothesis/Design provenance、Study、Dataset、Analysis、Observation、Evaluation、Communication Product 等使用项目 `research.sqlite` 的结构化能力；具体 schema、CLI 与 completion gate 统一由 [`RESEARCH-DB.md`](RESEARCH-DB.md) 维护，不用散写 SQL 临时创造非正式 schema。
 
 大型 Dataset、模型、中间矩阵和大量图片不因 provenance 要求而强制进入 Git。代码、配置、计划、manifest、关键科研文本和需要冻结的对象按其 Skill 契约进入 Git；外部 artifact 使用稳定 identity、version、location、producer、input 和所属研究对象保持可追溯。
 

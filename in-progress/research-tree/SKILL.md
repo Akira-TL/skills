@@ -71,6 +71,6 @@ Evidence 默认表现为“有来源依据的科学关系”，不为了结构�
 
 ## 6. Artifact 与 provenance
 
-树保存科研语义和 pointer，不要求大型 Dataset、模型、中间矩阵或图片进入 Git。文件、数据、代码、模型等 provenance 由 `data` / `analysis` 按项目约束记录；树只连接它们与对应科研对象。需要外部 artifact 边界时读取 [`references/ARTIFACTS.md`](references/ARTIFACTS.md)。
+树保存科研语义和 pointer，不要求大型 Dataset、模型、中间矩阵或图片进入 Git。Research Node、Edge 与 root/active path 已进入项目 `research.sqlite`；数据库契约由 [`akira-research/RESEARCH-DB.md`](../akira-research/RESEARCH-DB.md) 统一维护。文件、数据、代码、模型等 provenance 仍由 `study` / `data` / `analysis` 按项目约束记录；树只连接它们与对应科研对象。需要外部 artifact 边界时读取 [`references/ARTIFACTS.md`](references/ARTIFACTS.md)。
 
 完成标准：新的科学分叉、关系、状态和 active path 已可恢复，且总 Router 能据此选择下一条实际科研动作。
