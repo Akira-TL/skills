@@ -109,7 +109,7 @@ def _append_design_blockers(
             """
             SELECT d.id, d.slug
             FROM research_designs d
-            JOIN hypothesis_sets h ON h.id = d.hypothesis_set_id
+            LEFT JOIN hypothesis_sets h ON h.id = d.hypothesis_set_id
             WHERE d.status <> 'superseded'
               AND (
                 trim(d.target_estimand) = trim(?)

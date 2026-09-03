@@ -90,6 +90,18 @@ def canonical_paths(project_root: Path) -> list[str]:
         if "research_designs" in tables:
             for row in connection.execute("SELECT artifact_path FROM research_designs ORDER BY id"):
                 paths.add(Path(str(row["artifact_path"])).as_posix())
+        if "studies" in tables:
+            for row in connection.execute("SELECT provenance_path FROM studies ORDER BY id"):
+                paths.add(Path(str(row["provenance_path"])).as_posix())
+        if "study_artifacts" in tables:
+            for row in connection.execute(
+                """
+                SELECT location FROM study_artifacts
+                WHERE storage_kind = 'local' AND git_tracking = 'required'
+                ORDER BY id
+                """
+            ):
+                paths.add(Path(str(row["location"])).as_posix())
         if "communication_artifacts" in tables:
             for row in connection.execute(
                 "SELECT path FROM communication_artifacts WHERE git_tracking = 'required' ORDER BY id"
@@ -136,6 +148,16 @@ def _academic_language_paths(project_root: Path) -> list[Path]:
         if "research_designs" in tables:
             for row in connection.execute("SELECT artifact_path FROM research_designs ORDER BY id"):
                 path = Path(str(row["artifact_path"]))
+                paths.append(path if path.is_absolute() else project_root / path)
+        if "studies" in tables:
+            for row in connection.execute("SELECT provenance_path FROM studies ORDER BY id"):
+                path = Path(str(row["provenance_path"]))
+                paths.append(path if path.is_absolute() else project_root / path)
+        if "study_artifacts" in tables:
+            for row in connection.execute(
+                "SELECT location FROM study_artifacts WHERE storage_kind = 'local' ORDER BY id"
+            ):
+                path = Path(str(row["location"]))
                 paths.append(path if path.is_absolute() else project_root / path)
         if "communication_artifacts" in tables:
             for row in connection.execute(

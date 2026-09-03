@@ -194,7 +194,13 @@ Candidate ID 主要供数据库内部使用。
 
 `research-db validate --completion` 会把已登记且需要 Git 跟踪的 data/analysis artifact 纳入 canonical path gate。`data/` 或 `analysis/` 下已经被 Git 跟踪但没有进入上述 provenance 的文件会阻止完成；实际生成 curated 数据、主要结果、敏感性结果或关键诊断的项目脚本即使位于 `scripts/`，也应作为 Dataset / Analysis artifact 登记，从而进入同一 canonical Git gate。已完成的确认性 Analysis 还必须证明其 freeze commit 是当前 HEAD 的祖先、主要计划/代码/输入以及未被该 Analysis 标为 `post_result_context` 的 canonical Dataset artifact 在 freeze 时已经存在，并且这些路径在 `freeze_commit..HEAD` 的提交历史中从未被改写；中间改写后再 revert 也不能恢复原 freeze 资格。本轮结果 artifact 在 freeze 时必须尚不存在。`post_result_context` artifact 仍进入 canonical Git gate；completion 要求它在该 Analysis 的 freeze 时不存在，且它首次进入 Git 历史的提交中已经存在当前 Analysis 的至少一个已登记 result artifact，防止把仅仅“晚于 freeze”但实际早于结果的 provenance 事后洗成 post-result context。
 
-从 schema v14 起，Hypothesis Set 与 Research Design 经过真实设计黑盒后已经显示出稳定的身份与冻结审计需求，因此进入最小结构化 provenance：`hypothesis_sets` 保存 target uncertainty、canonical `hypotheses/<slug>.md`、**artifact 生命周期状态**与 freeze commit；`research_designs` 保存关联 Hypothesis Set、主要 estimand、primary outcome、experimental unit、canonical `designs/<slug>.md`、feasibility 状态与 freeze commit。`hypothesis_sets.status=frozen` 表示结果前版本被冻结，不等于科学上“假设已确认”。
+从 schema v14 起，Hypothesis Set 与 Research Design 经过真实设计黑盒后已经显示出稳定的身份与冻结审计需求，因此进入最小结构化 provenance：`hypothesis_sets` 保存 target uncertainty、canonical `hypotheses/<slug>.md`、**artifact 生命周期状态**与 freeze commit；`research_designs` 保存主要 estimand、primary outcome、experimental unit、canonical `designs/<slug>.md`、feasibility 状态与 freeze commit。`hypothesis_sets.status=frozen` 表示结果前版本被冻结，不等于科学上“假设已确认”。
+
+从 schema v19 起，Research Design 不再被数据库强制解释为“必然源自 Hypothesis Set”。描述性、探索性或其他没有 formal Hypothesis 的研究可以通过 `question_node_id` 直接指向 `research_nodes.kind=question`；有明确 competing hypothesis 的设计仍可通过 `hypothesis_set_id` 连接 Hypothesis Set，也可以同时保留 Question 与 Hypothesis 两层 provenance。Design 至少需要 Question 或 Hypothesis 之一。只有显式连接 Hypothesis Set 的 frozen Design 才继续要求 Hypothesis freeze 早于或等于 Design freeze，结果后也只有这类 Analysis 才需要 Hypothesis Evaluation。
+
+schema v19 同时加入 `research_nodes`、`research_edges` 与单例 `research_tree_state`。Research Tree 保存 Objective / Question / Hypothesis / Design / Study / Analysis / Observation / Claim 等科研进程节点、结构 parent、当前 root/active path，以及 `spawned_from | addresses | tests | supports | weakens | contradicts | qualifies | alternative_to | depends_on | uses | produces` 等科学或工作关系。`supports/weakens/contradicts/qualifies` 必须带可追溯 `basis_ref`；Research Tree 只保存研究结构与关系，不复制 Dataset/File/Code provenance。
+
+从 schema v20 起，真实研究实施过程进入独立 Study provenance：`studies` 指向已冻结 Research Design；`study_samples` 保存稳定 Sample identity 与 parent sample；`study_assays` / `study_assay_samples` 保存实际 Assay、batch/run/instrument/operator 与 Sample 映射；`study_deviations` 保存实际偏离及其 scientific impact；`study_artifacts` 保存 protocol、sample manifest、assay metadata、deviation/execution log 等 artifact。`datasets.study_id` 允许 raw/curated Dataset 指回产生它的 Study；Design 继续表示“计划做什么”，Study 表示“实际做了什么”，Dataset 表示“进入数据管理的是什么”。
 
 从 schema v18 起，Hypothesis 形成过程进一步保存来源而不把不同主体的判断混成一条叙事。`hypothesis_proposals` 保存一个值得持续追踪的科学猜想最初由 `user|agent` 谁提出、原始表述、后续可检验操作化及其执行者；Agent-origin proposal 必须保存 rationale。Proposal 的来源字段不可覆盖；允许后续一次性补入 `operationalized_statement + operationalized_by`，已有操作化表述不得改写。科学语义实质改变时建立新 proposal。`hypothesis_set_proposals` 把正式 Hypothesis Set 指回形成它的 proposal；v18 之后新建的 Hypothesis Set 至少需要一个 proposal link，迁移前已经存在的集合按 `hypothesis_provenance_started_at` 保持 grandfathered，不追溯补造来源历史。
 
@@ -546,6 +552,12 @@ research-db record-dataset [bundle]
 research-db datasets
 research-db record-analysis [bundle]
 research-db analyses
+research-db record-research-node [bundle]
+research-db record-research-edge [bundle]
+research-db set-research-tree-state [bundle]
+research-db research-tree
+research-db record-study [bundle]
+research-db studies
 research-db record-hypothesis-proposal [bundle]
 research-db hypothesis-proposals
 research-db record-user-hypothesis-decision [bundle]
@@ -614,7 +626,9 @@ research-db paper-context P000001 --for-sidecar
 - Dataset provenance path、本地 Dataset artifact、Analysis 入口/代码/结果 artifact 缺失；
 - Project Observation 指向其他 Analysis 的结果 artifact；
 - confirmatory Analysis 已进入 frozen/completed 却没有记录 freeze commit；Analysis 已结构化关联 Design 时，Design 不存在或 estimand 与 Design 不一致；
-- Hypothesis Set / Research Design 的 canonical artifact 缺失、冻结状态缺少 freeze commit、Design 引用不存在的 Hypothesis Set、未解决 feasibility 没有说明，或 execution-ready 与 feasibility 状态矛盾；
+- Hypothesis Set / Research Design 的 canonical artifact 缺失、冻结状态缺少 freeze commit、Design 没有链接 Question/Hypothesis、显式 Question/Hypothesis 引用不存在、未解决 feasibility 没有说明，或 execution-ready 与 feasibility 状态矛盾；
+- Research Tree Node artifact 缺失、parent chain 出现 cycle、root/active state 悬空或 active path 不属于 root 子树；
+- Study provenance path / 本地 Study artifact 缺失、Study 引用未冻结或不存在的 Design、Sample parent 跨 Study、Assay-Sample 映射跨 Study，或 Study 时间状态自相矛盾；
 - Hypothesis Evaluation 引用未完成 Analysis、引用的解释 artifact 不属于同一 Analysis，或其 Hypothesis Set 与 Analysis 所实现 Design 不一致；
 - Communication artifact 指向不存在文件或不存在的 Communication Product；
 - schema version / migration 状态异常；
@@ -624,7 +638,7 @@ research-db paper-context P000001 --for-sidecar
 
 普通 `validate` 的 structured result 还返回 `schema_compatible`。它只描述当前数据库结构是否可由本版本 Skill 安全解释：`PRAGMA user_version` 必须等于当前 schema、`meta.schema_version` 必须与其一致，且当前必需表完整。它不等同于 `ok`；例如数据库内容存在 integrity error 时，可以出现 `schema_compatible=true` 但 `ok=false`。数据库不存在时 `schema_compatible=false`。
 
-`validate --completion` 在 `schema_compatible=false` 时不得继续执行依赖当前 schema 的 Discovery / Literature / Planning / Downstream / Communication readiness。它必须直接返回 `completion=false`、`completion_checked=true`，把这些 readiness 标记为 `checked=false` 并说明 `schema_incompatible`（数据库不存在时为 `database_missing`），同时保留普通 `validate` 的版本/缺表错误。对历史项目这是一项**工具兼容性门禁**，不是科学失败判定；在用户未授权维护时不得自动迁移。先运行 `research-db status` 核对 `migration_needed`，获得维护授权后再执行 `research-db migrate` 并重新运行 completion gate。正式 `migrate` 在项目已有 Git `HEAD` 且确实应用了 migration 时，会把迁移前 `HEAD` 记录到 `meta.academic_language_legacy_baseline_commit`。这个非结构性 meta marker 只用于让后来新增的学术语言机械门禁按前瞻方式作用：仍与该提交一致、且之后没有提交修改的旧科研文本不要求为新语言规则追溯改写；路径一旦在基线后发生提交修改或当前工作树内容不同，立即恢复当前语言检查。它不改变 schema version，也不能用于跳过 freeze、provenance 或 current-state 门禁。
+`validate --completion` 在 `schema_compatible=false` 时不得继续执行依赖当前 schema 的 Discovery / Literature / Planning / Research Tree / Study / Downstream / Communication readiness。它必须直接返回 `completion=false`、`completion_checked=true`，把这些 readiness 标记为 `checked=false` 并说明 `schema_incompatible`（数据库不存在时为 `database_missing`），同时保留普通 `validate` 的版本/缺表错误。对历史项目这是一项**工具兼容性门禁**，不是科学失败判定；在用户未授权维护时不得自动迁移。先运行 `research-db status` 核对 `migration_needed`，获得维护授权后再执行 `research-db migrate` 并重新运行 completion gate。正式 `migrate` 在项目已有 Git `HEAD` 且确实应用了 migration 时，会把迁移前 `HEAD` 记录到 `meta.academic_language_legacy_baseline_commit`。这个非结构性 meta marker 只用于让后来新增的学术语言机械门禁按前瞻方式作用：仍与该提交一致、且之后没有提交修改的旧科研文本不要求为新语言规则追溯改写；路径一旦在基线后发生提交修改或当前工作树内容不同，立即恢复当前语言检查。它不改变 schema version，也不能用于跳过 freeze、provenance 或 current-state 门禁。
 
 历史 schema 的只读查询应尽量返回该版本真实可表达的 provenance，而不是访问后续 migration 才新增的列或表并泄漏低层异常。当前 `research-db analyses` 会在旧 schema 上返回已有 Analysis / Dataset / artifact / Observation，并通过 `schema_capabilities` 明确标记 `analysis_design_link` 与 `dataset_artifact_timing` 是否由该数据库版本建模；能力为 `false` 时，相应派生字段为 `null`，表示“该 schema 不具备此 provenance 维度”，不能解释成已经核验为空。
 
@@ -634,7 +648,9 @@ research-db paper-context P000001 --for-sidecar
 
 项目存在 `data/` 或 `analysis/` 科研资产时，完成验证还检查下游 provenance：被 Git 跟踪的数据/分析文件不能游离在数据库之外；已完成 Analysis 必须关联 Dataset、至少一个 estimate artifact 和至少一个项目 Observation；确认性 Analysis 的 freeze commit 必须存在且是当前 HEAD 的祖先，主要计划/代码/输入和默认 Dataset freeze scope 在 freeze 时已经存在，且这些路径在后续提交历史中从未被改写，而本轮结果 artifact 在该 freeze 时尚未出现。结果后新增但不属于该执行快照的 canonical Dataset provenance 通过 `analysis_dataset_artifact_timing.timing_role=post_result_context` 绑定到具体 Analysis；除必须在 freeze 时不存在外，其首次 Git 提交还必须已经包含当前 Analysis 的至少一个 result artifact，才有机械证据支持“post-result”时序，不再需要错误登记为 Analysis `result`。若确认性 Analysis 与已登记 Research Design 的 estimand/uncertainty 对齐，则必须通过 `design_slug` 显式连接；关联 Design 必须先冻结，且其 freeze 不能晚于 Analysis freeze。只有所有完成门禁均通过时才返回 `completion=true`；失败时返回 `completion=false`。`completion_checked=true` 只表示本次确实执行了完成门禁，不能与通过状态混淆。这样 `completion=true` 才能说明预先冻结与结果 provenance 真实存在，而不是事后写在 README 里。
 
-项目存在 `hypotheses/` 或 `designs/` canonical artifact 时同样不能游离在数据库之外。冻结的 Hypothesis Set / Design 必须登记有效 Git freeze commit；该提交必须是当前 HEAD 的祖先并真实包含相应 artifact，Design 的 freeze 还必须同时包含其关联 Hypothesis Set，且不能早于 Hypothesis Set 的冻结。`feasibility_status=unresolved` 可以完成“科研设计工作流”，但只表示设计已形成并明确 blocker，不能被解释成实验已经 execution-ready。一个 linked confirmatory Analysis 完成后，如果它已经被用于更新关联 Hypothesis Set，completion 还要求存在对应 Hypothesis Evaluation，并由 Evaluation 指回当前 Analysis 已登记的解释/结果 artifact；`hypothesis_sets.status=frozen` 本身绝不作为结果后科研判定的替代。
+项目存在 `hypotheses/` 或 `designs/` canonical artifact 时同样不能游离在数据库之外。冻结的 Hypothesis Set / Design 必须登记有效 Git freeze commit；该提交必须是当前 HEAD 的祖先并真实包含相应 artifact。Design 显式关联 Hypothesis Set 时，其 freeze 还必须同时包含该 Hypothesis artifact，且不能早于 Hypothesis Set 的冻结；Question-driven Design 不要求为了满足数据库门禁伪造 Hypothesis。`feasibility_status=unresolved` 可以完成“科研设计工作流”，但只表示设计已形成并明确 blocker，不能被解释成实验已经 execution-ready。一个 linked confirmatory Analysis 完成后，如果它已经被用于更新关联 Hypothesis Set，completion 还要求存在对应 Hypothesis Evaluation，并由 Evaluation 指回当前 Analysis 已登记的解释/结果 artifact；`hypothesis_sets.status=frozen` 本身绝不作为结果后科研判定的替代。
+
+Research Tree 一旦已有 Node，完成验证要求设置唯一 root/active path，并保证 active node 位于 root 的结构子树中。Study 的 provenance path 与声明需要 Git 跟踪的本地 Study artifact 进入同一 canonical Git gate；completed Study 不能遗留 `status=started` 的 Assay。Study completion 只证明实际实施 provenance 已闭合，不表示 Dataset QC、Analysis 或 Interpretation 已完成。
 
 项目存在 `communication/` 传播产物时，完成验证还要求这些文件登记到 Communication Product，并记录其 pre-communication `source_commit`。已登记传播 artifact 会进入 Git 完整性检查；`derived_output` 不能在 source commit 中已经存在，`source_support` 必须在 source commit 中已经存在。若 source commit 之后 Hypothesis / Design / Data / Analysis 等已登记科学 artifact 又发生变化，旧传播稿必须基于新的稳定 evidence commit 重新审阅。这个 Git path 集合只承担完整性门禁，不把 Communication artifact 提升为 canonical scientific source。
 

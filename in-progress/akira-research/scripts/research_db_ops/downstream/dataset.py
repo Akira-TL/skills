@@ -21,6 +21,8 @@ def record_dataset(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
     source_url = common.text(bundle.get("source_url"))
     version = common.text(bundle.get("version"))
     status = common.enum_value(bundle.get("status"), {"active", "archived"}, default="active", field="status")
+    study_value = common.text(bundle.get("study_slug"))
+    study_slug = common.slug(study_value, field="study_slug") if study_value is not None else None
     artifacts = bundle.get("artifacts")
     if not isinstance(artifacts, list) or not artifacts:
         raise ResearchDbError("dataset artifacts 必须是非空数组。")
@@ -60,6 +62,14 @@ def record_dataset(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
     with connect(common.db_path(project_root)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         try:
+            study_id: int | None = None
+            if study_slug is not None:
+                study = connection.execute(
+                    "SELECT id FROM studies WHERE slug = ?", (study_slug,)
+                ).fetchone()
+                if study is None:
+                    raise ResearchDbError(f"Dataset 引用不存在的 Study：{study_slug}")
+                study_id = int(study["id"])
             existing = connection.execute(
                 "SELECT * FROM datasets WHERE slug = ?", (slug,)
             ).fetchone()
@@ -68,8 +78,9 @@ def record_dataset(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
                     """
                     INSERT INTO datasets(
                         slug, title, identity, source, source_url, version, received_at,
-                        unit_of_inference, provenance_path, status, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        unit_of_inference, provenance_path, status, created_at, updated_at,
+                        study_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         slug,
@@ -84,6 +95,7 @@ def record_dataset(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
                         status,
                         now,
                         now,
+                        study_id,
                     ),
                 )
                 dataset_id = int(cursor.lastrowid)
@@ -111,6 +123,17 @@ def record_dataset(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
                         + ", ".join(changed)
                         + "。如数据版本/身份已改变，应建立新的 Dataset。"
                     )
+                existing_study_id = existing["study_id"]
+                if study_id is not None:
+                    if existing_study_id is None:
+                        connection.execute(
+                            "UPDATE datasets SET study_id = ?, updated_at = ? WHERE id = ?",
+                            (study_id, now, dataset_id),
+                        )
+                    elif int(existing_study_id) != study_id:
+                        raise ResearchDbError(
+                            "Dataset 已链接到另一个 Study；Study provenance 不可静默改写。"
+                        )
             for item in parsed_artifacts:
                 connection.execute(
                     """
@@ -147,12 +170,24 @@ def record_dataset(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
         except Exception:
             connection.rollback()
             raise
-    return {"ok": True, "dataset_id": dataset_id, "slug": slug}
+    return {"ok": True, "dataset_id": dataset_id, "slug": slug, "study_slug": study_slug}
 
 def list_datasets(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
     with connect(common.db_path(project_root)) as connection:
+        has_study_link = "study_id" in {
+            str(row["name"]) for row in connection.execute("PRAGMA table_info(datasets)")
+        }
+        if has_study_link:
+            query = """
+                SELECT d.*, s.slug AS study_slug
+                FROM datasets d
+                LEFT JOIN studies s ON s.id = d.study_id
+                ORDER BY d.id LIMIT ?
+            """
+        else:
+            query = "SELECT d.*, NULL AS study_slug FROM datasets d ORDER BY d.id LIMIT ?"
         rows = []
-        for row in connection.execute("SELECT * FROM datasets ORDER BY id LIMIT ?", (limit,)):
+        for row in connection.execute(query, (limit,)):
             item = dict(row)
             item["artifacts"] = [
                 dict(x)
@@ -161,4 +196,8 @@ def list_datasets(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
                 )
             ]
             rows.append(item)
-    return {"ok": True, "datasets": rows}
+    return {
+        "ok": True,
+        "schema_capabilities": {"study_dataset_link": has_study_link},
+        "datasets": rows,
+    }

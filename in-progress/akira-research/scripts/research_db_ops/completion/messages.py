@@ -213,6 +213,66 @@ def append_planning_errors(errors: list[str], blockers: list[dict[str, Any]]) ->
                 + ", ".join(str(name) for name in blocker.get("tables", []))
             )
 
+def append_research_tree_errors(errors: list[str], blockers: list[dict[str, Any]]) -> None:
+    for blocker in blockers:
+        reason = str(blocker.get("reason", "unknown"))
+        if reason == "research_tree_schema_missing":
+            errors.append(
+                "Research Tree provenance schema 尚未迁移完成："
+                + ", ".join(str(name) for name in blocker.get("tables", []))
+            )
+        elif reason == "research_tree_state_missing":
+            errors.append("Research Tree 已存在 Node，但尚未设置 root/active path。")
+        elif reason == "research_tree_state_without_nodes":
+            errors.append("Research Tree state 已存在，但项目没有任何 Research Node。")
+        elif reason in {"research_tree_state_dangling", "research_tree_parent_chain_dangling"}:
+            errors.append("Research Tree state 或 parent chain 引用了不存在的 Research Node。")
+        elif reason == "research_tree_root_has_parent":
+            errors.append(f"Research Tree root {blocker.get('root')} 仍有 parent；root 必须是结构根节点。")
+        elif reason == "research_tree_active_node_inactive":
+            errors.append(
+                f"Research Tree active node {blocker.get('active')} 已处于 {blocker.get('status')}；"
+                "active path 必须指向仍可推进的 open/active/blocked 节点。"
+            )
+        elif reason == "research_tree_parent_cycle":
+            errors.append("Research Tree parent chain 出现 cycle。")
+        elif reason == "research_tree_active_outside_root":
+            errors.append(
+                f"Research Tree active node {blocker.get('active')} 不位于 root {blocker.get('root')} 的结构子树中。"
+            )
+
+
+def append_study_errors(errors: list[str], blockers: list[dict[str, Any]]) -> None:
+    for blocker in blockers:
+        reason = str(blocker.get("reason", "unknown"))
+        if reason == "study_schema_missing":
+            errors.append(
+                "Study provenance schema 尚未迁移完成："
+                + ", ".join(str(name) for name in blocker.get("tables", []))
+            )
+        elif reason == "study_design_missing":
+            errors.append(f"Study {blocker.get('study')} 引用的 Research Design 不存在。")
+        elif reason == "study_design_not_frozen":
+            errors.append(
+                f"Study {blocker.get('study')} 引用的 Research Design {blocker.get('design')} 尚未冻结。"
+            )
+        elif reason == "study_timestamp_invalid":
+            errors.append(f"Study {blocker.get('study')} 的时间戳无效。")
+        elif reason == "study_started_after_last_update":
+            errors.append(f"Study {blocker.get('study')} 的 started_at 晚于数据库 updated_at。")
+        elif reason == "study_completed_before_started":
+            errors.append(f"Study {blocker.get('study')} 的 completed_at 早于 started_at。")
+        elif reason == "study_completed_after_last_update":
+            errors.append(f"Study {blocker.get('study')} 的 completed_at 晚于数据库 updated_at。")
+        elif reason == "completed_study_missing_completed_at":
+            errors.append(f"已完成 Study {blocker.get('study')} 缺少 completed_at。")
+        elif reason == "completed_study_has_active_assays":
+            errors.append(
+                f"已完成 Study {blocker.get('study')} 仍有未结束 Assay："
+                + ", ".join(str(value) for value in blocker.get("assays", []))
+            )
+
+
 def append_communication_errors(errors: list[str], blockers: list[dict[str, Any]]) -> None:
     for blocker in blockers:
         reason = str(blocker.get("reason", "unknown"))

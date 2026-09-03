@@ -70,7 +70,7 @@ def _resolve_design(connection, bundle: dict[str, Any], existing, spec: _Analysi
             """
             SELECT d.id
             FROM research_designs d
-            JOIN hypothesis_sets h ON h.id = d.hypothesis_set_id
+            LEFT JOIN hypothesis_sets h ON h.id = d.hypothesis_set_id
             WHERE d.status <> 'superseded'
               AND (
                 trim(d.target_estimand) = trim(?)

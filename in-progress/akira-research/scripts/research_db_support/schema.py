@@ -9,6 +9,7 @@ from research_db_support.storage import ResearchDbError, connect, current_versio
 
 MIGRATION_DIR = Path(__file__).resolve().parents[2] / "migrations" / "versions"
 ACADEMIC_LANGUAGE_LEGACY_BASELINE_META_KEY = "academic_language_legacy_baseline_commit"
+FOREIGN_KEYS_OFF_MIGRATION_MARKER = "-- migration-requires-foreign-keys-off"
 REQUIRED_TABLES = {
     "meta",
     "papers",
@@ -43,6 +44,15 @@ REQUIRED_TABLES = {
     "hypothesis_evaluations",
     "communication_products",
     "communication_artifacts",
+    "research_nodes",
+    "research_edges",
+    "research_tree_state",
+    "studies",
+    "study_samples",
+    "study_assays",
+    "study_assay_samples",
+    "study_deviations",
+    "study_artifacts",
 }
 KNOWLEDGE_ENTITY_TABLES = {
     "method": "methods",
@@ -108,21 +118,44 @@ def apply_migrations(db_path: Path) -> list[int]:
                 )
 
             sql = migration.path.read_text(encoding="utf-8")
-            script = (
-                "BEGIN IMMEDIATE;\n"
-                f"{sql}\n"
-                f"PRAGMA user_version = {migration.version};\n"
-                "INSERT INTO meta(key, value) VALUES('schema_version', "
-                f"'{migration.version}') "
-                "ON CONFLICT(key) DO UPDATE SET value = excluded.value;\n"
-                "COMMIT;"
+            requires_foreign_keys_off = sql.lstrip().startswith(
+                FOREIGN_KEYS_OFF_MIGRATION_MARKER
             )
             try:
-                connection.executescript(script)
-            except sqlite3.DatabaseError:
+                if requires_foreign_keys_off:
+                    connection.execute("PRAGMA foreign_keys = OFF")
+                    connection.executescript("BEGIN IMMEDIATE;\n" + sql + "\n")
+                    violations = connection.execute("PRAGMA foreign_key_check").fetchall()
+                    if violations:
+                        raise ResearchDbError(
+                            "migration 产生 foreign-key violation："
+                            + repr([tuple(row) for row in violations])
+                        )
+                    connection.execute(f"PRAGMA user_version = {migration.version}")
+                    connection.execute(
+                        "INSERT INTO meta(key, value) VALUES('schema_version', ?) "
+                        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                        (str(migration.version),),
+                    )
+                    connection.commit()
+                else:
+                    script = (
+                        "BEGIN IMMEDIATE;\n"
+                        f"{sql}\n"
+                        f"PRAGMA user_version = {migration.version};\n"
+                        "INSERT INTO meta(key, value) VALUES('schema_version', "
+                        f"'{migration.version}') "
+                        "ON CONFLICT(key) DO UPDATE SET value = excluded.value;\n"
+                        "COMMIT;"
+                    )
+                    connection.executescript(script)
+            except (sqlite3.DatabaseError, ResearchDbError):
                 if connection.in_transaction:
                     connection.rollback()
                 raise
+            finally:
+                if requires_foreign_keys_off:
+                    connection.execute("PRAGMA foreign_keys = ON")
 
             version = migration.version
             applied.append(version)

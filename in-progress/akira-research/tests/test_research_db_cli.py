@@ -116,6 +116,22 @@ class ResearchDbCliTests(unittest.TestCase):
             ["--project", str(self.root), "record-analysis"]
         )
         self.assertIsNone(analysis_args.bundle)
+        research_node_args = build_parser().parse_args(
+            ["--project", str(self.root), "record-research-node"]
+        )
+        self.assertIsNone(research_node_args.bundle)
+        research_edge_args = build_parser().parse_args(
+            ["--project", str(self.root), "record-research-edge"]
+        )
+        self.assertIsNone(research_edge_args.bundle)
+        tree_state_args = build_parser().parse_args(
+            ["--project", str(self.root), "set-research-tree-state"]
+        )
+        self.assertIsNone(tree_state_args.bundle)
+        study_args = build_parser().parse_args(
+            ["--project", str(self.root), "record-study"]
+        )
+        self.assertIsNone(study_args.bundle)
         self.assertEqual(
             build_parser().parse_args(["--project", str(self.root), "datasets"]).command,
             "datasets",
@@ -123,6 +139,14 @@ class ResearchDbCliTests(unittest.TestCase):
         self.assertEqual(
             build_parser().parse_args(["--project", str(self.root), "analyses"]).command,
             "analyses",
+        )
+        self.assertEqual(
+            build_parser().parse_args(["--project", str(self.root), "research-tree"]).command,
+            "research-tree",
+        )
+        self.assertEqual(
+            build_parser().parse_args(["--project", str(self.root), "studies"]).command,
+            "studies",
         )
         hypothesis_args = build_parser().parse_args(
             ["--project", str(self.root), "record-hypothesis-set"]

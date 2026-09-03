@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import research_db_ops.common as common
+from research_db_support.storage import ResearchDbError
+
 def _check_downstream_project(project_root: Path, connection, errors: list[str]) -> None:
     for row in connection.execute(
         "SELECT id, slug, provenance_path FROM datasets ORDER BY id"
@@ -198,9 +201,12 @@ def _check_planning_project(project_root: Path, connection, errors: list[str]) -
     for row in connection.execute(
         """
         SELECT d.id, d.slug, d.artifact_path, d.status, d.feasibility_status,
-               d.feasibility_summary, d.freeze_commit, h.id AS hypothesis_id
+               d.feasibility_summary, d.freeze_commit, d.hypothesis_set_id,
+               d.question_node_id, h.id AS hypothesis_id,
+               q.id AS question_id, q.kind AS question_kind
         FROM research_designs d
         LEFT JOIN hypothesis_sets h ON h.id = d.hypothesis_set_id
+        LEFT JOIN research_nodes q ON q.id = d.question_node_id
         ORDER BY d.id
         """
     ):
@@ -209,8 +215,17 @@ def _check_planning_project(project_root: Path, connection, errors: list[str]) -
             path = project_root / path
         if not path.is_file():
             errors.append(f"research design {row['slug']} 的 artifact_path 文件不存在：{path}")
-        if row["hypothesis_id"] is None:
+        if row["hypothesis_set_id"] is None and row["question_node_id"] is None:
+            errors.append(
+                f"research design {row['slug']} 没有链接 Research Question 或 Hypothesis Set。"
+            )
+        if row["hypothesis_set_id"] is not None and row["hypothesis_id"] is None:
             errors.append(f"research design {row['slug']} 引用不存在的 Hypothesis Set。")
+        if row["question_node_id"] is not None:
+            if row["question_id"] is None:
+                errors.append(f"research design {row['slug']} 引用不存在的 Research Question Node。")
+            elif row["question_kind"] != "question":
+                errors.append(f"research design {row['slug']} 的 question_node_id 不是 question Node。")
         if row["status"] in {"frozen", "execution_ready"} and not (
             row["freeze_commit"] and str(row["freeze_commit"]).strip()
         ):
@@ -259,6 +274,153 @@ def _check_planning_project(project_root: Path, connection, errors: list[str]) -
             errors.append(f"hypothesis evaluation {row['id']} 缺少 summary。")
 
 
+def _check_research_tree_project(project_root: Path, connection, errors: list[str]) -> None:
+    nodes = {
+        int(row["id"]): row
+        for row in connection.execute(
+            "SELECT id, slug, parent_node_id, artifact_path FROM research_nodes ORDER BY id"
+        )
+    }
+    for row in nodes.values():
+        if row["artifact_path"]:
+            path = Path(str(row["artifact_path"]))
+            if not path.is_absolute():
+                path = project_root / path
+            if not path.is_file():
+                errors.append(f"research node {row['slug']} 的 artifact_path 文件不存在：{path}")
+
+        seen: set[int] = set()
+        current_id: int | None = int(row["id"])
+        while current_id is not None:
+            if current_id in seen:
+                errors.append(f"research node {row['slug']} 的 parent chain 出现 cycle。")
+                break
+            seen.add(current_id)
+            current = nodes.get(current_id)
+            if current is None:
+                errors.append(f"research node {row['slug']} 的 parent chain 引用不存在的 Node。")
+                break
+            current_id = (
+                int(current["parent_node_id"])
+                if current["parent_node_id"] is not None
+                else None
+            )
+
+    state = connection.execute(
+        "SELECT root_node_id, active_node_id FROM research_tree_state WHERE id = 1"
+    ).fetchone()
+    if state is not None:
+        root = nodes.get(int(state["root_node_id"]))
+        active = nodes.get(int(state["active_node_id"]))
+        if root is None or active is None:
+            errors.append("research tree state 引用了不存在的 Node。")
+        else:
+            if root["parent_node_id"] is not None:
+                errors.append(f"research tree root {root['slug']} 不能有 parent。")
+            seen: set[int] = set()
+            current_id: int | None = int(active["id"])
+            reached_root = False
+            while current_id is not None:
+                if current_id in seen:
+                    break
+                seen.add(current_id)
+                if current_id == int(root["id"]):
+                    reached_root = True
+                    break
+                current = nodes.get(current_id)
+                if current is None:
+                    break
+                current_id = (
+                    int(current["parent_node_id"])
+                    if current["parent_node_id"] is not None
+                    else None
+                )
+            if not reached_root:
+                errors.append(
+                    f"research tree active node {active['slug']} 不位于 root {root['slug']} 的结构子树中。"
+                )
+
+
+def _check_study_project(project_root: Path, connection, errors: list[str]) -> None:
+    for row in connection.execute(
+        """
+        SELECT s.id, s.slug, s.status, s.provenance_path, s.started_at,
+               s.completed_at, s.updated_at, d.id AS design_exists,
+               d.status AS design_status
+        FROM studies s
+        LEFT JOIN research_designs d ON d.id = s.design_id
+        ORDER BY s.id
+        """
+    ):
+        path = Path(str(row["provenance_path"]))
+        if not path.is_absolute():
+            path = project_root / path
+        if not path.is_file():
+            errors.append(f"study {row['slug']} 的 provenance_path 文件不存在：{path}")
+        if row["design_exists"] is None:
+            errors.append(f"study {row['slug']} 引用不存在的 Research Design。")
+        elif row["design_status"] not in {"frozen", "execution_ready"}:
+            errors.append(f"study {row['slug']} 引用的 Research Design 尚未冻结。")
+        try:
+            started_at = common.parse_timestamp(row["started_at"], field="Study started_at")
+            updated_at = common.parse_timestamp(row["updated_at"], field="Study updated_at")
+            completed_at = (
+                common.parse_timestamp(row["completed_at"], field="Study completed_at")
+                if row["completed_at"] is not None
+                else None
+            )
+        except ResearchDbError:
+            errors.append(f"study {row['slug']} 的时间戳无效。")
+        else:
+            if started_at > updated_at:
+                errors.append(f"study {row['slug']} 的 started_at 晚于 updated_at。")
+            if completed_at is not None and completed_at < started_at:
+                errors.append(f"study {row['slug']} 的 completed_at 早于 started_at。")
+            if completed_at is not None and completed_at > updated_at:
+                errors.append(f"study {row['slug']} 的 completed_at 晚于 updated_at。")
+        if row["status"] == "completed" and row["completed_at"] is None:
+            errors.append(f"completed study {row['slug']} 缺少 completed_at。")
+
+    for row in connection.execute(
+        "SELECT id, study_id, parent_sample_id FROM study_samples WHERE parent_sample_id IS NOT NULL"
+    ):
+        parent = connection.execute(
+            "SELECT study_id FROM study_samples WHERE id = ?", (int(row["parent_sample_id"]),)
+        ).fetchone()
+        if parent is None or int(parent["study_id"]) != int(row["study_id"]):
+            errors.append(f"study sample {row['id']} 的 parent sample 不属于同一 Study。")
+
+    for row in connection.execute(
+        """
+        SELECT x.assay_id, x.sample_id, a.study_id AS assay_study_id,
+               s.study_id AS sample_study_id
+        FROM study_assay_samples x
+        LEFT JOIN study_assays a ON a.id = x.assay_id
+        LEFT JOIN study_samples s ON s.id = x.sample_id
+        ORDER BY x.assay_id, x.sample_id
+        """
+    ):
+        if (
+            row["assay_study_id"] is None
+            or row["sample_study_id"] is None
+            or int(row["assay_study_id"]) != int(row["sample_study_id"])
+        ):
+            errors.append(
+                f"study assay/sample link 跨越了不同 Study：assay={row['assay_id']}; sample={row['sample_id']}"
+            )
+
+    for row in connection.execute(
+        "SELECT id, location, storage_kind FROM study_artifacts ORDER BY id"
+    ):
+        if row["storage_kind"] != "local":
+            continue
+        path = Path(str(row["location"]))
+        if not path.is_absolute():
+            path = project_root / path
+        if not path.exists():
+            errors.append(f"study artifact {row['id']} 文件不存在：{path}")
+
+
 def _check_communication_project(project_root: Path, connection, errors: list[str]) -> None:
     for row in connection.execute(
         """
@@ -279,4 +441,6 @@ def _check_communication_project(project_root: Path, connection, errors: list[st
 def check_project(project_root: Path, connection, errors: list[str]) -> None:
     _check_downstream_project(project_root, connection, errors)
     _check_planning_project(project_root, connection, errors)
+    _check_research_tree_project(project_root, connection, errors)
+    _check_study_project(project_root, connection, errors)
     _check_communication_project(project_root, connection, errors)

@@ -223,7 +223,22 @@ def record_hypothesis_set(project_root: Path, bundle: dict[str, Any]) -> dict[st
 def record_design(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
     slug = common.slug(bundle.get("slug"))
     title = common.text(bundle.get("title"), required=True, field="title")
-    hypothesis_slug = common.slug(bundle.get("hypothesis_set_slug"), field="hypothesis_set_slug")
+    hypothesis_value = common.text(bundle.get("hypothesis_set_slug"))
+    hypothesis_slug = (
+        common.slug(hypothesis_value, field="hypothesis_set_slug")
+        if hypothesis_value is not None
+        else None
+    )
+    question_value = common.text(bundle.get("question_node_slug"))
+    question_slug = (
+        common.slug(question_value, field="question_node_slug")
+        if question_value is not None
+        else None
+    )
+    if hypothesis_slug is None and question_slug is None:
+        raise ResearchDbError(
+            "Research Design 必须通过 question_node_slug 或 hypothesis_set_slug 指回其科学目标。"
+        )
     target_estimand = common.text(bundle.get("target_estimand"), required=True, field="target_estimand")
     primary_outcome = common.text(bundle.get("primary_outcome"), required=True, field="primary_outcome")
     experimental_unit = common.text(
@@ -252,20 +267,34 @@ def record_design(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
     with connect(common.db_path(project_root)) as connection:
         connection.execute("BEGIN IMMEDIATE")
         try:
-            hypothesis = connection.execute(
-                "SELECT id, status, freeze_commit FROM hypothesis_sets WHERE slug = ?", (hypothesis_slug,)
-            ).fetchone()
-            if hypothesis is None:
-                raise ResearchDbError(f"Design 引用不存在的 Hypothesis Set：{hypothesis_slug}")
-            hypothesis_set_id = int(hypothesis["id"])
-            if status in {"frozen", "execution_ready"}:
-                if hypothesis["status"] == "draft":
-                    raise ResearchDbError("Design 冻结前，关联 Hypothesis Set 必须先冻结或闭合。")
-                if not (hypothesis["freeze_commit"] and str(hypothesis["freeze_commit"]).strip()):
-                    raise ResearchDbError(
-                        "Design 冻结前，关联 Hypothesis Set 必须已有可审计 freeze_commit；"
-                        "不能只靠状态标签代替冻结 provenance。"
-                    )
+            hypothesis_set_id: int | None = None
+            if hypothesis_slug is not None:
+                hypothesis = connection.execute(
+                    "SELECT id, status, freeze_commit FROM hypothesis_sets WHERE slug = ?",
+                    (hypothesis_slug,),
+                ).fetchone()
+                if hypothesis is None:
+                    raise ResearchDbError(f"Design 引用不存在的 Hypothesis Set：{hypothesis_slug}")
+                hypothesis_set_id = int(hypothesis["id"])
+                if status in {"frozen", "execution_ready"}:
+                    if hypothesis["status"] == "draft":
+                        raise ResearchDbError("Design 冻结前，关联 Hypothesis Set 必须先冻结或闭合。")
+                    if not (hypothesis["freeze_commit"] and str(hypothesis["freeze_commit"]).strip()):
+                        raise ResearchDbError(
+                            "Design 冻结前，关联 Hypothesis Set 必须已有可审计 freeze_commit；"
+                            "不能只靠状态标签代替冻结 provenance。"
+                        )
+
+            question_node_id: int | None = None
+            if question_slug is not None:
+                question = connection.execute(
+                    "SELECT id, kind FROM research_nodes WHERE slug = ?", (question_slug,)
+                ).fetchone()
+                if question is None:
+                    raise ResearchDbError(f"Design 引用不存在的 Research Question Node：{question_slug}")
+                if question["kind"] != "question":
+                    raise ResearchDbError("question_node_slug 必须引用 kind=question 的 Research Node。")
+                question_node_id = int(question["id"])
 
             existing = connection.execute(
                 "SELECT * FROM research_designs WHERE slug = ?", (slug,)
@@ -273,6 +302,7 @@ def record_design(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
             immutable = {
                 "title": title,
                 "hypothesis_set_id": hypothesis_set_id,
+                "question_node_id": question_node_id,
                 "target_estimand": target_estimand,
                 "primary_outcome": primary_outcome,
                 "experimental_unit": experimental_unit,
@@ -282,15 +312,16 @@ def record_design(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
                 cursor = connection.execute(
                     """
                     INSERT INTO research_designs(
-                        slug, title, hypothesis_set_id, target_estimand, primary_outcome,
-                        experimental_unit, artifact_path, status, feasibility_status,
-                        feasibility_summary, freeze_commit, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        slug, title, hypothesis_set_id, question_node_id, target_estimand,
+                        primary_outcome, experimental_unit, artifact_path, status,
+                        feasibility_status, feasibility_summary, freeze_commit, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         slug,
                         title,
                         hypothesis_set_id,
+                        question_node_id,
                         target_estimand,
                         primary_outcome,
                         experimental_unit,
@@ -308,7 +339,9 @@ def record_design(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
                 design_id = int(existing["id"])
                 if existing["status"] in {"frozen", "execution_ready", "superseded"}:
                     changed = [
-                        field for field, value in immutable.items() if str(existing[field]) != str(value)
+                        field
+                        for field, value in immutable.items()
+                        if (existing[field] if existing[field] is not None else None) != value
                     ]
                     if changed:
                         raise ResearchDbError(
@@ -325,15 +358,17 @@ def record_design(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
                     connection.execute(
                         """
                         UPDATE research_designs
-                        SET title = ?, hypothesis_set_id = ?, target_estimand = ?,
-                            primary_outcome = ?, experimental_unit = ?, artifact_path = ?,
-                            status = ?, feasibility_status = ?, feasibility_summary = ?,
-                            freeze_commit = COALESCE(?, freeze_commit), updated_at = ?
+                        SET title = ?, hypothesis_set_id = ?, question_node_id = ?,
+                            target_estimand = ?, primary_outcome = ?, experimental_unit = ?,
+                            artifact_path = ?, status = ?, feasibility_status = ?,
+                            feasibility_summary = ?, freeze_commit = COALESCE(?, freeze_commit),
+                            updated_at = ?
                         WHERE id = ?
                         """,
                         (
                             title,
                             hypothesis_set_id,
+                            question_node_id,
                             target_estimand,
                             primary_outcome,
                             experimental_unit,
@@ -373,15 +408,23 @@ def record_design(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
                     now,
                     str(design_id),
                     f"Research Design state recorded as {status}.",
-                    f"design={slug}; hypothesis_set={hypothesis_slug}; status={status}; feasibility={feasibility_status}",
+                    f"design={slug}; question={question_slug or 'none'}; "
+                    f"hypothesis_set={hypothesis_slug or 'none'}; status={status}; "
+                    f"feasibility={feasibility_status}",
                 ),
             )
             connection.commit()
         except Exception:
             connection.rollback()
             raise
-    return {"ok": True, "design_id": design_id, "slug": slug, "status": status}
-
+    return {
+        "ok": True,
+        "design_id": design_id,
+        "slug": slug,
+        "status": status,
+        "question_node_slug": question_slug,
+        "hypothesis_set_slug": hypothesis_slug,
+    }
 
 def list_hypothesis_sets(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
     with connect(common.db_path(project_root)) as connection:
@@ -418,19 +461,30 @@ def list_hypothesis_sets(project_root: Path, *, limit: int = 100) -> dict[str, A
 
 def list_designs(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
     with connect(common.db_path(project_root)) as connection:
-        rows: list[dict[str, Any]] = []
-        for row in connection.execute(
+        has_question_link = "question_node_id" in {
+            str(row["name"]) for row in connection.execute("PRAGMA table_info(research_designs)")
+        }
+        if has_question_link:
+            query = """
+                SELECT d.*, h.slug AS hypothesis_set_slug, q.slug AS question_node_slug
+                FROM research_designs d
+                LEFT JOIN hypothesis_sets h ON h.id = d.hypothesis_set_id
+                LEFT JOIN research_nodes q ON q.id = d.question_node_id
+                ORDER BY d.id LIMIT ?
             """
-            SELECT d.*, h.slug AS hypothesis_set_slug
-            FROM research_designs d
-            JOIN hypothesis_sets h ON h.id = d.hypothesis_set_id
-            ORDER BY d.id LIMIT ?
-            """,
-            (limit,),
-        ):
-            rows.append(dict(row))
-    return {"ok": True, "designs": rows}
-
+        else:
+            query = """
+                SELECT d.*, h.slug AS hypothesis_set_slug, NULL AS question_node_slug
+                FROM research_designs d
+                JOIN hypothesis_sets h ON h.id = d.hypothesis_set_id
+                ORDER BY d.id LIMIT ?
+            """
+        rows = [dict(row) for row in connection.execute(query, (limit,))]
+    return {
+        "ok": True,
+        "schema_capabilities": {"research_question_design_link": has_question_link},
+        "designs": rows,
+    }
 
 def record_hypothesis_evaluation(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
     hypothesis_slug = common.slug(bundle.get("hypothesis_set_slug"), field="hypothesis_set_slug")
@@ -500,7 +554,14 @@ def record_hypothesis_evaluation(project_root: Path, bundle: dict[str, Any]) -> 
                     "SELECT hypothesis_set_id FROM research_designs WHERE id = ?",
                     (int(analysis["design_id"]),),
                 ).fetchone()
-                if design is None or int(design["hypothesis_set_id"]) != hypothesis_set_id:
+                if design is None:
+                    raise ResearchDbError("Analysis 引用的 Research Design 已不存在。")
+                if design["hypothesis_set_id"] is None:
+                    raise ResearchDbError(
+                        "该 Analysis 所实现的 Research Design 未预先绑定 Hypothesis Set；"
+                        "不能把结果后形成的假设回写成预设 Hypothesis Evaluation。"
+                    )
+                if int(design["hypothesis_set_id"]) != hypothesis_set_id:
                     raise ResearchDbError(
                         "Hypothesis Evaluation 与 Analysis 所实现 Design 的 Hypothesis Set 不一致。"
                     )

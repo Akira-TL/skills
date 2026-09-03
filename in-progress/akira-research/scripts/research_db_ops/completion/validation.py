@@ -12,6 +12,8 @@ from .project import (
     communication_completion_readiness,
     downstream_completion_readiness,
     planning_completion_readiness,
+    research_tree_completion_readiness,
+    study_completion_readiness,
 )
 from .messages import (
     append_academic_language_errors,
@@ -20,6 +22,8 @@ from .messages import (
     append_literature_errors,
     append_planning_errors,
     append_project_state_errors,
+    append_research_tree_errors,
+    append_study_errors,
 )
 from .state import project_state_readiness
 
@@ -69,6 +73,8 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
             "literature": dict(blocked),
             "downstream": dict(blocked),
             "planning": dict(blocked),
+            "research_tree": dict(blocked),
+            "study": dict(blocked),
             "communication": dict(blocked),
             "academic_language": dict(blocked),
             "project_state": dict(blocked),
@@ -91,6 +97,10 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
     append_downstream_errors(errors, downstream["blockers"])
     planning = planning_completion_readiness(project_root)
     append_planning_errors(errors, planning["blockers"])
+    research_tree = research_tree_completion_readiness(project_root)
+    append_research_tree_errors(errors, research_tree["blockers"])
+    study = study_completion_readiness(project_root)
+    append_study_errors(errors, study["blockers"])
     communication = communication_completion_readiness(project_root)
     append_communication_errors(errors, communication["blockers"])
     academic_language = academic_language_readiness(project_root)
@@ -149,6 +159,8 @@ def validate_completion(project_root: Path) -> dict[str, Any]:
         "literature": literature,
         "downstream": downstream,
         "planning": planning,
+        "research_tree": research_tree,
+        "study": study,
         "communication": communication,
         "academic_language": academic_language,
         "project_state": project_state,

@@ -237,7 +237,7 @@ class HypothesisProvenanceTests(unittest.TestCase):
                 """
             )
 
-        self.assertEqual(apply_migrations(db_path), [18])
+        self.assertEqual(apply_migrations(db_path), [18, 19, 20])
         result = validate(legacy_root)
         self.assertTrue(result["ok"], result["errors"])
 

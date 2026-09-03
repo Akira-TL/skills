@@ -165,10 +165,11 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
         for design in connection.execute(
             """
             SELECT d.id, d.slug, d.artifact_path, d.status, d.freeze_commit,
+                   d.hypothesis_set_id, d.question_node_id,
                    h.slug AS hypothesis_slug, h.artifact_path AS hypothesis_path,
                    h.freeze_commit AS hypothesis_freeze_commit
             FROM research_designs d
-            JOIN hypothesis_sets h ON h.id = d.hypothesis_set_id
+            LEFT JOIN hypothesis_sets h ON h.id = d.hypothesis_set_id
             WHERE d.status IN ('frozen', 'execution_ready')
             ORDER BY d.id
             """
@@ -194,9 +195,12 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
                         "freeze_commit": freeze_commit,
                     }
                 )
+            freeze_paths = [str(design["artifact_path"])]
+            if design["hypothesis_path"] is not None:
+                freeze_paths.append(str(design["hypothesis_path"]))
             missing_at_freeze = [
                 path
-                for path in (str(design["artifact_path"]), str(design["hypothesis_path"]))
+                for path in freeze_paths
                 if not commit_has_path(project_root, freeze_commit, path)
             ]
             if missing_at_freeze:
@@ -208,25 +212,26 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
                         "paths": missing_at_freeze,
                     }
                 )
-            hypothesis_freeze = str(design["hypothesis_freeze_commit"] or "").strip()
-            if not hypothesis_freeze:
-                blockers.append(
-                    {
-                        "reason": "linked_hypothesis_missing_freeze",
-                        "design": design["slug"],
-                        "hypothesis_set": design["hypothesis_slug"],
-                    }
-                )
-            elif run_git(
-                project_root, "merge-base", "--is-ancestor", hypothesis_freeze, freeze_commit
-            ).returncode != 0:
-                blockers.append(
-                    {
-                        "reason": "hypothesis_freeze_after_design_freeze",
-                        "design": design["slug"],
-                        "hypothesis_set": design["hypothesis_slug"],
-                    }
-                )
+            if design["hypothesis_set_id"] is not None:
+                hypothesis_freeze = str(design["hypothesis_freeze_commit"] or "").strip()
+                if not hypothesis_freeze:
+                    blockers.append(
+                        {
+                            "reason": "linked_hypothesis_missing_freeze",
+                            "design": design["slug"],
+                            "hypothesis_set": design["hypothesis_slug"],
+                        }
+                    )
+                elif run_git(
+                    project_root, "merge-base", "--is-ancestor", hypothesis_freeze, freeze_commit
+                ).returncode != 0:
+                    blockers.append(
+                        {
+                            "reason": "hypothesis_freeze_after_design_freeze",
+                            "design": design["slug"],
+                            "hypothesis_set": design["hypothesis_slug"],
+                        }
+                    )
 
         for run in connection.execute(
             """
@@ -236,7 +241,9 @@ def planning_completion_readiness(project_root: Path) -> dict[str, Any]:
             FROM analysis_runs a
             JOIN research_designs d ON d.id = a.design_id
             JOIN hypothesis_sets h ON h.id = d.hypothesis_set_id
-            WHERE a.analysis_mode = 'confirmatory' AND a.status = 'completed'
+            WHERE a.analysis_mode = 'confirmatory'
+              AND a.status = 'completed'
+              AND d.hypothesis_set_id IS NOT NULL
             ORDER BY a.id
             """
         ):
