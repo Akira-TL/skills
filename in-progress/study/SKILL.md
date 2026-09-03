@@ -41,7 +41,7 @@ Sample identity 在这里首次产生或确认时保持稳定；后续 `data` �
 
 ## 4. Provenance 与产物交接
 
-Study 中的真实过程优先表达为 provenance Activity；Sample、specimen、raw output 等作为可追踪 Entity，并记录执行相关 Agent / instrument。具体数据库或文件实现可以逐步映射现有 `research.sqlite`，但语义以实际发生事件为准。
+Study 中的真实过程优先表达为 provenance Activity；Sample、specimen、raw output 等作为可追踪 Entity，并记录执行相关 Agent / instrument。项目级 `research.sqlite` 已结构化保存 Study、Sample、Assay、deviation 与 Study artifact；数据库契约与完成门禁由 [`akira-research/RESEARCH-DB.md`](../akira-research/RESEARCH-DB.md) 统一维护，语义仍以实际发生事件为准。
 
 实际生成的 raw data / files 交给 `data` 建立 Dataset identity、QC、curation 与 freeze；本 Skill 不把“数据文件存在”解释成 scientific evidence。
 
