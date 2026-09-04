@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from research_db_support.academic_language import require_academic_language_before_freeze
 from research_db_support.storage import ResearchDbError, connect
 import research_db_ops.common as common
 
@@ -424,6 +425,37 @@ def _write_analysis_change(
     )
 
 
+def _pre_freeze_language_paths(
+    project_root: Path,
+    analysis_path: str,
+    artifacts: list[Any],
+) -> list[Path]:
+    primary = Path(analysis_path)
+    paths = [primary if primary.is_absolute() else project_root / primary]
+    for index, item in enumerate(artifacts, start=1):
+        if not isinstance(item, dict):
+            raise ResearchDbError(f"analysis artifact {index} 必须是 JSON object。")
+        role = common.enum_value(
+            item.get("role"), ANALYSIS_ARTIFACT_ROLES, default="other", field="analysis artifact role"
+        )
+        timing_role = common.enum_value(
+            item.get("timing_role"),
+            ANALYSIS_ARTIFACT_TIMING_ROLES,
+            default="result",
+            field="analysis artifact timing_role",
+        )
+        if role != "other" or timing_role != "pre_result_support":
+            continue
+        artifact_path = common.local_path(
+            project_root,
+            item.get("path"),
+            field="analysis artifact path",
+        )
+        path = Path(artifact_path)
+        paths.append(path if path.is_absolute() else project_root / path)
+    return paths
+
+
 def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
     slug = common.slug(bundle.get("slug"))
     title = common.text(bundle.get("title"), required=True, field="title")
@@ -483,6 +515,14 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
         try:
             dataset_ids = _dataset_ids(connection, bundle.get("dataset_slugs"))
             existing = connection.execute("SELECT * FROM analysis_runs WHERE slug = ?", (slug,)).fetchone()
+            if spec.status in {"frozen", "completed"} and (
+                existing is None or str(existing["status"]) == "planned"
+            ):
+                require_academic_language_before_freeze(
+                    project_root,
+                    _pre_freeze_language_paths(project_root, spec.analysis_path, artifacts),
+                    object_label="Analysis",
+                )
             effective_started_at = existing["started_at"] if existing is not None else spec.started_at
             effective_completed_at = spec.completed_at
             if existing is not None and existing["status"] == "completed":

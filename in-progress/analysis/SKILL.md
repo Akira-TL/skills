@@ -25,7 +25,7 @@ description: 执行可重建、可审计的科研分析；当已有可分析 Dat
 
 统计/生物信息/机器学习方法的科学适用性优先核验方法学论文、正式指南或领域共识；具体软件 API、命令、参数、默认值和版本差异则核验当前官方 documentation、vignette、package help 或 `--help`。两类依据不能互相替代。
 
-任何关键实现行为不确定时实际查证，不凭记忆猜测。详细规则见 [`references/DOCS-FIRST.md`](references/DOCS-FIRST.md)；Python 读取 [`references/PYTHON.md`](references/PYTHON.md)，R 读取 [`references/R.md`](references/R.md)。
+任何关键实现行为不确定时实际查证，不凭记忆猜测。详细规则见 [`references/DOCS-FIRST.md`](references/DOCS-FIRST.md)；Python 读取 [`references/PYTHON.md`](references/PYTHON.md)，R 读取 [`references/R.md`](references/R.md)。官方 documentation、`--help`、软件输出等逐字证据按 `log` / diagnostic 等机器或外部证据 artifact 保存原文，不为满足中文科研写作规范而改写其内容。
 
 ## 3. 建立可重建执行入口
 
@@ -35,7 +35,7 @@ description: 执行可重建、可审计的科研分析；当已有可分析 Dat
 input → code / command → parameters → environment → outputs
 ```
 
-Notebook / interactive session 可以用于探索，但进入 scientific evidence 的结果必须有脚本、workflow 或明确命令入口。环境、随机性、路径和输出约定见 [`references/EXECUTION.md`](references/EXECUTION.md)。
+Notebook / interactive session 可以用于探索，但进入 scientific evidence 的结果必须有脚本、workflow 或明确命令入口。环境、随机性、路径和输出约定见 [`references/EXECUTION.md`](references/EXECUTION.md)。确认性 Analysis 首次进入结果前 freeze 前，先让 `research-db` 对 Analysis plan 与作为 `pre_result_support` 登记的人类科研正文执行学术语言检查；先修正文再冻结，不能把语言问题留到结果后通过修改冻结 artifact 解决。
 
 ## 4. 运行、诊断与合理替代分析
 

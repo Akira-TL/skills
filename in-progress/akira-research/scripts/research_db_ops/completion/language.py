@@ -1,36 +1,17 @@
 from __future__ import annotations
 
-import re
 import sqlite3
 from pathlib import Path
 from typing import Any
 
+from research_db_support.academic_language import (
+    academic_language_blockers_for_path,
+    project_uses_chinese_research_text,
+)
 from research_db_support.schema import ACADEMIC_LANGUAGE_LEGACY_BASELINE_META_KEY
 from research_db_support.storage import connect, database_path
 from .git import commit_has_path, path_changed_after, run_git
 from .state import CURRENT_LOOPS
-
-BARE_ENGLISH_TERMS_IN_CHINESE_RESEARCH_TEXT = {
-    "treatment",
-    "outcome",
-    "provenance",
-    "confirmatory",
-    "exploratory",
-    "sensitivity",
-    "pairwise",
-    "claim",
-    "dataset",
-    "analysis",
-    "artifact",
-    "raw",
-    "curated",
-    "freeze",
-    "randomization",
-}
-
-# Backward-compatible alias for callers that imported the older, narrower name.
-BARE_ENGLISH_TERMS_IN_CHINESE_COMMUNICATION = BARE_ENGLISH_TERMS_IN_CHINESE_RESEARCH_TEXT
-
 
 def canonical_paths(project_root: Path) -> list[str]:
     paths = {"RESEARCH.md", ".research/research.sqlite"}
@@ -138,7 +119,9 @@ def _academic_language_paths(project_root: Path) -> list[Path]:
                 path = Path(str(row["analysis_path"]))
                 paths.append(path if path.is_absolute() else project_root / path)
         if "analysis_artifacts" in tables:
-            for row in connection.execute("SELECT path FROM analysis_artifacts ORDER BY id"):
+            for row in connection.execute(
+                "SELECT path FROM analysis_artifacts WHERE role = 'other' ORDER BY id"
+            ):
                 path = Path(str(row["path"]))
                 paths.append(path if path.is_absolute() else project_root / path)
         if "hypothesis_sets" in tables:
@@ -214,10 +197,7 @@ def _path_is_unchanged_legacy_text(
 
 def academic_language_readiness(project_root: Path) -> dict[str, Any]:
     research_path = project_root / "RESEARCH.md"
-    if not research_path.exists():
-        return {"ready": True, "checked": False, "blockers": []}
-    research_text = research_path.read_text(encoding="utf-8", errors="ignore")
-    if len(re.findall(r"[\u3400-\u9fff]", research_text)) < 50:
+    if not research_path.exists() or not project_uses_chinese_research_text(project_root):
         return {"ready": True, "checked": False, "blockers": []}
 
     blockers: list[dict[str, Any]] = []
@@ -229,50 +209,15 @@ def academic_language_readiness(project_root: Path) -> dict[str, Any]:
         if _path_is_unchanged_legacy_text(project_root, path, legacy_baseline_commit):
             grandfathered_paths.append(path.resolve().relative_to(project_root.resolve()).as_posix())
             continue
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
-        for index, paragraph in enumerate(re.split(r"\n\s*\n", text), start=1):
-            stripped = paragraph.strip()
-            if not stripped or stripped.startswith("#") and "\n" not in stripped:
-                continue
-            if stripped in CURRENT_LOOPS:
-                continue
-            prose_for_language_check = re.sub(r"`[^`]*`", "", stripped)
-            prose_for_language_check = re.sub(r"https?://\S+", "", prose_for_language_check)
-            cjk_count = len(re.findall(r"[\u3400-\u9fff]", prose_for_language_check))
-            english_words = re.findall(r"\b[A-Za-z][A-Za-z'-]{1,}\b", prose_for_language_check)
-            relative_path = str(path.relative_to(project_root))
-            if len(english_words) >= 30 and cjk_count < 5:
-                blockers.append(
-                    {
-                        "reason": "english_prose_in_chinese_research_text",
-                        "path": relative_path,
-                        "paragraph": index,
-                        "english_word_count": len(english_words),
-                        "preview": " ".join(stripped.split())[:180],
-                    }
-                )
-            term_check_prose = re.sub(r"（[^）]*[A-Za-z][^）]*）", "", prose_for_language_check)
-            term_check_prose = re.sub(r"\([^)]*[A-Za-z][^)]*\)", "", term_check_prose)
-            found_terms = sorted(
-                term
-                for term in BARE_ENGLISH_TERMS_IN_CHINESE_RESEARCH_TEXT
-                if re.search(rf"\b{re.escape(term)}\b", term_check_prose, flags=re.IGNORECASE)
+        relative_path = path.resolve().relative_to(project_root.resolve()).as_posix()
+        blockers.extend(
+            academic_language_blockers_for_path(
+                project_root,
+                path,
+                communication=relative_path.startswith("communication/"),
+                ignored_paragraphs=CURRENT_LOOPS,
             )
-            if found_terms:
-                blockers.append(
-                    {
-                        "reason": (
-                            "bare_english_term_in_chinese_communication"
-                            if relative_path.startswith("communication/")
-                            else "bare_english_term_in_chinese_research_text"
-                        ),
-                        "path": relative_path,
-                        "paragraph": index,
-                        "terms": found_terms,
-                        "preview": " ".join(stripped.split())[:180],
-                    }
-                )
+        )
     return {
         "ready": not blockers,
         "checked": True,

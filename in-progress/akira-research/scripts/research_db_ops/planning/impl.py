@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from research_db_support.academic_language import require_academic_language_before_freeze
 from research_db_support.storage import ResearchDbError, connect
 import research_db_ops.common as common
 
@@ -90,6 +91,13 @@ def record_hypothesis_set(project_root: Path, bundle: dict[str, Any]) -> dict[st
             existing = connection.execute(
                 "SELECT * FROM hypothesis_sets WHERE slug = ?", (slug,)
             ).fetchone()
+            if status == "frozen" and (existing is None or str(existing["status"]) == "draft"):
+                path = Path(artifact_path)
+                require_academic_language_before_freeze(
+                    project_root,
+                    [path if path.is_absolute() else project_root / path],
+                    object_label="Hypothesis Set",
+                )
             if existing is None:
                 if proposal_schema and not proposal_slugs:
                     raise ResearchDbError(
@@ -299,6 +307,15 @@ def record_design(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
             existing = connection.execute(
                 "SELECT * FROM research_designs WHERE slug = ?", (slug,)
             ).fetchone()
+            if status in {"frozen", "execution_ready"} and (
+                existing is None or str(existing["status"]) == "draft"
+            ):
+                path = Path(artifact_path)
+                require_academic_language_before_freeze(
+                    project_root,
+                    [path if path.is_absolute() else project_root / path],
+                    object_label="Research Design",
+                )
             immutable = {
                 "title": title,
                 "hypothesis_set_id": hypothesis_set_id,

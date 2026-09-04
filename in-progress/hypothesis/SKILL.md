@@ -21,7 +21,7 @@ description: 把当前 Research Question 中真正竞争的解释转成有范围
 
 ## 3. 保存来源与冻结边界
 
-区分用户提出、Agent 提议以及用户对 Agent proposal 的接受决定；接受探索不等于科学支持，也不改变原始来源。需要作为后续确认性 Design / Analysis 判别依据的 Hypothesis Set，按项目现有 `research-db` 契约登记并在结果前冻结。
+区分用户提出、Agent 提议以及用户对 Agent proposal 的接受决定；接受探索不等于科学支持，也不改变原始来源。需要作为后续确认性 Design / Analysis 判别依据的 Hypothesis Set，按项目现有 `research-db` 契约登记并在结果前冻结；首次进入 frozen 前先通过学术语言检查，需要修正的人类科研正文必须在冻结前完成。
 
 ## 4. 返回总 Router
 

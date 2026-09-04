@@ -27,6 +27,6 @@ description: 把 Research Question、Hypothesis prediction 或其他明确 scien
 
 ## 4. 冻结与交接
 
-当 Design 将用于真实数据产生或确认性结果判别时，按项目 `research-db` 契约保存 canonical design artifact 与结果前 freeze。实际实施由 `study` 记录，任何实际偏离必须作为真实 execution / amendment 保存，而不是回写原 Design。
+当 Design 将用于真实数据产生或确认性结果判别时，按项目 `research-db` 契约保存 canonical design artifact 与结果前 freeze。首次进入 frozen / execution-ready 前先通过学术语言检查；需要修正的人类科研正文必须在冻结前完成。实际实施由 `study` 记录，任何实际偏离必须作为真实 execution / amendment 保存，而不是回写原 Design。
 
 完成标准：研究对象、估计目标、独立单位、comparison、measurement、主要 bias protection、precision 与 decision boundary 足以判断该研究能否回答当前 scientific target，并明确是可直接实施还是仍有 blocker。
