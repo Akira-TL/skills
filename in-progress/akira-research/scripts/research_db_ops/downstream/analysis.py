@@ -430,11 +430,40 @@ def _write_analysis_change(
 
 def _pre_result_language_paths(
     project_root: Path,
+    connection,
+    dataset_ids: list[int],
     analysis_path: str,
     artifacts: list[Any],
 ) -> list[Path]:
     primary = Path(analysis_path)
     paths = [primary if primary.is_absolute() else project_root / primary]
+    for dataset_id in dataset_ids:
+        dataset = connection.execute(
+            "SELECT provenance_path, study_id FROM datasets WHERE id = ?",
+            (dataset_id,),
+        ).fetchone()
+        if dataset is None:
+            continue
+        dataset_path = Path(str(dataset["provenance_path"]))
+        paths.append(dataset_path if dataset_path.is_absolute() else project_root / dataset_path)
+        if dataset["study_id"] is None:
+            continue
+        study_id = int(dataset["study_id"])
+        study = connection.execute(
+            "SELECT provenance_path FROM studies WHERE id = ?",
+            (study_id,),
+        ).fetchone()
+        if study is not None:
+            study_path = Path(str(study["provenance_path"]))
+            paths.append(study_path if study_path.is_absolute() else project_root / study_path)
+        for row in connection.execute(
+            "SELECT location FROM study_artifacts WHERE study_id = ? AND storage_kind = 'local'",
+            (study_id,),
+        ):
+            artifact_path = Path(str(row["location"]))
+            paths.append(
+                artifact_path if artifact_path.is_absolute() else project_root / artifact_path
+            )
     for index, item in enumerate(artifacts, start=1):
         if not isinstance(item, dict):
             raise ResearchDbError(f"analysis artifact {index} 必须是 JSON object。")
@@ -456,7 +485,7 @@ def _pre_result_language_paths(
         )
         path = Path(artifact_path)
         paths.append(path if path.is_absolute() else project_root / path)
-    return paths
+    return list(dict.fromkeys(paths))
 
 
 def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]:
@@ -518,7 +547,13 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
         try:
             dataset_ids = _dataset_ids(connection, bundle.get("dataset_slugs"))
             existing = connection.execute("SELECT * FROM analysis_runs WHERE slug = ?", (slug,)).fetchone()
-            language_paths = _pre_result_language_paths(project_root, spec.analysis_path, artifacts)
+            language_paths = _pre_result_language_paths(
+                project_root,
+                connection,
+                dataset_ids,
+                spec.analysis_path,
+                artifacts,
+            )
             if existing is None and spec.analysis_mode == "exploratory" and spec.status != "planned":
                 raise ResearchDbError(
                     "exploratory Analysis 第一次登记必须使用 status=planned，并在运行分析代码前完成结果前语言检查。"

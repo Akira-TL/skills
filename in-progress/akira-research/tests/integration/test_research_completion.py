@@ -520,6 +520,46 @@ Best next evidence: 定义可识别的中介估计目标并取得对应判别证
         self.assertFalse(changed["ready"])
         self.assertTrue(any(item["path"] == "RESEARCH.md" for item in blockers))
 
+    def test_academic_language_rejects_forged_current_schema_legacy_baseline(self) -> None:
+        forged_text = (
+            "# Research\n\n"
+            "这是一个新建的中文科研项目，用于验证旧项目迁移兼容标记不能被当前研究"
+            "拿来绕过学术语言门禁。当前研究问题、证据边界、分析计划和结果解释都"
+            "是在当前数据库版本下新产生的，因此必须直接满足现行规范。\n\n"
+            "## Current State\n\n当前记录仍使用 Treatment A 作为裸英文科研术语。\n"
+        )
+        (self.root / "RESEARCH.md").write_text(forged_text, encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(self.root), "add", "RESEARCH.md", ".research/research.sqlite"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(self.root), "commit", "-m", "RESEARCH: current schema baseline"],
+            check=True,
+            capture_output=True,
+        )
+        baseline = subprocess.run(
+            ["git", "-C", str(self.root), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
+            connection.execute(
+                "INSERT INTO meta(key, value) VALUES('academic_language_legacy_baseline_commit', ?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (baseline,),
+            )
+
+        result = academic_language_readiness(self.root)
+
+        self.assertFalse(result["ready"])
+        self.assertFalse(result["legacy_baseline_valid"])
+        reasons = {item["reason"] for item in result["blockers"]}
+        self.assertIn("academic_language_legacy_baseline_invalid", reasons)
+        self.assertIn("bare_english_term_in_chinese_research_text", reasons)
+        self.assertEqual(result["grandfathered_paths"], [])
+
     def test_academic_language_checks_registered_analysis_markdown_artifacts(self) -> None:
         (self.root / "RESEARCH.md").write_text(
             "# 研究\n\n这是一个中文科研项目，用于验证登记到分析对象的人类可读结果解释也受学术语言规范约束。"

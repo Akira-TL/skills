@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sqlite3
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -8,7 +10,10 @@ from research_db_support.academic_language import (
     academic_language_blockers_for_path,
     project_uses_chinese_research_text,
 )
-from research_db_support.schema import ACADEMIC_LANGUAGE_LEGACY_BASELINE_META_KEY
+from research_db_support.schema import (
+    ACADEMIC_LANGUAGE_LEGACY_BASELINE_META_KEY,
+    latest_version,
+)
 from research_db_support.storage import connect, database_path
 from .git import commit_has_path, path_changed_after, run_git
 from .state import CURRENT_LOOPS
@@ -171,6 +176,66 @@ def _legacy_language_baseline_commit(project_root: Path) -> str | None:
     return value or None
 
 
+def _schema_version_at_commit(project_root: Path, commit: str) -> int | None:
+    result = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(project_root),
+            "show",
+            f"{commit}:.research/research.sqlite",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0 or not result.stdout:
+        return None
+    with tempfile.NamedTemporaryFile(suffix=".sqlite") as handle:
+        handle.write(result.stdout)
+        handle.flush()
+        try:
+            with sqlite3.connect(handle.name) as connection:
+                version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+                if version:
+                    return version
+                row = connection.execute(
+                    "SELECT value FROM meta WHERE key = 'schema_version'"
+                ).fetchone()
+                return int(row[0]) if row else None
+        except (sqlite3.DatabaseError, ValueError, TypeError):
+            return None
+
+
+def _validate_legacy_language_baseline(
+    project_root: Path,
+    baseline_commit: str | None,
+) -> tuple[str | None, dict[str, Any] | None]:
+    if not baseline_commit:
+        return None, None
+    if run_git(
+        project_root, "merge-base", "--is-ancestor", baseline_commit, "HEAD"
+    ).returncode != 0:
+        return None, {
+            "reason": "academic_language_legacy_baseline_invalid",
+            "baseline_commit": baseline_commit,
+            "detail": "legacy baseline 不是当前 HEAD 的祖先。",
+        }
+    baseline_schema_version = _schema_version_at_commit(project_root, baseline_commit)
+    current_schema_version = latest_version()
+    if baseline_schema_version is None or baseline_schema_version >= current_schema_version:
+        return None, {
+            "reason": "academic_language_legacy_baseline_invalid",
+            "baseline_commit": baseline_commit,
+            "baseline_schema_version": baseline_schema_version,
+            "current_schema_version": current_schema_version,
+            "detail": (
+                "legacy baseline 只允许由真实 schema migration 记录；baseline commit 中的数据库 "
+                "schema 必须低于当前版本。"
+            ),
+        }
+    return baseline_commit, None
+
+
 def _path_is_unchanged_legacy_text(
     project_root: Path,
     path: Path,
@@ -201,7 +266,12 @@ def academic_language_readiness(project_root: Path) -> dict[str, Any]:
         return {"ready": True, "checked": False, "blockers": []}
 
     blockers: list[dict[str, Any]] = []
-    legacy_baseline_commit = _legacy_language_baseline_commit(project_root)
+    recorded_legacy_baseline_commit = _legacy_language_baseline_commit(project_root)
+    legacy_baseline_commit, baseline_blocker = _validate_legacy_language_baseline(
+        project_root, recorded_legacy_baseline_commit
+    )
+    if baseline_blocker is not None:
+        blockers.append(baseline_blocker)
     grandfathered_paths: list[str] = []
     for path in _academic_language_paths(project_root):
         if not path.exists() or path.suffix.casefold() not in {".md", ".txt"}:
@@ -222,6 +292,7 @@ def academic_language_readiness(project_root: Path) -> dict[str, Any]:
         "ready": not blockers,
         "checked": True,
         "blockers": blockers,
-        "legacy_baseline_commit": legacy_baseline_commit,
+        "legacy_baseline_commit": recorded_legacy_baseline_commit,
+        "legacy_baseline_valid": baseline_blocker is None,
         "grandfathered_paths": sorted(grandfathered_paths),
     }

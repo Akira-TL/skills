@@ -198,6 +198,119 @@ class AcademicLanguageFreezeTests(unittest.TestCase):
                 },
             )
 
+    def test_analysis_preflight_checks_dataset_provenance(self) -> None:
+        self._record_language_dataset()
+        (self.root / "data" / "README.md").write_text(
+            "# 数据\n\n当前 Dataset provenance 已记录，但仍含需要修正的裸英文科研术语。\n",
+            encoding="utf-8",
+        )
+        analysis_dir = self.root / "analysis" / "dataset-provenance"
+        analysis_dir.mkdir(parents=True)
+        (analysis_dir / "README.md").write_text(
+            "# 分析计划\n\n当前确认性分析使用固定规则评估主要差异。\n",
+            encoding="utf-8",
+        )
+        (analysis_dir / "run.py").write_text("print('ok')\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(ResearchDbError, "data/README.md"):
+            record_analysis(
+                self.root,
+                {
+                    "slug": "dataset-provenance",
+                    "title": "数据来源语言检查",
+                    "analysis_mode": "confirmatory",
+                    "status": "frozen",
+                    "target_uncertainty": "主要差异是否存在",
+                    "estimand": "主要差异",
+                    "unit_of_inference": "sample",
+                    "primary_analysis": "固定规则",
+                    "analysis_path": "analysis/dataset-provenance/README.md",
+                    "code_path": "analysis/dataset-provenance/run.py",
+                    "freeze_commit": "freeze-placeholder",
+                    "dataset_slugs": ["dataset-language"],
+                },
+            )
+
+    def test_analysis_preflight_checks_linked_study_provenance(self) -> None:
+        self._record_language_dataset()
+        study_dir = self.root / "study"
+        study_dir.mkdir()
+        (study_dir / "EXECUTION_REPORT.md").write_text(
+            "# 实施记录\n\n该 Study 已完成，但当前 Dataset 描述仍含需要修正的裸英文科研术语。\n",
+            encoding="utf-8",
+        )
+        now = "2026-09-04T00:00:00+00:00"
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
+            connection.execute("PRAGMA foreign_keys = ON")
+            cursor = connection.execute(
+                """
+                INSERT INTO research_nodes(
+                    slug, kind, label, workflow_status, branch_priority, created_at, updated_at
+                ) VALUES ('study-language-q', 'question', '测试问题', 'active', 'primary', ?, ?)
+                """,
+                (now, now),
+            )
+            question_id = int(cursor.lastrowid)
+            cursor = connection.execute(
+                """
+                INSERT INTO research_designs(
+                    slug, title, question_node_id, target_estimand, primary_outcome,
+                    experimental_unit, artifact_path, status, feasibility_status,
+                    feasibility_summary, freeze_commit, created_at, updated_at
+                ) VALUES (
+                    'study-language-design', '测试设计', ?, '主要差异', '主要结局',
+                    'sample', 'designs/test.md', 'frozen', 'ready',
+                    '测试环境可执行。', 'freeze-placeholder', ?, ?
+                )
+                """,
+                (question_id, now, now),
+            )
+            design_id = int(cursor.lastrowid)
+            cursor = connection.execute(
+                """
+                INSERT INTO studies(
+                    slug, title, design_id, study_type, status, provenance_path,
+                    started_at, completed_at, created_at, updated_at
+                ) VALUES (
+                    'study-language', '测试实施', ?, '合成研究', 'completed',
+                    'study/EXECUTION_REPORT.md', ?, ?, ?, ?
+                )
+                """,
+                (design_id, now, now, now, now),
+            )
+            study_id = int(cursor.lastrowid)
+            connection.execute(
+                "UPDATE datasets SET study_id = ? WHERE slug = 'dataset-language'",
+                (study_id,),
+            )
+
+        analysis_dir = self.root / "analysis" / "study-provenance"
+        analysis_dir.mkdir(parents=True)
+        (analysis_dir / "README.md").write_text(
+            "# 分析计划\n\n当前确认性分析使用固定规则评估主要差异。\n",
+            encoding="utf-8",
+        )
+        (analysis_dir / "run.py").write_text("print('ok')\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(ResearchDbError, "study/EXECUTION_REPORT.md"):
+            record_analysis(
+                self.root,
+                {
+                    "slug": "study-provenance",
+                    "title": "实施来源语言检查",
+                    "analysis_mode": "confirmatory",
+                    "status": "frozen",
+                    "target_uncertainty": "主要差异是否存在",
+                    "estimand": "主要差异",
+                    "unit_of_inference": "sample",
+                    "primary_analysis": "固定规则",
+                    "analysis_path": "analysis/study-provenance/README.md",
+                    "code_path": "analysis/study-provenance/run.py",
+                    "freeze_commit": "freeze-placeholder",
+                    "dataset_slugs": ["dataset-language"],
+                },
+            )
+
     def test_analysis_freeze_runs_language_preflight_before_persisting(self) -> None:
         self._record_language_dataset()
         analysis_dir = self.root / "analysis" / "language-freeze"
