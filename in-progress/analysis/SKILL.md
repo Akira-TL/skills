@@ -35,7 +35,7 @@ description: 执行可重建、可审计的科研分析；当已有可分析 Dat
 input → code / command → parameters → environment → outputs
 ```
 
-Notebook / interactive session 可以用于探索，但进入 scientific evidence 的结果必须有脚本、workflow 或明确命令入口。环境、随机性、路径和输出约定见 [`references/EXECUTION.md`](references/EXECUTION.md)。确认性 Analysis 首次进入结果前 freeze 前，先让 `research-db` 对 Analysis plan 与作为 `pre_result_support` 登记的人类科研正文执行学术语言检查；先修正文再冻结，不能把语言问题留到结果后通过修改冻结 artifact 解决。
+Notebook / interactive session 可以用于探索，但进入 scientific evidence 的结果必须有脚本、workflow 或明确命令入口。环境、随机性、路径和输出约定见 [`references/EXECUTION.md`](references/EXECUTION.md)。任何 Analysis 在第一次运行结果生成代码前，都先以当前计划调用 `research-db record-analysis`：探索性 Analysis 先登记为 `planned`，确认性 Analysis 按其 freeze 路径登记。该结果前登记会检查 Analysis plan 与作为 `pre_result_support` 登记的人类科研正文；先修正文再执行。探索性 Analysis 不因这项检查被伪装成确认性 freeze，确认性 Analysis 仍另外满足正式 freeze provenance。
 
 ## 4. 运行、诊断与合理替代分析
 

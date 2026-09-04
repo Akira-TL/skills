@@ -105,9 +105,9 @@ class AcademicLanguageFreezeTests(unittest.TestCase):
         result = academic_language_readiness(self.root)
         self.assertTrue(result["ready"], result["blockers"])
 
-    def test_analysis_freeze_runs_language_preflight_before_persisting(self) -> None:
+    def _record_language_dataset(self) -> None:
         data_dir = self.root / "data"
-        data_dir.mkdir()
+        data_dir.mkdir(exist_ok=True)
         (data_dir / "README.md").write_text("# 数据\n\n输入数据来源已经记录。\n", encoding="utf-8")
         (data_dir / "raw.csv").write_text("id,value\n1,2\n", encoding="utf-8")
         record_dataset(
@@ -122,6 +122,84 @@ class AcademicLanguageFreezeTests(unittest.TestCase):
                 "artifacts": [{"role": "raw", "location": "data/raw.csv"}],
             },
         )
+
+    def test_exploratory_analysis_requires_planned_preflight_before_completion(self) -> None:
+        self._record_language_dataset()
+        analysis_dir = self.root / "analysis" / "exploratory-language"
+        analysis_dir.mkdir(parents=True)
+        plan = analysis_dir / "README.md"
+        plan.write_text(
+            "# 探索性分析计划\n\n当前 exploratory analysis 使用 randomization 检查候选模式。\n",
+            encoding="utf-8",
+        )
+        (analysis_dir / "run.py").write_text("print('ok')\n", encoding="utf-8")
+        bundle = {
+            "slug": "exploratory-language",
+            "title": "探索性语言测试",
+            "analysis_mode": "exploratory",
+            "status": "planned",
+            "target_uncertainty": "当前数据中是否存在值得继续检验的候选模式",
+            "estimand": "候选模式的描述性差异",
+            "unit_of_inference": "sample",
+            "primary_analysis": "描述性探索与预先说明的诊断",
+            "analysis_path": "analysis/exploratory-language/README.md",
+            "code_path": "analysis/exploratory-language/run.py",
+            "dataset_slugs": ["dataset-language"],
+        }
+
+        with self.assertRaisesRegex(ResearchDbError, "执行前学术语言检查失败"):
+            record_analysis(self.root, bundle)
+
+        with closing(sqlite3.connect(database_path(self.root))) as connection:
+            self.assertEqual(
+                connection.execute(
+                    "SELECT COUNT(*) FROM analysis_runs WHERE slug = 'exploratory-language'"
+                ).fetchone()[0],
+                0,
+            )
+
+        plan.write_text(
+            "# 探索性分析计划\n\n当前探索性分析使用固定的随机化检查评估候选模式。\n",
+            encoding="utf-8",
+        )
+        result = record_analysis(self.root, bundle)
+        self.assertEqual(result["status"], "planned")
+
+        completed = dict(bundle)
+        completed["status"] = "completed"
+        result = record_analysis(self.root, completed)
+        self.assertEqual(result["status"], "completed")
+
+    def test_exploratory_analysis_cannot_first_register_as_completed(self) -> None:
+        self._record_language_dataset()
+        analysis_dir = self.root / "analysis" / "direct-completion"
+        analysis_dir.mkdir(parents=True)
+        (analysis_dir / "README.md").write_text(
+            "# 探索性分析计划\n\n当前探索性分析用于评估候选模式。\n",
+            encoding="utf-8",
+        )
+        (analysis_dir / "run.py").write_text("print('ok')\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(ResearchDbError, "第一次登记必须使用 status=planned"):
+            record_analysis(
+                self.root,
+                {
+                    "slug": "direct-completion",
+                    "title": "直接完成测试",
+                    "analysis_mode": "exploratory",
+                    "status": "completed",
+                    "target_uncertainty": "候选模式是否存在",
+                    "estimand": "候选模式的描述性差异",
+                    "unit_of_inference": "sample",
+                    "primary_analysis": "描述性探索",
+                    "analysis_path": "analysis/direct-completion/README.md",
+                    "code_path": "analysis/direct-completion/run.py",
+                    "dataset_slugs": ["dataset-language"],
+                },
+            )
+
+    def test_analysis_freeze_runs_language_preflight_before_persisting(self) -> None:
+        self._record_language_dataset()
         analysis_dir = self.root / "analysis" / "language-freeze"
         analysis_dir.mkdir(parents=True)
         plan = analysis_dir / "README.md"

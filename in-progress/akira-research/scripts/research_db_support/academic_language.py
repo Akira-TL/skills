@@ -99,11 +99,13 @@ def academic_language_blockers_for_path(
     return blockers
 
 
-def require_academic_language_before_freeze(
+def _require_academic_language_preflight(
     project_root: Path,
     paths: Iterable[Path],
     *,
     object_label: str,
+    stage_label: str,
+    remedy: str,
 ) -> None:
     if not project_uses_chinese_research_text(project_root):
         return
@@ -113,6 +115,36 @@ def require_academic_language_before_freeze(
     if blockers:
         first = blockers[0]
         raise ResearchDbError(
-            f"{object_label} 冻结前学术语言检查失败：{first['path']} 第 {first['paragraph']} 段；"
-            "请在 freeze 前修正人类科研正文，避免结果后再改写冻结 artifact。"
+            f"{object_label} {stage_label}学术语言检查失败：{first['path']} 第 {first['paragraph']} 段；"
+            + remedy
         )
+
+
+def require_academic_language_before_freeze(
+    project_root: Path,
+    paths: Iterable[Path],
+    *,
+    object_label: str,
+) -> None:
+    _require_academic_language_preflight(
+        project_root,
+        paths,
+        object_label=object_label,
+        stage_label="冻结前",
+        remedy="请在 freeze 前修正人类科研正文，避免结果后再改写冻结 artifact。",
+    )
+
+
+def require_academic_language_before_execution(
+    project_root: Path,
+    paths: Iterable[Path],
+    *,
+    object_label: str,
+) -> None:
+    _require_academic_language_preflight(
+        project_root,
+        paths,
+        object_label=object_label,
+        stage_label="执行前",
+        remedy="请在运行分析代码前修正人类科研正文，不要把语言修订留到结果可见之后。",
+    )

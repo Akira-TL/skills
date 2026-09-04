@@ -5,7 +5,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from research_db_support.academic_language import require_academic_language_before_freeze
+from research_db_support.academic_language import (
+    require_academic_language_before_execution,
+    require_academic_language_before_freeze,
+)
 from research_db_support.storage import ResearchDbError, connect
 import research_db_ops.common as common
 
@@ -425,7 +428,7 @@ def _write_analysis_change(
     )
 
 
-def _pre_freeze_language_paths(
+def _pre_result_language_paths(
     project_root: Path,
     analysis_path: str,
     artifacts: list[Any],
@@ -515,14 +518,32 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
         try:
             dataset_ids = _dataset_ids(connection, bundle.get("dataset_slugs"))
             existing = connection.execute("SELECT * FROM analysis_runs WHERE slug = ?", (slug,)).fetchone()
-            if spec.status in {"frozen", "completed"} and (
-                existing is None or str(existing["status"]) == "planned"
-            ):
-                require_academic_language_before_freeze(
+            language_paths = _pre_result_language_paths(project_root, spec.analysis_path, artifacts)
+            if existing is None and spec.analysis_mode == "exploratory" and spec.status != "planned":
+                raise ResearchDbError(
+                    "exploratory Analysis 第一次登记必须使用 status=planned，并在运行分析代码前完成结果前语言检查。"
+                )
+            if spec.status == "planned":
+                require_academic_language_before_execution(
                     project_root,
-                    _pre_freeze_language_paths(project_root, spec.analysis_path, artifacts),
+                    language_paths,
                     object_label="Analysis",
                 )
+            elif spec.status in {"frozen", "completed"} and (
+                existing is None or str(existing["status"]) == "planned"
+            ):
+                if spec.analysis_mode == "confirmatory":
+                    require_academic_language_before_freeze(
+                        project_root,
+                        language_paths,
+                        object_label="Analysis",
+                    )
+                else:
+                    require_academic_language_before_execution(
+                        project_root,
+                        language_paths,
+                        object_label="Analysis",
+                    )
             effective_started_at = existing["started_at"] if existing is not None else spec.started_at
             effective_completed_at = spec.completed_at
             if existing is not None and existing["status"] == "completed":
