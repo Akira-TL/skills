@@ -15,9 +15,9 @@ description: 把 Analysis result、Study/Design 边界与 literature evidence �
 
 ## 2. Observation → Claim
 
-先写“数据直接显示什么”，再决定允许提出什么 Claim。Claim 层级、随机试验/缺失/不依从、mechanism、external validity 与 contradiction 的完整 gate 见 [`references/CONTRACT.md`](references/CONTRACT.md)。
+先写“数据直接显示什么”，再决定允许提出什么 Claim。Claim 层级、状态与过程、独立重复验证、随机试验/缺失/不依从、mechanism、external validity 与 contradiction 的完整 gate 见 [`references/CONTRACT.md`](references/CONTRACT.md)。
 
-科学表述不能超过 Design identification、measurement validity 和 Analysis robustness 能支持的范围。统计显著性不能单独升级因果或机制层级。
+科学表述不能超过 Design identification、measurement validity 和 Analysis robustness 能支持的范围。先判断当前证据识别的是静态状态、变量关联还是时间/过程变化；只有设计真实识别了过程时才使用带过程含义的科学术语。同一 Dataset 内不同材料、亚组或分析规格的一致方向只能按其真实依赖结构描述，不能自动称为独立重复验证。统计显著性不能单独升级因果、过程或机制层级。
 
 ## 3. 综合 evidence
 
