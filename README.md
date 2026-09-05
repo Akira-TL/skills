@@ -8,6 +8,7 @@ Akira 自研 Agent Skills 的独立源码仓库。
 
 ```text
 skills/
+├── research/         # 科研总 Router 与专业科研工作流
 ├── engineering/      # 工程开发与 Agent 编排
 ├── productivity/     # 文档、浏览器等通用生产力能力
 ├── in-progress/      # 尚未稳定的 Skill
@@ -20,7 +21,13 @@ skills/
 
 ## 当前 Skills
 
+- `research/akira-research`：科研总 Router；围绕 Research Question、证据、Research Tree 与适用规范，自主路由完整科研工作。
+  - `research/research-tree`、`research/research-standards`
+  - `research/literature`、`research/literature-access`
+  - `research/hypothesis`、`research/design`、`research/study`、`research/data`
+  - `research/analysis`、`research/interpretation`、`research/communication`
 - `engineering/agent-orchestration`：在当前 Agent harness 确实提供并行执行原语时，将已定义工作单元映射到这些能力；不绑定具体产品，也不是 Parallel 的必选依赖。
+- `engineering/akira-guard`：Akira Guard 的使用语义、检查分层与故障排查。
 - `productivity/general-word-document-generation`：Word 原生语义的正式 DOCX 生成与修订。
 - `productivity/scientific-presentation-authoring`：科研与学术类 PPT 的结构、页面文案和结果页图文编排。
 - `productivity/browser-access`：按当前 harness 能力发现并复用可控浏览器，支持持久登录态、动态网页、网络资源解析和表单操作。
