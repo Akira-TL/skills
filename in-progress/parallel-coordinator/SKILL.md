@@ -143,11 +143,13 @@ Frontier 是当前 Gate 内满足以下条件的 Task：
 - blocking 条件已满足。
 - 没有有效 claim。
 
-Frontier 以当前 Gate、Task 的 `Status` / blocker 与 deterministic claim 为事实依据；Execution Map 的 `Coordination Notes` 只是 Coordinator 说明，不参与 frontier 判定。Notes 若因 Worker 生命周期推进而陈旧，由 Coordinator 在下一次相关状态写入时同步，不因此扩大 Worker ownership。
+若 frontier Task 的 Ownership 为 `unclaimed`，它可以由任一合格 Worker 竞争 claim；若 Task 因 `blocked` 恢复等原因保留了某个 Worker identity，则它只对该 Worker 可领取，Coordinator 在分派 / 汇报 frontier 时必须保留这一 ownership restriction，不能把它当成公开可领取任务。需要换人时，Coordinator 先明确解除或重分配 Ownership，再允许新的 Worker claim。
+
+Frontier 以当前 Gate、Task 的 `Status` / blocker / Ownership 与 deterministic claim 为事实依据；Execution Map 的 `Coordination Notes` 只是 Coordinator 说明，不参与 frontier 判定。Notes 若因 Worker 生命周期推进而陈旧，由 Coordinator 在下一次相关状态写入时同步，不因此扩大 Worker ownership。
 
 并行度随 frontier 动态变化，不预先固定 Worker 数量。执行过程中可以新增、拆分、合并、取消 Task 或调整 blocker，但这些拓扑修改由 Coordinator 统一写入 Tracker。
 
-Worker 发现需要改变拓扑时，只提交 Coordination impact；Coordinator 依据真实 Issue、Git 与 Gate 目标判断后再修改。
+Worker 发现需要改变拓扑时，只提交 Coordination impact；Coordinator 依据真实 Issue、Git 与 Gate 目标判断后再修改。Worker 报告的外部 blocker 已解除时，Coordinator 还负责按 `parallel-execution` 的生命周期规则核验证据并恢复 `blocked` Task；恢复状态不等于替 Worker claim。
 
 Emergency 场景默认更保守，通常保持单 Writer + 多只读调查 Agent；Rapid / Competition 是否扩大 frontier 由对应 Akira 模式决定。本 Skill 自身不重写这些模式策略。
 

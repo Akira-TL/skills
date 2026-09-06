@@ -30,7 +30,7 @@ Worker 可以在 claim 前只读查看 Execution Map、Parent Gate 与 frontier 
 Claim 的事务边界是：
 
 1. 先取得确定性互斥。
-2. 重新读取 Task，确认它仍是 `ready-for-agent`、blocker 仍已满足，且 Coordinator 没有取消或改写当前执行范围。
+2. 重新读取 Task，确认 blocker 已满足、Coordinator 没有取消或改写当前执行范围，并确认当前状态允许本 Worker 领取：普通 Task 必须为 `ready-for-agent`；`changes-requested` 只能由其保留的 Ownership Worker 重新领取；`blocked` 本身不可领取，必须先按第 4 节由 Coordinator 恢复为 `ready-for-agent`。若 `ready-for-agent` Task 已保留某个 Worker 的 Ownership，也只能由该 Worker 领取，除非 Coordinator 已明确解除或重分配 Ownership。
 3. 用一次 Tracker 更新把 Ownership 与 Status 投影为当前 Worker / `in-progress`，随后重新读取并核对。
 4. Tracker 更新、复核或前置条件任一步失败时，把 Tracker 恢复到领取前状态（若发生过写入），释放刚取得的互斥，再用 `status` 验证互斥已经消失；任何回滚无法确认时继续保持只读并报告 Coordinator。
 5. 互斥失败时不写 Tracker。
@@ -85,14 +85,16 @@ ready-for-agent
 
 允许以下必要分支：
 
-- `blocked`：Worker 已领取但出现真实外部 blocker；记录 blocker 与 Coordinator 所需动作。
-- `changes-requested`：Coordinator 审查未通过；原 Worker 默认保持 Ownership，恢复工作时重新取得确定性 claim 后回到 `in-progress`。
+- `blocked`：Worker 已领取但出现真实外部 blocker；记录 blocker 与 Coordinator 所需动作。Task 离开 `in-progress` 后按统一规则释放 claim，并保留 Ownership。
+- `changes-requested`：Coordinator 审查未通过；原 Worker默认保持 Ownership。该 Worker 恢复工作时可以在 `changes-requested` 状态重新取得 deterministic claim，成功并复核后回到 `in-progress`。
 - `cancelled`：Coordinator 取消该 Task；Worker 停止继续实现。
+
+`blocked` 的恢复由 Coordinator 驱动：只有在 Coordinator 能从 Tracker / 外部证据确认 blocker 已解除后，才把 Task 从 `blocked` 更新为 `ready-for-agent`，同时删除或明确标记已解除的 blocker。默认保留原 Ownership，因此恢复后的 Task 只允许该 Worker 重新领取；若需要换人，Coordinator 必须在恢复时或恢复前明确解除 / 重分配 Ownership。Coordinator 只恢复协作状态，不替 Worker 取得 deterministic claim；Worker 随后仍走第 2 节完整 claim transaction 再进入 `in-progress`。
 
 权限边界：
 
 - Worker 可以把自己已领取的 Task 更新为 `in-progress`、`blocked` 或 `ready-for-review`。
-- Coordinator 才能把 Task 更新为 `accepted`、`changes-requested` 或 `cancelled`。
+- Coordinator 才能把 Task 更新为 `accepted`、`changes-requested` 或 `cancelled`，并负责已解除 blocker 的 `blocked → ready-for-agent` 恢复以及显式 Ownership 重分配。
 - Worker 不直接 close Parallel Task，也不自行宣布 Gate 通过。
 
 当 Task 离开 `in-progress` 时，先把新的 Task 状态可靠写入并复核 Tracker，再用 helper `release` 释放执行期互斥，最后用 `status` 验证已释放。释放失败或结果不确定时不继续新的实现写入，立即把残留 claim 作为 Coordination impact 报告 Coordinator。Ownership 仍保留在 Tracker，直到 Coordinator 接受、取消或明确重新分配。
