@@ -56,6 +56,8 @@ Execution Map 是整个多 Agent 执行工作的根 Issue，只保存执行索�
 
 若 Map 已存在，只更新发生变化的索引与 coordination facts；不要把 Gate、Task、Spec、ADR 或模式正文复制进 Map。唯一例外是 Akira mode 的 Work State 还没有任何稳定 artifact：首次建 Map 时必须把后续 Worker 真正需要的已确认目标、切片 / incident scope / Demo Critical Path 与验证事实压缩记录到 `Source Work`，但仍不复制 Execution Policy。
 
+`Integration Ref` 表示 Coordinator 已确认的集成 Git 状态：Gate 处于执行中时，它是该 Gate 的 integration base；Gate review 通过后，它是本轮实际审查通过的 integration HEAD。为写入 `Status: accepted`、Execution Map 或下一 Gate 状态而随后产生的 Tracker transition commit 不属于其自身所证明的 reviewed state，因此不得回写为该 Gate 的 `Integration Ref`。下一 Gate 激活时继承上一 Gate 已验收的 `Integration Ref` 作为新的 integration base。
+
 ## 3. 建 Gate
 
 Gate 是 Execution Map 的 child Issue。Gate ID 可以使用既有项目里有意义的 `1.1.1`、`foundation`、`M1` 等标识；协议不解释其版本语义。
@@ -141,6 +143,8 @@ Frontier 是当前 Gate 内满足以下条件的 Task：
 - blocking 条件已满足。
 - 没有有效 claim。
 
+Frontier 以当前 Gate、Task 的 `Status` / blocker 与 deterministic claim 为事实依据；Execution Map 的 `Coordination Notes` 只是 Coordinator 说明，不参与 frontier 判定。Notes 若因 Worker 生命周期推进而陈旧，由 Coordinator 在下一次相关状态写入时同步，不因此扩大 Worker ownership。
+
 并行度随 frontier 动态变化，不预先固定 Worker 数量。执行过程中可以新增、拆分、合并、取消 Task 或调整 blocker，但这些拓扑修改由 Coordinator 统一写入 Tracker。
 
 Worker 发现需要改变拓扑时，只提交 Coordination impact；Coordinator 依据真实 Issue、Git 与 Gate 目标判断后再修改。
@@ -187,8 +191,8 @@ Coordinator 不以 Worker 的“已完成”自述代替证据。
 
 Gate review 通过后：
 
-1. 更新 Gate `Status: accepted` 与最终 Integration Ref。
-2. 更新 Execution Map 的 Current Gate / Integration Ref。
+1. 更新 Gate `Status: accepted`，并把 `Integration Ref` 写为本轮实际审查通过的 integration HEAD。
+2. 更新 Execution Map 的 Current Gate / Integration Ref；若还有下一 Gate，按上文 `Integration Ref` 语义把该 reviewed state 作为下一 Gate 的 integration base。
 3. 根据既有 Gates 与新暴露的依赖刷新 frontier。
 4. 只有 Entry Conditions 已满足时才激活下一 Gate。
 
