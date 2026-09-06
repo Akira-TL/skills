@@ -52,9 +52,9 @@ uv run <skill-root>/scripts/parallel_claim.py release \
   --task '<stable-task-reference>' --owner '<worker-identity>' --repo '<worktree>'
 ```
 
-`stable-task-reference` 使用 Tracker 中能唯一定位该 Parallel Task 的稳定引用；本地 Tracker 使用完整 issue 文件路径，不使用仅供展示的标题。`worker-identity` 必须在当前 Worker 会话内稳定且能与 Tracker Ownership 对应；多个 Agent 共用同一 GitHub/GitLab 用户时不能只填共享账号名。
+`stable-task-reference` 使用 Tracker 中能唯一定位该 Parallel Task、且不随 worktree 根目录变化的稳定引用。外部 Issue Tracker 使用其稳定 issue reference；repository 内的本地 Tracker 使用 repository-relative issue 路径，例如 `tracker/tasks/implement-alpha.md`，不使用 worktree-local 绝对路径或仅供展示的标题。helper 对指向当前 worktree 内现有 Task 文件的绝对路径会归一成同一 repository-relative identity，以兼容已有调用。`worker-identity` 必须在当前 Worker 会话内稳定且能与 Tracker Ownership 对应；多个 Agent 共用同一 GitHub/GitLab 用户时不能只填共享账号名。
 
-helper 通过 `git rev-parse --git-common-dir` 把同一 repository 的所有 worktree 映射到同一个 claim store，并用原子文件创建决定唯一 winner。claim 文件只是同机互斥的实现细节，**不是第二套协作状态**；Issue Tracker 仍是唯一 canonical collaboration state。`status` 在 claim store 尚不存在时不会创建目录，因此 claim 前的查询保持只读。
+helper 通过 `git rev-parse --git-common-dir` 把同一 repository 的所有 worktree 映射到同一个 claim store，并对 canonical Task identity 使用原子文件创建决定唯一 winner。为兼容旧版本，它查询和释放时会识别遗留的 worktree-local absolute-path claim record；若同一 canonical Task 已存在多个不同 owner，helper fail-closed，不猜测 winner。claim 文件只是同机互斥的实现细节，**不是第二套协作状态**；Issue Tracker 仍是唯一 canonical collaboration state。`status` 在 claim store 尚不存在时不会创建目录，因此 claim 前的查询保持只读。
 
 CLI 退出码：`0` 表示操作成功或查询成功；`1` 表示可预期的 ownership 冲突；`2` 表示 Git 环境、元数据或文件系统状态无法安全确认。`claim` 对同一 Task + owner 是幂等的；不同 owner 只有一个可以成功。
 

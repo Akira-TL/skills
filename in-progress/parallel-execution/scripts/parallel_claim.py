@@ -110,6 +110,21 @@ def resolve_common_dir(worktree: Path) -> Path:
     return common_dir.resolve()
 
 
+def canonical_task_reference(task: str, worktree: Path) -> str:
+    candidate = Path(task).expanduser()
+    require_existing = not candidate.is_absolute()
+    if require_existing:
+        candidate = worktree / candidate
+    try:
+        resolved = candidate.resolve(strict=False)
+        relative = resolved.relative_to(worktree)
+    except (OSError, ValueError):
+        return task
+    if require_existing and not resolved.exists():
+        return task
+    return relative.as_posix()
+
+
 def claim_key(task: str) -> str:
     return hashlib.sha256(task.encode("utf-8")).hexdigest()
 
@@ -128,7 +143,7 @@ def claim_path(common_dir: Path, task: str) -> Path:
     return claim_store(common_dir) / f"{claim_key(task)}.json"
 
 
-def load_claim(path: Path, expected_task: str) -> ClaimRecord | None:
+def load_claim(path: Path) -> ClaimRecord | None:
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
@@ -137,12 +152,43 @@ def load_claim(path: Path, expected_task: str) -> ClaimRecord | None:
         raw = json.loads(text)
     except json.JSONDecodeError as exc:
         raise ClaimError(f"claim 元数据损坏：{path}") from exc
-    record = ClaimRecord.from_json(raw)
-    if record.task != expected_task:
+    return ClaimRecord.from_json(raw)
+
+
+def canonical_record_task(record: ClaimRecord) -> str:
+    task_path = Path(record.task).expanduser()
+    if not task_path.is_absolute():
+        return record.task
+    worktree = Path(record.worktree).expanduser()
+    try:
+        return task_path.resolve(strict=False).relative_to(
+            worktree.resolve(strict=False)
+        ).as_posix()
+    except ValueError:
+        return record.task
+
+
+def matching_claims(common_dir: Path, task: str) -> list[tuple[Path, ClaimRecord]]:
+    store = claim_store(common_dir)
+    if not store.exists():
+        return []
+    matches: list[tuple[Path, ClaimRecord]] = []
+    for path in store.glob("*.json"):
+        record = load_claim(path)
+        if record is not None and canonical_record_task(record) == task:
+            matches.append((path, record))
+    return matches
+
+
+def matching_owner(matches: list[tuple[Path, ClaimRecord]], task: str) -> str | None:
+    owners = {record.owner for _, record in matches}
+    if len(owners) > 1:
+        detail = ", ".join(sorted(owners))
         raise ClaimError(
-            f"claim 元数据 Task 不匹配：期望 {expected_task!r}，实际 {record.task!r}。"
+            f"同一 canonical Task {task!r} 存在多个 active claim owner：{detail}；"
+            "拒绝猜测 winner。"
         )
-    return record
+    return next(iter(owners), None)
 
 
 def write_claim_atomically(path: Path, record: ClaimRecord) -> bool:
@@ -188,55 +234,95 @@ def new_record(task: str, owner: str, worktree: Path) -> ClaimRecord:
 
 def command_claim(task: str, owner: str, worktree: Path, common_dir: Path) -> int:
     ensure_claim_store(common_dir)
+    existing = matching_claims(common_dir, task)
+    existing_owner = matching_owner(existing, task)
+    if existing_owner is not None:
+        if existing_owner == owner:
+            emit(
+                CliPayload(
+                    ok=True,
+                    task=task,
+                    claimed=True,
+                    owner=existing_owner,
+                    common_dir=str(common_dir),
+                )
+            )
+            return 0
+        emit(
+            CliPayload(
+                ok=False,
+                task=task,
+                claimed=True,
+                owner=existing_owner,
+                common_dir=str(common_dir),
+                error=f"Task 已由 {existing_owner} 领取。",
+            )
+        )
+        return 1
+
     path = claim_path(common_dir, task)
     record = new_record(task, owner, worktree)
-    if write_claim_atomically(path, record):
+    if not write_claim_atomically(path, record):
+        current = matching_claims(common_dir, task)
+        current_owner = matching_owner(current, task)
+        if current_owner is None:
+            raise ClaimError("claim 冲突后锁文件消失；请重新执行 claim。")
+        if current_owner == owner:
+            emit(
+                CliPayload(
+                    ok=True,
+                    task=task,
+                    claimed=True,
+                    owner=current_owner,
+                    common_dir=str(common_dir),
+                )
+            )
+            return 0
         emit(
             CliPayload(
-                ok=True,
+                ok=False,
                 task=task,
                 claimed=True,
-                owner=owner,
+                owner=current_owner,
                 common_dir=str(common_dir),
+                error=f"Task 已由 {current_owner} 领取。",
             )
         )
-        return 0
+        return 1
 
-    current = load_claim(path, task)
-    if current is None:
-        raise ClaimError("claim 冲突后锁文件消失；请重新执行 claim。")
-    if current.owner == owner:
-        emit(
-            CliPayload(
-                ok=True,
-                task=task,
-                claimed=True,
-                owner=current.owner,
-                common_dir=str(common_dir),
-            )
-        )
-        return 0
-    emit(
-        CliPayload(
-            ok=False,
-            task=task,
-            claimed=True,
-            owner=current.owner,
-            common_dir=str(common_dir),
-            error=f"Task 已由 {current.owner} 领取。",
-        )
-    )
-    return 1
+    try:
+        current_owner = matching_owner(matching_claims(common_dir, task), task)
+    except ClaimError:
+        current = load_claim(path)
+        if current is not None and current.owner == owner:
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
+        raise
+    if current_owner != owner:
+        raise ClaimError("claim 写入后无法确认当前 Worker 是唯一 owner。")
 
-
-def command_status(task: str, common_dir: Path) -> int:
-    current = load_claim(claim_path(common_dir, task), task)
     emit(
         CliPayload(
             ok=True,
             task=task,
-            claimed=current is not None,
-            owner=current.owner if current is not None else None,
+            claimed=True,
+            owner=owner,
+            common_dir=str(common_dir),
+        )
+    )
+    return 0
+
+
+def command_status(task: str, common_dir: Path) -> int:
+    owner = matching_owner(matching_claims(common_dir, task), task)
+    emit(
+        CliPayload(
+            ok=True,
+            task=task,
+            claimed=owner is not None,
+            owner=owner,
             common_dir=str(common_dir),
         )
     )
@@ -244,9 +330,9 @@ def command_status(task: str, common_dir: Path) -> int:
 
 
 def command_release(task: str, owner: str, common_dir: Path) -> int:
-    path = claim_path(common_dir, task)
-    current = load_claim(path, task)
-    if current is None:
+    matches = matching_claims(common_dir, task)
+    current_owner = matching_owner(matches, task)
+    if current_owner is None:
         emit(
             CliPayload(
                 ok=False,
@@ -259,32 +345,37 @@ def command_release(task: str, owner: str, common_dir: Path) -> int:
             )
         )
         return 1
-    if current.owner != owner:
+    if current_owner != owner:
         emit(
             CliPayload(
                 ok=False,
                 task=task,
                 claimed=True,
-                owner=current.owner,
+                owner=current_owner,
                 common_dir=str(common_dir),
                 released=False,
-                error=f"Task 由 {current.owner} 领取；{owner} 无权释放。",
+                error=f"Task 由 {current_owner} 领取；{owner} 无权释放。",
             )
         )
         return 1
 
-    try:
-        path.unlink()
-    except FileNotFoundError:
+    for path, _ in matches:
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+
+    remaining_owner = matching_owner(matching_claims(common_dir, task), task)
+    if remaining_owner is not None:
         emit(
             CliPayload(
                 ok=False,
                 task=task,
-                claimed=False,
-                owner=None,
+                claimed=True,
+                owner=remaining_owner,
                 common_dir=str(common_dir),
                 released=False,
-                error="释放时 claim 已不存在；请重新检查 status。",
+                error="释放后仍检测到 active claim；请停止写入并重新检查。",
             )
         )
         return 1
@@ -348,6 +439,7 @@ def main() -> int:
     try:
         task = validate_identity(args.task, "task")
         worktree = resolve_repo(args.repo)
+        task = canonical_task_reference(task, worktree)
         common_dir = resolve_common_dir(worktree)
         if args.command == "claim":
             owner = validate_identity(args.owner, "owner")

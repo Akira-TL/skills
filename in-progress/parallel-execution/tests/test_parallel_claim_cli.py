@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -141,6 +142,174 @@ class ParallelClaimCliTests(unittest.TestCase):
         )
         self.assertEqual(competing.returncode, 1)
         self.assertEqual(payload["owner"], "worker-a")
+
+    def test_linked_worktrees_share_claim_for_worktree_local_task_paths(self) -> None:
+        task_relative = Path("tracker/tasks/task-17.md")
+        task_in_root = self.root / task_relative
+        task_in_root.parent.mkdir(parents=True)
+        task_in_root.write_text("# Task 17\n", encoding="utf-8")
+        self._git(self.root, "add", str(task_relative))
+        self._git(self.root, "commit", "-m", "add task")
+
+        worktree = Path(self.tempdir.name) / "worker-b-local-task"
+        self._git(
+            self.root,
+            "worktree",
+            "add",
+            "-b",
+            "worker-b-local-task",
+            str(worktree),
+            "HEAD",
+        )
+        task_in_worktree = worktree / task_relative
+
+        claimed, _ = self._run(
+            "claim",
+            task=str(task_in_root),
+            owner="worker-a",
+            repo=self.root,
+        )
+        self.assertEqual(claimed.returncode, 0)
+
+        competing, payload = self._run(
+            "claim",
+            task=str(task_in_worktree),
+            owner="worker-b",
+            repo=worktree,
+        )
+        self.assertEqual(competing.returncode, 1)
+        self.assertFalse(payload["ok"])
+        self.assertTrue(payload["claimed"])
+        self.assertEqual(payload["owner"], "worker-a")
+
+        status, payload = self._run(
+            "status",
+            task=str(task_in_worktree),
+            repo=worktree,
+        )
+        self.assertEqual(status.returncode, 0)
+        self.assertTrue(payload["claimed"])
+        self.assertEqual(payload["owner"], "worker-a")
+
+    def test_legacy_absolute_path_claim_is_visible_from_another_worktree(self) -> None:
+        task_relative = Path("tracker/tasks/task-legacy.md")
+        task_in_root = self.root / task_relative
+        task_in_root.parent.mkdir(parents=True)
+        task_in_root.write_text("# Legacy Task\n", encoding="utf-8")
+        self._git(self.root, "add", str(task_relative))
+        self._git(self.root, "commit", "-m", "add legacy task")
+
+        worktree = Path(self.tempdir.name) / "worker-b-legacy-task"
+        self._git(
+            self.root,
+            "worktree",
+            "add",
+            "-b",
+            "worker-b-legacy-task",
+            str(worktree),
+            "HEAD",
+        )
+        task_in_worktree = worktree / task_relative
+
+        common_dir = Path(self._git(self.root, "rev-parse", "--git-common-dir"))
+        if not common_dir.is_absolute():
+            common_dir = (self.root / common_dir).resolve()
+        claims = common_dir / "akira-parallel" / "claims"
+        claims.mkdir(parents=True)
+        legacy_task = str(task_in_root)
+        legacy_path = claims / f"{hashlib.sha256(legacy_task.encode('utf-8')).hexdigest()}.json"
+        legacy_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "task": legacy_task,
+                    "owner": "legacy-worker",
+                    "claimed_at": "2026-09-06T00:00:00+00:00",
+                    "hostname": "test-host",
+                    "pid": 1,
+                    "worktree": str(self.root),
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        status, payload = self._run(
+            "status",
+            task=str(task_in_worktree),
+            repo=worktree,
+        )
+        self.assertEqual(status.returncode, 0)
+        self.assertTrue(payload["claimed"])
+        self.assertEqual(payload["owner"], "legacy-worker")
+
+        release, payload = self._run(
+            "release",
+            task=str(task_in_worktree),
+            owner="legacy-worker",
+            repo=worktree,
+        )
+        self.assertEqual(release.returncode, 0)
+        self.assertTrue(payload["released"])
+        self.assertFalse(legacy_path.exists())
+
+    def test_conflicting_legacy_claims_fail_closed(self) -> None:
+        task_relative = Path("tracker/tasks/task-conflict.md")
+        task_in_root = self.root / task_relative
+        task_in_root.parent.mkdir(parents=True)
+        task_in_root.write_text("# Conflict Task\n", encoding="utf-8")
+        self._git(self.root, "add", str(task_relative))
+        self._git(self.root, "commit", "-m", "add conflict task")
+
+        worktree = Path(self.tempdir.name) / "worker-b-conflict-task"
+        self._git(
+            self.root,
+            "worktree",
+            "add",
+            "-b",
+            "worker-b-conflict-task",
+            str(worktree),
+            "HEAD",
+        )
+        task_in_worktree = worktree / task_relative
+
+        common_dir = Path(self._git(self.root, "rev-parse", "--git-common-dir"))
+        if not common_dir.is_absolute():
+            common_dir = (self.root / common_dir).resolve()
+        claims = common_dir / "akira-parallel" / "claims"
+        claims.mkdir(parents=True)
+
+        for task_path, owner, record_worktree in (
+            (task_in_root, "legacy-worker-a", self.root),
+            (task_in_worktree, "legacy-worker-b", worktree),
+        ):
+            task_value = str(task_path)
+            claim_path = claims / f"{hashlib.sha256(task_value.encode('utf-8')).hexdigest()}.json"
+            claim_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "task": task_value,
+                        "owner": owner,
+                        "claimed_at": "2026-09-06T00:00:00+00:00",
+                        "hostname": "test-host",
+                        "pid": 1,
+                        "worktree": str(record_worktree),
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+        status, payload = self._run(
+            "status",
+            task=str(task_in_root),
+            repo=self.root,
+        )
+        self.assertEqual(status.returncode, 2)
+        self.assertFalse(payload["ok"])
+        self.assertIsNone(payload["claimed"])
+        self.assertIn("多个 active claim owner", payload["error"])
 
     def test_status_before_claim_does_not_write_git_common_directory(self) -> None:
         common_dir = Path(self._git(self.root, "rev-parse", "--git-common-dir"))
