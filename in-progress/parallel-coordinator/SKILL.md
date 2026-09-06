@@ -127,7 +127,7 @@ ready-for-agent
 
 只有真实协作需要时才增加：
 
-- `Task Kind: read-only`：明确禁止项目写入的调查 Task；普通写入 Task 不必增加该字段。
+- `Task Kind: read-only`：明确禁止 production/test 与调查交付物写入的调查 Task；协议必需的 Tracker lifecycle state 不算调查交付写入，若 Tracker 由 Git 跟踪，可以形成仅承载当前 Task 生命周期状态的 Tracker lifecycle commit。普通写入 Task 不必增加该字段。
 - `Provides`
 - `Consumes`
 - `Shared dependencies`
@@ -156,12 +156,12 @@ Emergency 场景默认更保守，通常保持单 Writer + 多只读调查 Agent
 Worker Report 只是索引。Task review 必须读取 Parallel Task 当前 Issue、Acceptance Criteria、Parent Gate 与真实上游来源，然后按 Task 类型取证：
 
 - **写入型 Task**：读取 Worker commit、相对适当 fixed point 的 diff、测试/检查与当前执行策略要求的 review 结果；有 Source Matt Ticket 时同时核对 Source Spec / ADR。
-- **只读调查 Task**：读取 Worker 给出的命令、位置、日志或其他可复核证据，并确认 Git/project state 相对领取前基线没有该 Worker 留下的写入；`Commit(s)` 应为 `none`。
+- **只读调查 Task**：读取 Worker 给出的命令、位置、日志或其他可复核证据，并确认相对领取前基线没有该 Worker 留下的 production/test、调查交付物、Spec/Ticket、Gate/Execution Map/topology 或其他越界写入。Git-backed Tracker 因 claim / lifecycle 必需产生的当前 Task lifecycle commit 可以存在，必须单独识别为协作状态证据；其 delivery commit 应为 `none`。
 
 检查至少覆盖：
 
 - 执行范围是否落在当前 Task ownership 内。
-- 写入型 Task 的 Commit 是否只包含归属明确的当前修改；只读 Task 是否确实没有项目写入。
+- 写入型 Task 的 delivery commit 是否只包含归属明确的当前修改；只读 Task 是否除允许的 Tracker lifecycle state 外确实没有 production/test、调查交付物或其他越界写入，且 lifecycle commit 没有夹带交付内容。
 - Task 是否满足其真实上游工作来源与 Parent Gate 的要求。
 - 是否引入未协调的跨 Task 接口、共享资源或 integration 假设。
 
