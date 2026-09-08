@@ -5,7 +5,7 @@ description: 记录研究实际实施过程；当 frozen Design 已进入真实�
 
 # Study
 
-`study` 负责“实际上做了什么”。计划属于 `design`；Dataset 整理与 QC 属于 `data`；统计与计算推断属于 `analysis`。
+`study` 负责“实际上做了什么”。计划属于 `design`；Dataset 整理与 QC 属于 `data`；统计与计算推断属于 `analysis`。高通量测序（Next-Generation Sequencing, NGS）的真实提取、建库、测序仪运行、lane/run 与偏差在这里记录；BCL/FASTQ 等 raw output 交给 `data`，后续 assay-specific 计算由 `data` 或 `analysis` 调用 `ngs`。
 
 ## 1. 读取 Design 与适用规范
 

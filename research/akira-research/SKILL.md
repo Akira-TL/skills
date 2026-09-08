@@ -39,7 +39,7 @@ Research Question、Active Uncertainty、分支和跨对象关系由 [`research-
 - 已有 Observation / result，需要与 Design、Hypothesis 和 literature evidence 综合并形成最窄 Claim → [`interpretation`](../interpretation/SKILL.md)；
 - 已有稳定 scientific state 且存在真实论文、报告、图表、答辩或其他传播目标 → [`communication`](../communication/SKILL.md)。
 
-不是所有研究都必须经过所有 Skill。探索性研究可以没有 formal Hypothesis；公开数据研究可以没有本项目自己的 Study；已有证据足以回答问题时也不机械进入 Design。
+不是所有研究都必须经过所有 Skill。探索性研究可以没有 formal Hypothesis；公开数据研究可以没有本项目自己的 Study；已有证据足以回答问题时也不机械进入 Design。高通量测序（Next-Generation Sequencing, NGS）不增加新的 `Current Loop`：测序 raw/derived data 的领域处理由 `data → ngs` 执行，测序统计/生物信息推断由 `analysis → ngs` 执行，真实建库/测序实施仍属于 `study`，科学解释仍属于 `interpretation`。
 
 需要判断 Agent proposal、用户主动判断或用户对科学猜想的决定来源时，读取 [`references/collaboration/RESEARCH-COLLABORATION.md`](references/collaboration/RESEARCH-COLLABORATION.md)。
 

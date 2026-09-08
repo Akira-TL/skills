@@ -5,7 +5,7 @@ description: 执行可重建、可审计的科研分析；当已有可分析 Dat
 
 # Analysis
 
-`analysis` 同时管理科研分析语义与具体计算执行。Research Question 与 active branch 来自 `akira-research` / `research-tree`；本 Skill 负责让分析目标、统计方法、代码、环境、诊断和结果边界彼此一致。
+`analysis` 同时管理科研分析语义与具体计算执行。Research Question 与 active branch 来自 `akira-research` / `research-tree`；本 Skill 负责让分析目标、统计方法、代码、环境、诊断和结果边界彼此一致。高通量测序（Next-Generation Sequencing, NGS）的 assay-specific pipeline、reference/database、preflight、runner 与 execution provenance 交给 [`ngs`](../ngs/SKILL.md)；estimand、统计方法、design formula、contrast、confirmatory / exploratory 与 sensitivity 的科研决定仍由本 Skill 拥有。
 
 ## 1. 接收科学分析目标
 
@@ -41,7 +41,7 @@ Notebook / interactive session 可以用于探索，但进入 scientific evidenc
 
 先运行与 scientific target 对齐的分析，再检查足以改变结论的 failure mode。工具成功退出不等于模型有效。
 
-多个合理方法或 specification 可以并存，但必须说明各自回答什么问题。参数微调、兼容修复和等价实现保留在同一 Analysis provenance；scientific question / estimand、population、unit of inference 或 confirmatory target 改变时，通常形成新的 Analysis / research-tree branch。
+多个合理方法或 specification 可以并存，但必须说明各自回答什么问题。参数微调、兼容修复和等价实现保留在同一 Analysis provenance；scientific question / estimand、population、unit of inference 或 confirmatory target 改变时，通常形成新的 Analysis / research-tree branch。NGS upstream runner 提供的 `auto` 方法选择或软件 fallback 只能在明确的 feasibility / exploratory convenience 中使用；确认性 Analysis 必须先冻结科研方法，再让 `ngs` 执行该方法。
 
 Sensitivity 的目的用于判断结论对合理分析选择是否稳定，不用于寻找显著结果。Preferred analysis 的选择依据是 scientific alignment、推断单位、measurement/data model、diagnostics、leakage/overfitting、robustness 与 interpretability，而不是 `P` value 或图形吸引力。
 

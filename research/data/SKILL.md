@@ -5,7 +5,7 @@ description: 管理科研数据从 raw 到 curated / derived / analysis-ready �
 
 # Data
 
-`data` 负责“数据是什么、从哪里来、是否能被可靠分析”。Sample 的真实产生与 Assay execution 归 `study`；统计推断归 `analysis`。
+`data` 负责“数据是什么、从哪里来、是否能被可靠分析”。Sample 的真实产生与 Assay execution 归 `study`；统计推断归 `analysis`。当 Dataset 来自高通量测序（Next-Generation Sequencing, NGS），且需要 BCL/FASTQ/BAM/CRAM/VCF、表达矩阵、峰集、ASV/分类谱等 assay-specific 处理、QC、reference/database 或 pipeline execution 时，调用 [`ngs`](../ngs/SKILL.md) 作为领域执行层；Dataset identity、raw/curated/derived、sample mapping、exclusion timing 与 freeze 仍由本 Skill 拥有。
 
 ## 1. 确认数据来源与适用规范
 
@@ -21,7 +21,7 @@ description: 管理科研数据从 raw 到 curated / derived / analysis-ready �
 
 ## 3. QC 与 transformation
 
-QC 先产生诊断，再按结果前规则或科学上可辩护的规则处理 exclusion / correction。结果可见后新增的 exclusion 或 filtering 规则必须保留 timing 和 sensitivity 边界。
+QC 先产生诊断，再按结果前规则或科学上可辩护的规则处理 exclusion / correction。结果可见后新增的 exclusion 或 filtering 规则必须保留 timing 和 sensitivity 边界。NGS 数据的 read quality、contamination、depth、mapping、cell/feature QC 等 assay-specific failure mode 由 `ngs` 提供执行与诊断能力，但是否改变 Dataset 仍按本 Skill 的数据语义决定。
 
 从 raw / curated 到 analysis-ready Dataset 的每一步必须可以由代码、workflow、命令或明确人工记录重建。
 
