@@ -20,6 +20,8 @@ NGS 只提供测序领域计算能力；对象归属仍由 Akira Research 的 `s
 
 ## 判断原则
 
+upstream 的 Skill、runner 或一次 run 不是 Akira 科研对象的边界。一个 runner 可以同时生成 curated Dataset、QC 图、clustering 和 differential result；这些产物必须按上表分别接回 `data` / `analysis`，不能因为它们来自同一个 upstream run 就登记成同一个 Dataset 或 Analysis。
+
 同一工具可以在不同语义层承担不同角色，不能只按软件名分类。例如 normalization 如果只是生成预先定义的 analysis-ready representation，可属于 Dataset transformation；如果 normalization choice 是多个合理统计 specification 的一部分并用于判断结论稳定性，则属于 Analysis / sensitivity。
 
 判断时依次问：

@@ -2,6 +2,18 @@
 
 OpenAI `ngs-analysis` 的 run envelope 记录一次计算执行事实；Akira 的 `research.sqlite` 记录该执行在科研项目中的 Dataset / Analysis 身份、科学目标与时序关系。两者互补，不互相替代。
 
+## Upstream source identity
+
+每次真实执行至少记录：
+
+```text
+upstream repository commit
+plugin name / version
+runner or workflow relative path
+```
+
+可从运行时 source view 读取 plugin manifest，并用 `git -C ~/.agents/external/ngs-analysis rev-parse HEAD` 固定实际源码 commit。对确认性 Analysis，这些 source pointers 属于结果前 execution specification，必须在第一次结果生成前进入 Analysis provenance / freeze；对 Dataset transformation，则作为该 Dataset transformation 的 producer provenance 保存。
+
 ## 运行产物映射
 
 典型 upstream envelope：
@@ -56,7 +68,7 @@ visualizations/
 4. 结果 table、estimate、diagnostics、sensitivity 与 figure 作为 Analysis artifacts 登记；
 5. 由 `analysis` 从具体结果 artifact 形成项目 Observation，再交给 `interpretation`。
 
-如果 upstream runner 自动选择的方法与结果前 Analysis plan 不一致，停止并形成 amendment / new Analysis；不能把自动选择事后写回成原计划。
+如果 upstream runner 自动选择的方法与结果前 Analysis plan 不一致，停止并形成 amendment / new Analysis；不能把自动选择事后写回成原计划。一个 runner 同时输出 Dataset transformation、QC、clustering 和 inferential result 时，按 Akira 对象语义分别登记它们，即使这些 artifact 共享同一个 run envelope。
 
 ## Checksum 与 Git
 

@@ -9,7 +9,7 @@ description: 为 Akira Research 执行高通量测序（Next-Generation Sequenci
 
 ## 1. 先确认当前所有者与对象边界
 
-进入本 Skill 时先确认 owning Skill、Research Question / Active Uncertainty、Dataset / Study identity、sample mapping、unit of inference，以及当前任务属于结果前数据处理、确认性 Analysis、sensitivity 还是 exploratory computation。
+进入本 Skill 时先确认 owning Skill、Research Question / Active Uncertainty、Dataset / Study identity、sample mapping、unit of inference，以及当前任务属于结果前数据处理、确认性 Analysis、sensitivity 还是 exploratory computation。assay-specific minimum-information、QC 或方法规范会改变当前动作时，沿用 owning Skill 通过 `research-standards` 核验后的标准决定，不在 NGS 层另造一套静态规范。
 
 边界不清时读取 [`references/BOUNDARIES.md`](references/BOUNDARIES.md)。真实建库、测序仪运行和实验偏差属于 `study`；raw → curated / derived / analysis-ready 的测序处理属于 `data`；回答 target contrast 或进行探索性推断属于 `analysis`；生物学解释和 Claim 升级返回 `interpretation`。
 
@@ -19,7 +19,7 @@ description: 为 Akira Research 执行高通量测序（Next-Generation Sequenci
 
 根据实际输入与 assay 选择最窄执行通道。需要查看官方 OpenAI `ngs-analysis` 的 assay-specific 规则、runner、registry、resource gate 或 run envelope 时读取 [`references/UPSTREAM.md`](references/UPSTREAM.md)，并从运行时 source view `~/.agents/external/ngs-analysis/` 读取对应原始文件；不要把第三方 Skill 正文复制进 Akira 自研 Skill。
 
-执行前核验运行时 source view 与其 `.codex-plugin/plugin.json`。source view 不存在或目标 runner/registry 缺失时，把它作为执行环境 blocker 返回 owning Skill；不要从模型记忆重建 upstream 参数或默认值。
+执行前核验运行时 source view 与其 `.codex-plugin/plugin.json`，并记录当前 upstream Git commit、plugin version 与实际 runner/workflow 相对路径。source view 不存在或目标 runner/registry 缺失时，把它作为执行环境 blocker 返回 owning Skill；不要从模型记忆重建 upstream 参数或默认值。
 
 完成标准：assay、输入层级、选用的 upstream lane / runner 与必要 reference/database 已明确，且实际读取了会影响执行的当前 upstream 文件。
 
@@ -37,7 +37,7 @@ description: 为 Akira Research 执行高通量测序（Next-Generation Sequenci
 
 先使用 upstream 当前版本提供的 preflight、pipeline registry、reference/database registry 与 resource gate 检查本机工具和资源，再决定是否执行。缺少软件时先形成可审阅 install plan；缺少 reference/database 时先形成 resource readiness / setup plan。安装、下载、专有许可、账户登录或 cloud upload 需要额外授权时保持显式 blocker。
 
-运行后按 [`references/RUN-ENVELOPE.md`](references/RUN-ENVELOPE.md) 把 upstream run envelope 映射到 Akira provenance。run envelope 是计算执行证据，不替代 `research.sqlite` 中 Dataset / Analysis 的科学身份与时序关系。
+运行后按 [`references/RUN-ENVELOPE.md`](references/RUN-ENVELOPE.md) 把 upstream run envelope 映射到 Akira provenance。run envelope 是计算执行证据，不替代 `research.sqlite` 中 Dataset / Analysis 的科学身份与时序关系；一个 upstream runner 同时产生 Dataset transformation、QC、clustering 或 inferential result 时，按 Akira 对象语义分别登记，不把 upstream 的打包边界当成科研对象边界。
 
 完成标准：input → command/workflow → parameters → environment/resources → outputs 可重建，失败、warning、样本丢失和部分输出不会被静默吞掉。
 

@@ -15,7 +15,7 @@ skills/openai-plugins
 ~/.agents/external/ngs-analysis
 ```
 
-该目录应直接指向 Lattice submodule 中的 `plugins/ngs-analysis`。每次使用前读取：
+该目录应直接指向 Lattice submodule 中的 `plugins/ngs-analysis`，并视为只读第三方源码。Akira 适配层不得直接修改 upstream checkout；需要改变科研行为时优先修改 Akira adapter，需要修补第三方实现时另行建立明确 fork / patch 流程。每次使用前读取：
 
 ```text
 ~/.agents/external/ngs-analysis/.codex-plugin/plugin.json

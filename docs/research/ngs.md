@@ -17,4 +17,4 @@ upstream 的自动方法选择、软件 fallback 和方便性默认不拥有科�
 
 ## Provenance
 
-OpenAI run envelope 保存具体计算事实；Akira `research.sqlite` 保存它属于哪个 Dataset / Analysis、对应什么 Research Question、何时冻结以及能支持到什么科学边界。upstream 自己的 checksum 可以保留在 run-local artifact index 中，但不会变成 Akira 对所有科研 artifact 的普遍 checksum 要求。
+OpenAI run envelope 保存具体计算事实；Akira `research.sqlite` 保存它属于哪个 Dataset / Analysis、对应什么 Research Question、何时冻结以及能支持到什么科学边界。每次真实执行还记录 upstream Git commit、plugin version 和 runner/workflow 路径；确认性 Analysis 必须在结果生成前固定这些 source pointers。一个 upstream runner 同时产生 Dataset transformation、QC、clustering 或 inferential result 时，Akira 仍按 `data` / `analysis` 的对象语义分别登记。upstream 自己的 checksum 可以保留在 run-local artifact index 中，但不会变成 Akira 对所有科研 artifact 的普遍 checksum 要求。
