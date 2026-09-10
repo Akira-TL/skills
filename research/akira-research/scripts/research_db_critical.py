@@ -49,9 +49,9 @@ def ingest_critical(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
             paper = knowledge.paper(connection, paper_id)
             reconstructed = connection.execute(
                 """
-                SELECT depth FROM reading_runs
+                SELECT id, depth, completed_at FROM reading_runs
                 WHERE paper_id = ? AND pass = 'reconstruction' AND completed_at IS NOT NULL
-                ORDER BY CASE depth WHEN 'deep_extraction' THEN 2 ELSE 1 END DESC, id DESC
+                ORDER BY id DESC
                 LIMIT 1
                 """,
                 (paper_id,),
@@ -65,15 +65,37 @@ def ingest_critical(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
                 )
             existing = connection.execute(
                 """
-                SELECT 1 FROM reading_runs
+                SELECT id, completed_at FROM reading_runs
                 WHERE paper_id = ? AND pass = 'critical_audit' AND completed_at IS NOT NULL
+                ORDER BY id DESC
                 LIMIT 1
                 """,
                 (paper_id,),
             ).fetchone()
-            if existing:
-                raise ResearchDbError(f"{paper_id} 已有完成的 critical audit run。")
             checked = knowledge.checked_artifacts(connection, paper_id, bundle.get("artifacts_checked"))
+            if existing:
+                if int(reconstructed["id"]) <= int(existing["id"]):
+                    raise ResearchDbError(
+                        f"{paper_id} 已有完成的 critical audit run，且之后没有新的 Reconstruction。"
+                    )
+                new_artifact_ids = {
+                    int(row["id"])
+                    for row in connection.execute(
+                        """
+                        SELECT id FROM artifacts
+                        WHERE paper_id = ? AND created_at > ?
+                        ORDER BY id
+                        """,
+                        (paper_id, existing["completed_at"]),
+                    )
+                }
+                checked_ids = {int(item["id"]) for item in checked}
+                missing_new = sorted(new_artifact_ids - checked_ids)
+                if missing_new:
+                    raise ResearchDbError(
+                        "增量 Critical Audit 必须检查上次审计后登记的全部新 artifact："
+                        + ", ".join(str(value) for value in missing_new)
+                    )
             run_cursor = connection.execute(
                 """
                 INSERT INTO reading_runs(

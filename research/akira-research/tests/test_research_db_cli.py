@@ -32,6 +32,10 @@ class ResearchDbCliTests(unittest.TestCase):
             _load_json_object(self.root, "ingest-reading", None),
             {"paper_id": "P000001"},
         )
+        self.assertEqual(
+            bundle_path(self.root, "add-paper-artifacts", None),
+            self.root / ".research" / "bundles" / "paper-artifacts.json",
+        )
 
     def test_explicit_relative_bundle_path_is_project_relative(self) -> None:
         custom = self.root / ".research" / "bundles" / "custom.json"
@@ -52,6 +56,11 @@ class ResearchDbCliTests(unittest.TestCase):
             ["--project", str(self.root), "record-search"]
         )
         self.assertIsNone(search_args.bundle)
+
+        artifact_args = build_parser().parse_args(
+            ["--project", str(self.root), "add-paper-artifacts"]
+        )
+        self.assertIsNone(artifact_args.bundle)
 
     def test_read_query_commands_are_exposed(self) -> None:
         search_args = build_parser().parse_args(

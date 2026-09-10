@@ -1,6 +1,6 @@
 # Research SQLite Contract
 
-本文件定义 `akira-research` 的项目级科研知识数据库契约。当前已实现 schema migration、`init`、`migrate`、`ingest-paper`、`ingest-reading`、`ingest-critical`、`status`、`validate`、FTS 检索与 `evidence` 查询。
+本文件定义 `akira-research` 的项目级科研知识数据库契约。当前已实现 schema migration、`init`、`migrate`、`ingest-paper`、`add-paper-artifacts`、`ingest-reading`、`ingest-critical`、`status`、`validate`、FTS 检索与 `evidence` 查询。
 
 ## 1. Source of truth
 
@@ -456,6 +456,18 @@ uv run scripts/research_db.py ingest-paper
 
 写入前完成 artifact 存在性与论文身份检查；正式写入使用单一事务，自动分配 `P000001` 形式的 Paper ID，并把来源文件复制到 `literature/papers/<paper-id>/` 的 canonical artifact 目录。主文使用 `paper.<ext>`，补充材料按 `kind` 生成稳定文件名；来源 staging 文件没有后缀时根据 `content_type` 推断 canonical 扩展名，无法推断时拒绝写入，不生成无扩展名的 canonical 主文。原来源文件保持不变。数据库登记最终路径、版本、来源 URL 与 `retrieved_at`，缺少获取时间时由 ingest 记录当前时间。DOI 会规范化后去重；发现已存在身份、目标 Paper 目录冲突或任一 artifact 无效时整次数据库写入失败，并清理本次新建的 canonical artifact 目录。
 
+### Existing Paper artifact bundle
+
+论文已经存在后才取得 Supplementary Information、Source Data、代码/数据附件或新的正文表示时，不重新调用 `ingest-paper`，也不直接写 `artifacts` 表或手工把文件丢进 canonical 目录。使用：
+
+```bash
+uv run scripts/research_db.py add-paper-artifacts
+```
+
+默认读取 `.research/bundles/paper-artifacts.json`。输入至少包含既有 `paper_id` 和非空 `artifacts[]`；artifact 字段与 `ingest-paper` 相同，但不要求再次提供 `main_text`。命令先验证全部来源文件，再在一个数据库事务内把它们复制到既有 `literature/papers/<paper-id>/`、登记 `artifacts` 与 `change_log`。稳定文件名已经占用时按 `-02`、`-03` 继续编号，不覆盖既有 canonical 文件；数据库已有路径即使对应文件异常缺失，也保留其文件名占用，不能借追加操作复用旧路径。任何复制或数据库写入失败都会回滚数据库并只清理本次新增文件，不删除 Paper 原有目录内容。
+
+如果 Paper 在追加 artifact 前已经完成 Reconstruction 或 Critical Audit，新增来源意味着此前的“已完整阅读/已批判审阅”状态不再代表当前 artifact 集合。`add-paper-artifacts` 因此保留历史 `reading_runs` 和已有知识单元，但把当前 `reading_status` 重新设为 `unread`、`critical_status` 重新设为 `not_reviewed`，并记录 `REOPEN` change log。后续允许一次针对晚到 artifact 的增量 Reconstruction：它必须检查自上一 Reconstruction 后登记的全部新 artifact；此前已经达到 `deep_extraction` 的 Paper 不能在增量复审时降级为 `full_scan`。若晚到附件没有产生新的 Method / Observation / Claim 等知识单元，增量 Reconstruction 可以只记录检查范围与完整 `extraction_checks`，不强制伪造知识单元。历史 deep-extraction run 只对其 `completed_at` 当时已经登记的 supplement artifact 负责，不用“未来附件”追溯判旧 run 失败。完成新的 Reconstruction 后，允许再执行一次增量 Critical Audit；它必须晚于上一次 Critical Audit，并检查上一次审计后登记的新 artifact，之后才恢复 `reading_status=extracted` 与 `critical_status=critically_reviewed`。
+
 ### Reconstruction bundle
 
 当前接口：
@@ -483,7 +495,7 @@ relations[]
 
 证据关系不能把“方向一致”一律写成 `SUPPORTS`。科研层优先使用 `DIRECTLY_SUPPORTS | INDIRECTLY_SUPPORTS | QUALIFIES | CONTRADICTS | DOES_NOT_TEST`；其中 `INDIRECTLY_SUPPORTS`、`QUALIFIES`、`DOES_NOT_TEST` 必须通过 relation `note` 说明 inference gap 或边界。脚本只校验结构，主模型负责判断证据是否真的达到目标 Claim 的 descriptive / association / causal / mechanistic 层级。
 
-脚本顺序：validate bundle → `BEGIN IMMEDIATE` → 建立 Reconstruction reading run → 写入知识单元 → 解析并校验 relations → write change log → 将论文更新为 `reading_status=reconstructed` → `COMMIT`。任何结构、source artifact 或 relation 校验失败都 `ROLLBACK`，不能留下半篇论文。已完成 Reconstruction 的 Paper 默认拒绝重复导入，避免无意复制知识单元。
+脚本顺序：validate bundle → `BEGIN IMMEDIATE` → 建立 Reconstruction reading run → 写入知识单元 → 解析并校验 relations → write change log → 将论文更新为 `reading_status=reconstructed` → `COMMIT`。任何结构、source artifact 或 relation 校验失败都 `ROLLBACK`，不能留下半篇论文。首次 Reconstruction 仍至少需要一个真实知识单元；已完成 Reconstruction 的 Paper 默认拒绝重复导入，只有存在晚于最近一次 Reconstruction 登记的新 artifact 时才进入增量复审路径，并要求 `artifacts_checked` 覆盖这些新 artifact。这样允许合法处理晚到 supplement，同时避免把同一批知识单元无意重复写入。
 
 ### Critical Audit bundle
 
@@ -508,7 +520,7 @@ sidecar_path          -- 可选
 
 每个 Issue 使用 bundle `ref`，并保存 category、nature、assessment、basis、`basis_rationale`、severity、confidence、具体 artifact 与精确 source locator。`basis_rationale` 是强制字段：必须说明为什么该 Issue 属于 `demonstrated`、`potential` 或 `not_reported`，不能只重复 assessment。Issue 可通过 `target_type + target_id` 指向 Reconstruction 已写入的 Claim / Observation / Method / Experiment；`ingest-reading` 返回的 `refs` map 可用于取得这些内部 ID。Issue 与 Claim/Observation 的 `LIMITS`、`CHALLENGES`、`WEAKENS`、`QUALIFIES` 等明确关系继续写入 `relations`。
 
-若 Agent 已在论文 canonical 目录写好人类必读 `README.md`，可通过 `sidecar_path` 一并关联；脚本只链接已存在文件，不负责机械生成 synthesis。全部校验通过后才将论文更新为 `reading_status=extracted`、`critical_status=critically_reviewed`。任何 target、artifact、relation 或 sidecar 错误都整次回滚。
+若 Agent 已在论文 canonical 目录写好人类必读 `README.md`，可通过 `sidecar_path` 一并关联；脚本只链接已存在文件，不负责机械生成 synthesis。全部校验通过后才将论文更新为 `reading_status=extracted`、`critical_status=critically_reviewed`。已经存在完成的 Critical Audit 时，只有其后又完成了新的 Reconstruction 才允许增量 Critical Audit；增量审计必须覆盖上一次审计后登记的新 artifact。任何 target、artifact、relation 或 sidecar 错误都整次回滚。
 
 ## 6. CLI
 
@@ -526,6 +538,7 @@ uv run scripts/research_db.py update-candidate <candidate-id>
 uv run scripts/research_db.py merge-candidates <keep-id> <merge-id> --reason "..."
 uv run scripts/research_db.py discovery-status
 uv run scripts/research_db.py ingest-paper
+uv run scripts/research_db.py add-paper-artifacts
 uv run scripts/research_db.py ingest-reading
 uv run scripts/research_db.py ingest-critical
 uv run scripts/research_db.py relate
@@ -535,7 +548,7 @@ uv run scripts/research_db.py validate
 uv run scripts/research_db.py validate --completion
 ```
 
-默认从当前目录向上定位 `RESEARCH.md` 或 `.research/research.sqlite`；也可用全局 `--project <path>` 显式指定科研项目根目录。`init` 同时创建 `.research/bundles/`；`record-search` 默认读取 `search.json`，`record-access-attempt` 默认读取 `access-attempt.json`，`update-candidate` 默认读取 `candidate-update.json`，三个 ingest 命令分别读取 `paper.json`、`reconstruction.json`、`critical.json`；都可显式传其他 JSON 路径或 `-` 从 stdin 读取。命令输出结构化 JSON。
+默认从当前目录向上定位 `RESEARCH.md` 或 `.research/research.sqlite`；也可用全局 `--project <path>` 显式指定科研项目根目录。`init` 同时创建 `.research/bundles/`；`record-search` 默认读取 `search.json`，`record-access-attempt` 默认读取 `access-attempt.json`，`update-candidate` 默认读取 `candidate-update.json`，`ingest-paper`、`add-paper-artifacts`、`ingest-reading`、`ingest-critical` 分别读取 `paper.json`、`paper-artifacts.json`、`reconstruction.json`、`critical.json`；都可显式传其他 JSON 路径或 `-` 从 stdin 读取。命令输出结构化 JSON。
 
 知识读取接口当前可用：
 

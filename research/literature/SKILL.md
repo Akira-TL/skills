@@ -71,7 +71,7 @@ Acquisition Attempt 是不可覆盖的历史记录，但历史判断可以被**�
 
 ## 3. 全文获取与阅读深度
 
-已知论文交给 `literature-access` 获取正文；浏览器只在需要登录、动态页面或真实资源请求解析时参与。正文、supplement、代码和数据仓库仍是独立 artifact，SQLite 记录论文身份、路径、版本、来源与获取时间。
+已知论文交给 `literature-access` 获取正文；浏览器只在需要登录、动态页面或真实资源请求解析时参与。正文、supplement、代码和数据仓库仍是独立 artifact，SQLite 记录论文身份、路径、版本、来源与获取时间。论文首次进入项目时使用 `research-db ingest-paper`；若 Paper 已经存在、随后才取得 Supplementary Information、Source Data、代码/数据附件或新的正文表示，必须使用 `research-db add-paper-artifacts` 把来源文件复制进该 Paper 的 canonical 目录并登记 `artifacts` / `change_log`，不得重新 `ingest-paper`、直接写 SQL 或只手工放文件。若追加动作重新打开了既有阅读状态，继续完成对应的增量 Reconstruction 与 Critical Audit，直到当前 artifact 集合重新满足阅读门禁。
 
 相关论文至少执行 `FULL_SCAN`：整篇正文过一遍并识别 research problem、design、methods、experiments、major observations、claims、limitations 与 leads。`reading_priority=core` 且已成功获取的论文必须执行 `DEEP_EXTRACTION`；其他方法学上决定当前 Active Uncertainty 的论文即使未标 core，也应提升到 `DEEP_EXTRACTION`。深读继续覆盖 exact protocol、关键参数、supplement、统计细节、figure/table-level result、代码/数据仓库与关键引用链。`validate --completion` 会机械拒绝 `core + acquired` 仍停留在 `FULL_SCAN` 的状态。
 

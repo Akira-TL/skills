@@ -13,7 +13,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from research_db_core import database_path, init_database, validate  # noqa: E402
 from research_db_ops.acquisition import record_acquisition_attempt  # noqa: E402
 from research_db_critical import ingest_critical  # noqa: E402
-from research_db_ingest import ingest_paper  # noqa: E402
+from research_db_ingest import add_paper_artifacts, ingest_paper  # noqa: E402
 from research_db_reading import ingest_reading  # noqa: E402
 
 
@@ -476,6 +476,113 @@ class ResearchDbReadingTests(unittest.TestCase):
                     ],
                 },
             )
+
+    def test_late_supplement_reopens_and_can_refresh_deep_review(self) -> None:
+        bundle = self.reconstruction_bundle()
+        bundle["depth"] = "deep_extraction"
+        bundle["observations"][0]["statistics"] = {"n": 45}
+        bundle["artifacts_checked"].append({"artifact_kind": "supplementary_material"})
+        bundle["extraction_checks"] = {
+            "observation_semantics_checked": True,
+            "figures_tables_checked": True,
+            "quantitative_results_checked": True,
+            "supplement_status": "checked",
+            "supplement_presence": "present",
+            "code_data_status": "not_applicable",
+            "code_data_presence": "none_found",
+            "code_data_reason": "No code/data repository is reported in this synthetic paper.",
+            "quantitative_results_present": True,
+        }
+        ingest_reading(self.root, bundle)
+        ingest_critical(
+            self.root,
+            {
+                "paper_id": "P000001",
+                "depth": "deep_extraction",
+                "artifacts_checked": [
+                    {"artifact_kind": "main_text"},
+                    {"artifact_kind": "supplementary_material"},
+                ],
+                "sections_checked": ["Methods", "Results", "Discussion", "Supplement"],
+                "issues": [],
+            },
+        )
+
+        late = self.root / "incoming" / "late-supplement.csv"
+        late.write_text("metric,value\nexample,1\n", encoding="utf-8")
+        added = add_paper_artifacts(
+            self.root,
+            {
+                "paper_id": "P000001",
+                "artifacts": [
+                    {"kind": "supplementary_table", "path": str(late)}
+                ],
+                "reason": "Late supplementary table became available",
+            },
+        )
+        late_id = added["artifacts"][0]["id"]
+
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
+            state = connection.execute(
+                "SELECT reading_status, critical_status FROM papers WHERE id = 'P000001'"
+            ).fetchone()
+            supplement_ids = [
+                row[0]
+                for row in connection.execute(
+                    "SELECT id FROM artifacts WHERE paper_id = 'P000001' AND kind LIKE 'supplement%' ORDER BY id"
+                )
+            ]
+            main_id = connection.execute(
+                "SELECT id FROM artifacts WHERE paper_id = 'P000001' AND kind = 'main_text'"
+            ).fetchone()[0]
+        self.assertEqual(state, ("unread", "not_reviewed"))
+        self.assertTrue(validate(self.root)["ok"], "late artifact should invalidate review state, not historical integrity")
+
+        refreshed = ingest_reading(
+            self.root,
+            {
+                "paper_id": "P000001",
+                "depth": "deep_extraction",
+                "artifacts_checked": [
+                    {"artifact_id": main_id},
+                    *[{"artifact_id": artifact_id} for artifact_id in supplement_ids],
+                ],
+                "sections_checked": ["Supplementary table refresh"],
+                "extraction_checks": {
+                    "observation_semantics_checked": True,
+                    "figures_tables_checked": True,
+                    "quantitative_results_checked": True,
+                    "supplement_status": "checked",
+                    "supplement_presence": "present",
+                    "code_data_status": "not_applicable",
+                    "code_data_presence": "none_found",
+                    "code_data_reason": "No new code/data locator was present in the late supplement.",
+                    "quantitative_results_present": False,
+                    "quantitative_results_reason": "The late table adds no result relevant to the current evidence chain.",
+                },
+                "methods": [],
+                "experiments": [],
+                "observations": [],
+                "claims": [],
+                "leads": [],
+            },
+        )
+        self.assertEqual(refreshed["counts"]["observations"], 0)
+        self.assertIn(late_id, supplement_ids)
+
+        audit = ingest_critical(
+            self.root,
+            {
+                "paper_id": "P000001",
+                "depth": "deep_extraction",
+                "artifacts_checked": [{"artifact_id": late_id}],
+                "sections_checked": ["Supplementary table refresh"],
+                "issues": [],
+            },
+        )
+        self.assertEqual(audit["reading_status"], "extracted")
+        self.assertEqual(audit["critical_status"], "critically_reviewed")
+        self.assertTrue(validate(self.root)["ok"])
 
     def test_critical_audit_links_issue_and_sidecar(self) -> None:
         reading = ingest_reading(self.root, self.reconstruction_bundle())

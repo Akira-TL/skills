@@ -482,8 +482,7 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
     claims = knowledge.array(bundle, "claims")
     leads = knowledge.array(bundle, "leads")
     relations = knowledge.array(bundle, "relations")
-    if not any((methods, experiments, observations, claims, leads)):
-        raise ResearchDbError("Reconstruction bundle 至少需要一个知识单元。")
+    has_knowledge_units = any((methods, experiments, observations, claims, leads))
     extraction_checks = _extraction_checks(
         bundle,
         depth=requested_depth,
@@ -499,15 +498,44 @@ def ingest_reading(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any]
             paper = knowledge.paper(connection, paper_id)
             existing = connection.execute(
                 """
-                SELECT 1 FROM reading_runs
+                SELECT id, depth, completed_at FROM reading_runs
                 WHERE paper_id = ? AND pass = 'reconstruction' AND completed_at IS NOT NULL
+                ORDER BY id DESC
                 LIMIT 1
                 """,
                 (paper_id,),
             ).fetchone()
-            if existing:
-                raise ResearchDbError(f"{paper_id} 已有完成的 reconstruction run。")
             checked = knowledge.checked_artifacts(connection, paper_id, bundle.get("artifacts_checked"))
+            if existing is None:
+                if not has_knowledge_units:
+                    raise ResearchDbError("首次 Reconstruction bundle 至少需要一个知识单元。")
+            else:
+                new_artifact_ids = {
+                    int(row["id"])
+                    for row in connection.execute(
+                        """
+                        SELECT id FROM artifacts
+                        WHERE paper_id = ? AND created_at > ?
+                        ORDER BY id
+                        """,
+                        (paper_id, existing["completed_at"]),
+                    )
+                }
+                if not new_artifact_ids:
+                    raise ResearchDbError(
+                        f"{paper_id} 已有完成的 reconstruction run，且没有晚于该 run 登记的新 artifact。"
+                    )
+                checked_ids = {int(item["id"]) for item in checked}
+                missing_new = sorted(new_artifact_ids - checked_ids)
+                if missing_new:
+                    raise ResearchDbError(
+                        "增量 Reconstruction 必须检查自上次 Reconstruction 后登记的全部新 artifact："
+                        + ", ".join(str(value) for value in missing_new)
+                    )
+                if paper["read_depth"] == "deep_extraction" and requested_depth != "deep_extraction":
+                    raise ResearchDbError(
+                        f"{paper_id} 已完成 deep_extraction；新增 artifact 的 Reconstruction 不能降级为 full_scan。"
+                    )
             if requested_depth == "deep_extraction":
                 _validate_deep_artifact_checks(
                     project_root, connection, paper_id, checked, extraction_checks

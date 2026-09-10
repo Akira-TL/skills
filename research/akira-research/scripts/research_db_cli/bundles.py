@@ -14,6 +14,7 @@ BUNDLE_DEFAULTS = {
     "record-access-attempt": "access-attempt.json",
     "update-candidate": "candidate-update.json",
     "relate": "relation.json",
+    "add-paper-artifacts": "paper-artifacts.json",
     "ingest-paper": "paper.json",
     "ingest-reading": "reconstruction.json",
     "ingest-critical": "critical.json",

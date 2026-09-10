@@ -38,6 +38,12 @@ class PaperIngestBundle(TypedDict, total=False):
     reason: str
 
 
+class PaperArtifactBundle(TypedDict, total=False):
+    paper_id: str
+    artifacts: list[ArtifactSpec]
+    reason: str
+
+
 class PreparedArtifact(TypedDict):
     kind: str
     source_path: Path
@@ -69,9 +75,14 @@ def _paper_id(connection: sqlite3.Connection) -> str:
     return f"P{highest + 1:06d}"
 
 
-def _prepare_artifacts(project_root: Path, specs: object) -> list[PreparedArtifact]:
+def _prepare_artifacts(
+    project_root: Path,
+    specs: object,
+    *,
+    require_main_text: bool = True,
+) -> list[PreparedArtifact]:
     if not isinstance(specs, list) or not specs:
-        raise ResearchDbError("ingest-paper 至少需要一个真实 artifact。")
+        raise ResearchDbError("至少需要一个真实 artifact。")
 
     prepared: list[PreparedArtifact] = []
     for index, raw in enumerate(specs, start=1):
@@ -106,7 +117,7 @@ def _prepare_artifacts(project_root: Path, specs: object) -> list[PreparedArtifa
             }
         )
 
-    if not any(artifact["kind"] == "main_text" for artifact in prepared):
+    if require_main_text and not any(artifact["kind"] == "main_text" for artifact in prepared):
         raise ResearchDbError("ingest-paper 至少需要一个 kind=main_text 的 artifact。")
     return prepared
 
@@ -163,6 +174,117 @@ def _materialize_artifacts(
         shutil.rmtree(paper_dir, ignore_errors=True)
         raise
     return paper_dir, materialized
+
+
+def _materialize_additional_artifacts(
+    project_root: Path,
+    paper_id: str,
+    artifacts: list[PreparedArtifact],
+    *,
+    existing_paths: list[str],
+) -> tuple[Path, list[dict[str, Any]], list[Path], bool]:
+    paper_dir = project_root / "literature" / "papers" / paper_id
+    created_dir = not paper_dir.exists()
+    if paper_dir.exists() and not paper_dir.is_dir():
+        raise ResearchDbError(f"Paper artifact canonical path 不是目录：{paper_dir}")
+    paper_dir.mkdir(parents=True, exist_ok=True)
+
+    used_names = {Path(path).name for path in existing_paths}
+    used_names.update(path.name for path in paper_dir.iterdir())
+    created_paths: list[Path] = []
+    materialized: list[dict[str, Any]] = []
+    try:
+        for artifact in artifacts:
+            base = _artifact_basename(
+                artifact["kind"], artifact["source_path"], artifact["content_type"]
+            )
+            candidate = Path(base)
+            destination_name = base
+            index = 1
+            while destination_name in used_names:
+                index += 1
+                destination_name = f"{candidate.stem}-{index:02d}{candidate.suffix}"
+            used_names.add(destination_name)
+            destination = paper_dir / destination_name
+            shutil.copy2(artifact["source_path"], destination)
+            created_paths.append(destination)
+            materialized.append(
+                {
+                    "kind": artifact["kind"],
+                    "path": str(destination.relative_to(project_root)),
+                    "content_type": artifact["content_type"],
+                    "version": artifact["version"],
+                    "source": artifact["source"],
+                    "source_url": artifact["source_url"],
+                    "retrieved_at": artifact["retrieved_at"],
+                }
+            )
+    except Exception:
+        for path in reversed(created_paths):
+            path.unlink(missing_ok=True)
+        if created_dir:
+            shutil.rmtree(paper_dir, ignore_errors=True)
+        raise
+    return paper_dir, materialized, created_paths, created_dir
+
+
+def _register_artifacts(
+    connection: sqlite3.Connection,
+    *,
+    paper_id: str,
+    artifacts: list[dict[str, Any]],
+    timestamp: str,
+    reason: str,
+) -> list[dict[str, Any]]:
+    artifact_rows: list[dict[str, Any]] = []
+    for artifact in artifacts:
+        cursor = connection.execute(
+            """
+            INSERT INTO artifacts(
+                paper_id, kind, path, content_type, version,
+                source, source_url, retrieved_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                paper_id,
+                artifact["kind"],
+                artifact["path"],
+                artifact["content_type"],
+                artifact["version"],
+                artifact["source"],
+                artifact["source_url"],
+                artifact["retrieved_at"],
+                timestamp,
+            ),
+        )
+        artifact_id = int(cursor.lastrowid)
+        connection.execute(
+            """
+            INSERT INTO change_log(
+                timestamp, action, entity_type, entity_id, paper_id, reason, summary
+            ) VALUES (?, 'ADD', 'artifact', ?, ?, ?, ?)
+            """,
+            (
+                timestamp,
+                str(artifact_id),
+                paper_id,
+                reason,
+                f"Registered {artifact['kind']} artifact: {artifact['path']}",
+            ),
+        )
+        artifact_rows.append(
+            {
+                "id": artifact_id,
+                "kind": artifact["kind"],
+                "path": artifact["path"],
+                "content_type": artifact["content_type"],
+                "version": artifact["version"],
+                "source": artifact["source"],
+                "source_url": artifact["source_url"],
+                "retrieved_at": artifact["retrieved_at"],
+            }
+        )
+    return artifact_rows
 
 
 def _duplicate_identity(
@@ -232,6 +354,108 @@ def _link_discovery_candidates(
             (paper_id, doi, pmid, timestamp, candidate_id),
         )
     return candidate_ids
+
+
+def add_paper_artifacts(
+    project_root: Path, bundle: PaperArtifactBundle
+) -> dict[str, Any]:
+    db_path = database_path(project_root)
+    if not db_path.exists():
+        raise ResearchDbError("research.sqlite 不存在；先运行 research-db init。")
+
+    paper_id = clean_optional_text(bundle.get("paper_id"))
+    if not paper_id:
+        raise ResearchDbError("add-paper-artifacts 缺少非空 paper_id。")
+    prepared = _prepare_artifacts(
+        project_root, bundle.get("artifacts"), require_main_text=False
+    )
+    timestamp = _now()
+    reason = clean_optional_text(bundle.get("reason")) or "Added paper artifacts"
+    paper_dir: Path | None = None
+    created_paths: list[Path] = []
+    created_dir = False
+
+    with connect(db_path) as connection:
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            paper = connection.execute(
+                "SELECT id, reading_status, critical_status FROM papers WHERE id = ?", (paper_id,)
+            ).fetchone()
+            if paper is None:
+                raise ResearchDbError(f"Paper 不存在：{paper_id}")
+
+            existing_paths = [
+                str(row["path"])
+                for row in connection.execute(
+                    "SELECT path FROM artifacts WHERE paper_id = ? ORDER BY id", (paper_id,)
+                )
+            ]
+            paper_dir, artifacts, created_paths, created_dir = _materialize_additional_artifacts(
+                project_root,
+                paper_id,
+                prepared,
+                existing_paths=existing_paths,
+            )
+            for artifact in artifacts:
+                if not artifact["retrieved_at"]:
+                    artifact["retrieved_at"] = timestamp
+
+            artifact_rows = _register_artifacts(
+                connection,
+                paper_id=paper_id,
+                artifacts=artifacts,
+                timestamp=timestamp,
+                reason=reason,
+            )
+
+            review_invalidated = (
+                str(paper["reading_status"]) != "unread"
+                or str(paper["critical_status"]) != "not_reviewed"
+            )
+            if review_invalidated:
+                connection.execute(
+                    """
+                    UPDATE papers
+                    SET reading_status = 'unread', critical_status = 'not_reviewed', updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (timestamp, paper_id),
+                )
+                connection.execute(
+                    """
+                    INSERT INTO change_log(
+                        timestamp, action, entity_type, entity_id, paper_id, reason, summary
+                    ) VALUES (?, 'REOPEN', 'paper', ?, ?, ?, ?)
+                    """,
+                    (
+                        timestamp,
+                        paper_id,
+                        paper_id,
+                        reason,
+                        "New paper artifact invalidated the current Reconstruction/Critical Audit completion state.",
+                    ),
+                )
+            else:
+                connection.execute(
+                    "UPDATE papers SET updated_at = ? WHERE id = ?", (timestamp, paper_id)
+                )
+            connection.commit()
+        except Exception:
+            if connection.in_transaction:
+                connection.rollback()
+            for path in reversed(created_paths):
+                path.unlink(missing_ok=True)
+            if created_dir and paper_dir is not None:
+                shutil.rmtree(paper_dir, ignore_errors=True)
+            raise
+
+    return {
+        "ok": True,
+        "paper_id": paper_id,
+        "paper_dir": str(paper_dir.relative_to(project_root)) if paper_dir else None,
+        "artifacts": artifact_rows,
+        "review_reopened": review_invalidated,
+    }
 
 
 def ingest_paper(project_root: Path, bundle: PaperIngestBundle) -> dict[str, Any]:
@@ -352,54 +576,13 @@ def ingest_paper(project_root: Path, bundle: PaperIngestBundle) -> dict[str, Any
                     ),
                 )
 
-            artifact_rows: list[dict[str, Any]] = []
-            for artifact in artifacts:
-                cursor = connection.execute(
-                    """
-                    INSERT INTO artifacts(
-                        paper_id, kind, path, content_type, version,
-                        source, source_url, retrieved_at, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        paper_id,
-                        artifact["kind"],
-                        artifact["path"],
-                        artifact["content_type"],
-                        artifact["version"],
-                        artifact["source"],
-                        artifact["source_url"],
-                        artifact["retrieved_at"],
-                        timestamp,
-                    ),
-                )
-                artifact_id = int(cursor.lastrowid)
-                connection.execute(
-                    """
-                    INSERT INTO change_log(
-                        timestamp, action, entity_type, entity_id, paper_id, reason, summary
-                    ) VALUES (?, 'ADD', 'artifact', ?, ?, ?, ?)
-                    """,
-                    (
-                        timestamp,
-                        str(artifact_id),
-                        paper_id,
-                        reason,
-                        f"Registered {artifact['kind']} artifact: {artifact['path']}",
-                    ),
-                )
-                artifact_rows.append(
-                    {
-                        "id": artifact_id,
-                        "kind": artifact["kind"],
-                        "path": artifact["path"],
-                        "content_type": artifact["content_type"],
-                        "version": artifact["version"],
-                        "source": artifact["source"],
-                        "source_url": artifact["source_url"],
-                        "retrieved_at": artifact["retrieved_at"],
-                    }
-                )
+            artifact_rows = _register_artifacts(
+                connection,
+                paper_id=paper_id,
+                artifacts=artifacts,
+                timestamp=timestamp,
+                reason=reason,
+            )
 
             connection.commit()
         except Exception:

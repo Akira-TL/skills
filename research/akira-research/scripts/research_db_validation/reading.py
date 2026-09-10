@@ -32,8 +32,11 @@ def _check_supplement(connection, run, checks: dict, errors: list[str]) -> None:
     supplement_ids = {
         int(row["id"])
         for row in connection.execute(
-            "SELECT id, kind FROM artifacts WHERE paper_id = ?",
-            (run["paper_id"],),
+            """
+            SELECT id, kind FROM artifacts
+            WHERE paper_id = ? AND created_at <= ?
+            """,
+            (run["paper_id"], run["completed_at"]),
         )
         if str(row["kind"]).casefold().startswith(("supplement", "supplementary"))
         or str(row["kind"]).casefold() == "reporting_summary"
@@ -216,7 +219,7 @@ def _check_reconstruction(project_root: Path, connection, errors: list[str]) -> 
 
     for run in connection.execute(
         """
-        SELECT id, paper_id, depth, artifacts_checked, extraction_checks_json
+        SELECT id, paper_id, depth, completed_at, artifacts_checked, extraction_checks_json
         FROM reading_runs
         WHERE pass = 'reconstruction' AND completed_at IS NOT NULL
         ORDER BY id

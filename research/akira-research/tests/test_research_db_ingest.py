@@ -11,7 +11,7 @@ SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from research_db_core import database_path, init_database  # noqa: E402
-from research_db_ingest import ingest_paper  # noqa: E402
+from research_db_ingest import add_paper_artifacts, ingest_paper  # noqa: E402
 
 
 class ResearchDbIngestPaperTests(unittest.TestCase):
@@ -137,6 +137,92 @@ class ResearchDbIngestPaperTests(unittest.TestCase):
                 "literature/papers/P000001/supplementary-tables.xlsx",
             ],
         )
+
+    def test_add_paper_artifacts_appends_to_existing_canonical_directory(self) -> None:
+        ingest_paper(self.root, self.bundle())
+        supplement = self.incoming / "late-supplement.xlsx"
+        supplement.write_bytes(b"late xlsx placeholder")
+
+        result = add_paper_artifacts(
+            self.root,
+            {
+                "paper_id": "P000001",
+                "artifacts": [
+                    {
+                        "kind": "supplementary_tables",
+                        "path": str(supplement),
+                        "source": "publisher",
+                        "source_url": "https://example.test/late-supplement.xlsx",
+                    }
+                ],
+                "reason": "Late supplement acquisition",
+            },
+        )
+
+        self.assertEqual(result["paper_id"], "P000001")
+        self.assertEqual(
+            result["artifacts"][0]["path"],
+            "literature/papers/P000001/supplementary-tables.xlsx",
+        )
+        canonical = self.root / result["artifacts"][0]["path"]
+        self.assertEqual(canonical.read_bytes(), b"late xlsx placeholder")
+        self.assertTrue(supplement.exists(), "append should copy, not move, the source artifact")
+
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
+            artifacts = connection.execute(
+                "SELECT kind, path, source_url FROM artifacts WHERE paper_id = 'P000001' ORDER BY id"
+            ).fetchall()
+            log_count = connection.execute("SELECT COUNT(*) FROM change_log").fetchone()[0]
+        self.assertEqual(len(artifacts), 2)
+        self.assertEqual(artifacts[-1][0], "supplementary_tables")
+        self.assertEqual(artifacts[-1][1], result["artifacts"][0]["path"])
+        self.assertEqual(artifacts[-1][2], "https://example.test/late-supplement.xlsx")
+        self.assertEqual(log_count, 3)
+
+    def test_add_paper_artifacts_uses_suffix_without_overwriting_existing_file(self) -> None:
+        bundle = self.bundle()
+        first = self.incoming / "first-supplement.xlsx"
+        first.write_bytes(b"first")
+        bundle["artifacts"].append(
+            {"kind": "supplementary_tables", "path": str(first)}
+        )
+        ingest_paper(self.root, bundle)
+        second = self.incoming / "second-supplement.xlsx"
+        second.write_bytes(b"second")
+
+        result = add_paper_artifacts(
+            self.root,
+            {
+                "paper_id": "P000001",
+                "artifacts": [{"kind": "supplementary_tables", "path": str(second)}],
+            },
+        )
+
+        self.assertEqual(
+            result["artifacts"][0]["path"],
+            "literature/papers/P000001/supplementary-tables-02.xlsx",
+        )
+        paper_dir = self.root / "literature" / "papers" / "P000001"
+        self.assertEqual((paper_dir / "supplementary-tables.xlsx").read_bytes(), b"first")
+        self.assertEqual((paper_dir / "supplementary-tables-02.xlsx").read_bytes(), b"second")
+
+    def test_add_paper_artifacts_rejects_unknown_paper_without_copying(self) -> None:
+        ingest_paper(self.root, self.bundle())
+        supplement = self.incoming / "orphan-supplement.pdf"
+        supplement.write_bytes(b"orphan")
+
+        with self.assertRaisesRegex(RuntimeError, "Paper 不存在"):
+            add_paper_artifacts(
+                self.root,
+                {
+                    "paper_id": "P999999",
+                    "artifacts": [{"kind": "supplementary_material", "path": str(supplement)}],
+                },
+            )
+
+        self.assertFalse((self.root / "literature/papers/P999999").exists())
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
+            self.assertEqual(connection.execute("SELECT COUNT(*) FROM artifacts").fetchone()[0], 1)
 
     def test_ingest_paper_allocates_monotonic_paper_ids(self) -> None:
         first = ingest_paper(self.root, self.bundle())

@@ -48,7 +48,12 @@ from research_db_ops.planning import (
     record_research_judgment,
     record_user_hypothesis_decision,
 )
-from research_db_ingest import PaperIngestBundle, ingest_paper
+from research_db_ingest import (
+    PaperArtifactBundle,
+    PaperIngestBundle,
+    add_paper_artifacts,
+    ingest_paper,
+)
 from research_db_ops.query import (
     evidence_packet,
     get_paper,
@@ -217,6 +222,15 @@ def cmd_relate(args: argparse.Namespace) -> int:
             _load_json_object(project_root, "relate", args.bundle),
         )
     )
+    return 0
+
+
+def cmd_add_paper_artifacts(args: argparse.Namespace) -> int:
+    project_root = discover_project_root(args.project)
+    bundle: PaperArtifactBundle = _load_json_object(
+        project_root, "add-paper-artifacts", args.bundle
+    )
+    emit(add_paper_artifacts(project_root, bundle))
     return 0
 
 
@@ -710,6 +724,12 @@ def build_parser() -> argparse.ArgumentParser:
             "登记或推进 Analysis Run，并持久化结果 artifact、修订与项目 Observation。",
             "Analysis JSON bundle；默认 .research/bundles/analysis.json；传 '-' 从 stdin 读取。",
             cmd_record_analysis,
+        ),
+        (
+            "add-paper-artifacts",
+            "给既有 Paper 原子追加已获取 artifact，并复制到 canonical 目录。",
+            "Paper artifact JSON bundle；默认 .research/bundles/paper-artifacts.json；传 '-' 从 stdin 读取。",
+            cmd_add_paper_artifacts,
         ),
         (
             "ingest-paper",
