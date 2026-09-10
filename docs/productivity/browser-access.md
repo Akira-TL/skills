@@ -65,7 +65,15 @@ Profile identity: agent-browser
 Profile directory: %USERPROFILE%\.agent-browser\profile
 ```
 
-使用前先检查现有 CDP 实例；存在就复用，不存在才以同一 Profile 启动 Chrome。完整的 CDP 连接、DOM 表达式、网络资源解析、跨系统上传路径和问卷实践经验位于：
+使用前先检查现有 CDP 实例；存在就复用，不存在才以同一 Profile 启动 Chrome。该 adapter 现在提供确定性命令行界面（Command-Line Interface, CLI）：
+
+```text
+productivity/browser-access/scripts/browser_cdp.py
+```
+
+它统一处理 Chrome 生命周期、page target 选择、导航、页面文本/控件勘察、点击、填写、等待、上传、任意单次 CDP 调用和网络请求观察。Agent 通过 `uv run <script-path> --help` 读取当前命令面；页面特定逻辑使用 CLI 的 `eval`，而不是重复编写 WebSocket/CDP 包装脚本。复杂网站的 `inspect` 默认只回传可见控件和文件控件，减少无关 DOM 对上下文的占用。
+
+完整的 CDP 原理、DOM 表达式、网络资源解析、跨系统上传路径和问卷实践经验位于：
 
 ```text
 productivity/browser-access/REFERENCE.md
@@ -77,6 +85,12 @@ productivity/browser-access/REFERENCE.md
 
 ```text
 productivity/browser-access/SKILL.md
+```
+
+确定性 Chrome/CDP CLI：
+
+```text
+productivity/browser-access/scripts/browser_cdp.py
 ```
 
 低层实现参考：

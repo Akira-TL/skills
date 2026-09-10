@@ -49,6 +49,8 @@ description: 用于需要 Agent 进入动态或已登录网页、控制用户可
 
 在 WSL + Windows 场景中，优先复用固定 Windows Chrome CDP Profile；不可用时再考虑 WSLg Chromium。只有这些都不可行时才考虑 Xvfb/noVNC 等虚拟显示方案。具体 WSL → Windows Chrome、CDP 和命令模式按需读取 `REFERENCE.md`，不要把该环境特例当成通用浏览器默认。
 
+一旦确定使用 WSL → Windows Chrome CDP adapter，先读取 `REFERENCE.md` 的确定性命令行界面（Command-Line Interface, CLI） 入口，并以 `scripts/browser_cdp.py` 作为默认控制面；浏览器生命周期、标签页发现、导航、页面勘察、点击、填写、等待、上传和网络观察优先通过该入口完成。
+
 ## 四、授权、Profile 与控制会话
 
 ### 4.1 Browser Grant
@@ -75,6 +77,16 @@ Agent 可以导航到登录入口、选择机构入口、定位验证码区域�
 当上层任务需要 PDF、数据文件或其他 artifact 时，浏览器优先用于解析页面、继承授权并暴露真实资源请求。能从 DOM、页面状态或网络请求解析出最终 URL 时，返回 URL 及必要的临时请求上下文，让调用方直接传输；不要把“让浏览器下载到 Downloads 再找文件”作为默认流程。
 
 需要建立 WSL → Windows Chrome CDP 通路、直接调用 CDP、处理跨系统文件路径或查看具体 DOM 表达式时，再读取 `REFERENCE.md`。
+
+### 4.5 确定性执行层
+
+选择 WSL → Windows Chrome CDP adapter 后，`scripts/browser_cdp.py` 是任务级默认执行层。命令与参数以脚本 `--help` 为准，不在任务中重新实现连接、target 发现、CDP 消息 ID、请求/响应或 WebSocket 生命周期。
+
+- 常见页面动作直接调用脚本已有子命令；页面特定 DOM 逻辑通过它的 `eval` 执行。
+- 脚本没有专用子命令的 CDP 方法通过 `call` 调用；需要捕获请求/响应时优先使用 `network`。
+- `inspect` 默认只返回可见控件和文件控件，避免复杂网站的大量隐藏 DOM 占用上下文；确需检查隐藏控件时再请求完整列表。
+- 已有脚本能力覆盖的操作不得另写 Python、JavaScript 或 WebSocket 包装脚本。只有 `eval`、`call`、`network` 等通用逃生口仍无法表达必须操作时，才把它视为执行层缺口；维护本 Skill 时优先扩展脚本和对应测试，而不是积累一次性实现。
+
 ## 五、先勘察，再填写
 
 不要看到输入框就直接按 DOM 顺序批量赋值。先执行页面勘察：
