@@ -82,13 +82,17 @@ Conclusions 使用 [`interpretation`](../../interpretation/SKILL.md) 得出的�
 
 ## 7. Figures / tables
 
-每个重要 figure / table 应能回到生成它的 analysis artifact 和 input freeze。图形选择不能改变科研结论：
+每个重要 figure / table 应能回到生成它的 analysis artifact 和 input freeze。正式 publication figure 进一步遵守 [`FIGURE-WORKFLOW.md`](FIGURE-WORKFLOW.md)：先确定 Figure-level scientific question、最窄 Claim 和 panel 的证据作用，再进行 layout / styling；多面板图默认围绕一个主要科学判断组织，panel 应增加不同的推断信息而不是仅重复 metric。
+
+图形选择不能改变科研结论：
 
 - 显示真实 independent units / distribution when material；
 - 轴、scale、normalization、error bar 含义明确；
 - 不用截断轴、挑选 timepoint、隐藏 outlier 或选择性 panel 制造更强效果；
 - figure annotation 的 significance 与正文 multiplicity 规则一致；
-- derived / proxy metric 明确标注，不冒充直接 measurement。
+- derived / proxy metric 明确标注，不冒充直接 measurement；
+- conclusion-changing negative result / failure boundary 不得因为排版或叙事原因被隐藏；
+- 最终实际输出尺寸逐 panel 检查标签、uncertainty、单位、颜色编码、图注和 source-data traceability。
 
 ## 8. Literature citation discipline
 
@@ -152,6 +156,7 @@ Communication artifact 完成前先确认已经按 [`WRITING-ROUTER.md`](WRITING
 14. 普通综述正文以主题/问题和跨论文综合组织，不是按作者逐篇摘要；理论/概念框架、gap 与 future direction 均能回到前文 evidence；
 15. 段落连接词、反向提纲与结论强度已经按 [`WRITING-EXPRESSION.md`](WRITING-EXPRESSION.md) 核对，未用修辞连接词掩盖跳跃推断、因果升级或概念漂移；
 16. 初稿 / 最终稿在适用时已按 [`INTEGRITY-AUDIT.md`](INTEGRITY-AUDIT.md) 核验高风险 Claim、citation support、数字/统计、scope 与 revision drift；无法访问或无法核验的关键 evidence 仍保持显式 unresolved，未被伪造为 PASS；
-17. 若存在 reviewer / editor comments，每一个声称“已完成”的修改都有 revised manuscript、analysis output、figure/table、citation 或其他 inspectable artifact 支撑，response letter 没有把尚未完成的实验/分析写成既成事实。
+17. 若存在 reviewer / editor comments，每一个声称“已完成”的修改都有 revised manuscript、analysis output、figure/table、citation 或其他 inspectable artifact 支撑，response letter 没有把尚未完成的实验/分析写成既成事实；
+18. 正式 publication figure 已按 [`FIGURE-WORKFLOW.md`](FIGURE-WORKFLOW.md) 检查 Figure-level Claim、panel 证据作用、结论边界、统计/单位一致性、source-data provenance 与最终尺寸下的逐 panel 可读性。
 
 发现写作需要新的科学判断时，回到 Interpretation / Evidence Synthesis，而不是在 Communication 层临时创造结论。

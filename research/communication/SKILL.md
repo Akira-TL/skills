@@ -23,11 +23,12 @@ description: 把已经建立的 scientific state、方法、证据边界与 prov
 - 普通叙述性文献综述 → [`references/REVIEW-WORKFLOW.md`](references/REVIEW-WORKFLOW.md)：先固定 Review Question / Scope，再完整盘点文献材料、建立主题分类、做跨论文综合、形成理论/概念框架并推出真实 gap；不得套用原始研究论文的 Results / Discussion 流程；
 - 所有写作类型的段落衔接、反向提纲（reverse outlining）、英文逻辑连接词、结论强度和术语一致性 → [`references/WRITING-EXPRESSION.md`](references/WRITING-EXPRESSION.md)；
 - 完成长篇 draft 后、进入 reviewer-style review 前，以及 revision 后最终交付前 → [`references/INTEGRITY-AUDIT.md`](references/INTEGRITY-AUDIT.md)，核验 Claim↔source、数字/统计、scope、citation 与 revision drift；
-- reviewer response、major/minor revision、学位评审修改 → [`references/REVISION-WORKFLOW.md`](references/REVISION-WORKFLOW.md)，每条意见先固定验收标准，先核验实际 revised manuscript / artifact，再读取 response letter 判断其是否准确描述真实修改。
+- reviewer response、major/minor revision、学位评审修改 → [`references/REVISION-WORKFLOW.md`](references/REVISION-WORKFLOW.md)，每条意见先固定验收标准，先核验实际 revised manuscript / artifact，再读取 response letter 判断其是否准确描述真实修改；
+- publication figure / multi-panel figure / Figure revision → [`references/FIGURE-WORKFLOW.md`](references/FIGURE-WORKFLOW.md)，先固定 Figure-level scientific question、最窄 Claim 与 panel 的证据作用，再做版式和渲染，并在最终实际尺寸逐 panel QA。
 
 ## 3. Figure / table 边界
 
-用于分析诊断或形成 scientific result 的图属于 `analysis`。Publication figure / panel composition / layout 属于本 Skill，但必须从已登记的 analysis result 或其他 canonical artifact 派生，不能通过人工排版改变结果含义。
+用于分析诊断或形成 scientific result 的图属于 `analysis`。Publication figure / panel composition / layout 属于本 Skill，但必须从已登记的 analysis result 或其他 canonical artifact 派生，不能通过人工排版改变结果含义。正式论文 Figure 按 [`references/FIGURE-WORKFLOW.md`](references/FIGURE-WORKFLOW.md) 组织：Figure 与 panel 按科学问题和证据作用规划，不按已有文件、metric 或模板机械拼接。
 
 ## 4. 保持证据层级
 

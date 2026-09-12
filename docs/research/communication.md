@@ -12,7 +12,7 @@
 
 系统综述（Systematic Review）、范围综述（Scoping Review）和荟萃分析（Meta-analysis）不属于“普通综述写作模板”。如果其正式检索、纳入排除、筛选、质量/偏倚评价、数据提取和综合 provenance 尚未完成，必须先退出 Communication 回到科研流程，按当前权威方法学和 reporting guideline 完成并冻结，再回来写作；不能用叙述性综述的写法冒充正式证据综合方法学。
 
-无论选择哪条流程，最终都要检查材料有没有被选择性遗漏、全文大逻辑和段落小逻辑是否成立、citation 是否真实支持对应句子，以及结论强度是否匹配 evidence。段落/section 结构不清时使用反向提纲（reverse outlining）：从 section thesis 反查每个段落的 topic sentence 和 evidence，避免靠连接词把无关段落强行粘在一起。`communication` 还维护受控的科研写作逻辑表达参考，覆盖递进、转折、对照、因果、解释、举例、让步、综合和结论强度。
+无论选择哪条流程，最终都要检查材料有没有被选择性遗漏、全文大逻辑和段落小逻辑是否成立、citation 是否真实支持对应句子，以及结论强度是否匹配 evidence。段落/section 结构不清时使用反向提纲（reverse outlining）：从 section thesis 反查每个段落的 topic sentence 和 evidence，避免靠连接词把无关段落强行粘在一起。Publication figure 也按科学论证组织：先明确 Figure-level scientific question 和最窄 Claim，再给每个 panel 分配不同证据作用；Main Figure 保留决定性 evidence、必要 control 和会改变解释的 boundary，secondary metric / robustness 等可以进入 Supplement。最终图必须在实际输出尺寸逐 panel 检查 `n`、uncertainty、单位、scale、颜色编码、图注、source-data provenance 和可读性，不能只看绘图源码或缩略图。`communication` 还维护受控的科研写作逻辑表达参考，覆盖递进、转折、对照、因果、解释、举例、让步、综合和结论强度。
 
 长篇 draft 在进入 reviewer-style review 前执行初稿完整性审计；经过实质 revision 后、最终交付前再执行一次最终审计。审计重点是高风险 Claim 与 source 是否匹配、引用是否真正支持正文、数字/统计是否与 canonical output 一致、scope/limitation 是否漂移，以及修订有没有把 association、mechanism 或 novelty 无依据写强。无法访问或无法核验的 evidence 保持显式 unresolved，不能为了通过门禁制造 PASS。
 

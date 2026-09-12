@@ -165,7 +165,7 @@ Introduction 中提出的每一个主要 research gap、研究目标或 contribu
 | Story role | 建立现象 / 排除解释 / 机制支持 / 稳健性 / 泛化等 |
 | Next step | 为什么下一张图自然出现 |
 
-Figure 顺序必须有科学理由，而不是按分析完成时间、文件名或视觉效果排序。
+Figure 顺序必须有科学理由，而不是按分析完成时间、文件名或视觉效果排序。具体 publication figure / multi-panel figure 的 Figure-level Claim、panel 证据作用、Main Figure 与 Supplement 分配、数据完整性和最终尺寸 QA 统一按 [`FIGURE-WORKFLOW.md`](FIGURE-WORKFLOW.md) 执行。
 
 ## 6. Introduction—Results—Discussion—Conclusion 首尾闭环
 
