@@ -160,6 +160,7 @@ Communication artifact 完成前先确认已经按 [`WRITING-ROUTER.md`](WRITING
 18. revision package 同时包含 clean manuscript、marked manuscript 与 response letter 时，三者在最后一次编辑后重新核验一致性，reply 中的逐字引用和 page / section / Figure / Table locator 与最终稿对应，未凭旧版本或记忆制造位置；
 19. 正式 publication figure 已按 [`FIGURE-WORKFLOW.md`](FIGURE-WORKFLOW.md) 检查 Figure-level Claim、panel 证据作用、结论边界、统计/单位一致性、source-data provenance 与最终尺寸下的逐 panel 可读性；
 20. Proposal 在适用时已明确区分 evidence-backed fact、Hypothesis、planned action、expected result 与 unresolved / unsupported claim，且 Research Question → Objective → Design → measurement / Analysis → decision criterion 的未来研究链条与 canonical state 对齐；
-21. 需要 Data / Code Availability 或 Source Data 时，声明与真实 repository / accession / version / restriction 一致，generated / reused / third-party / restricted data 分开，central Figure / Table 能定位到相应 source data，未编造尚不存在的 DOI、licence、embargo 或 reviewer access。
+21. 需要 Data / Code Availability 或 Source Data 时，声明与真实 repository / accession / version / restriction 一致，generated / reused / third-party / restricted data 分开，central Figure / Table 能定位到相应 source data，未编造尚不存在的 DOI、licence、embargo 或 reviewer access；
+22. 进入正式投稿时，已按 [`submission/SUBMISSION-PACKAGE.md`](submission/SUBMISSION-PACKAGE.md) 从目标 venue 当前官方规则建立 deliverable matrix；author order / affiliation、funding、COI、ethics / registration、permission、reviewer conflict 等事实均有真实来源，anonymous / identified manuscript、cover letter、declarations、Figure / Supplement 与 submission metadata 之间无未解释冲突。
 
 发现写作需要新的科学判断时，回到 Interpretation / Evidence Synthesis，而不是在 Communication 层临时创造结论。

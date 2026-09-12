@@ -22,4 +22,6 @@ Reviewer response / revision 另走意见—动作—证据闭环：先保存 ed
 
 投稿阶段的 Data / Code Availability 与 Source Data 也必须从真实 canonical Dataset / Analysis artifact 出发：先盘点 generated、reused public、third-party、restricted data 和 central code，再核验 repository、persistent identifier、version、licence / restriction 与 Figure / Table source-data mapping。临时分享链接不能冒充长期 identifier，“available upon reasonable request”也不能作为默认逃生句；受限数据应说明真实原因、负责 access decision 的主体和申请条件。Communication 不编造 accession、DOI、embargo、ethics permission 或 reviewer access。
 
+正式投稿 package 先根据目标 journal / conference 当前官方 Author Instructions 建 deliverable matrix，而不是套固定模板。Main/anonymous manuscript、title page、cover letter、Figures、Supplement、reporting checklist、author contributions、funding / COI / ethics、Data / Code Availability 和 reviewer suggestions 只有实际 required / applicable 时才进入包。Author order、affiliation、grant number、ethics / registration ID、permission、all-author approval、reviewer conflict 等事实不能由 Agent 从正文或常识推断；缺失时明确请求作者确认。所有 identified / anonymous / cover-letter / declaration / portal metadata 还要做跨文件一致性检查，避免同一 title、作者、funding、registration、repository 或 manuscript count 在不同文件中漂移。
+
 连接词用于表达已经存在的推理关系，不替代推理本身；专业术语保持一致，不为了避免重复而随意使用同义词替换。dictionary / thesaurus 可以用于核验普通词汇和固定搭配，但不能自动改写专业概念或升级科学结论。
