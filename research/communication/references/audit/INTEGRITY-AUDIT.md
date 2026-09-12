@@ -144,6 +144,8 @@ Reviewer-style audit 还要避免：
 
 若 reviewer-style 审查发现真正需要新增实验、数据或 Analysis，不在 Communication 里伪造完成：返回 `study` / `data` / `analysis` / `literature` 等正确工作流，形成新的 canonical evidence 后再修订稿件。
 
+需要多个不同审查视角时，进一步按 [`REVIEWER-STYLE-AUDIT.md`](REVIEWER-STYLE-AUDIT.md) 固定共同 Review Packet、预先定义 review lens，并在个体报告冻结后再做 post-hoc synthesis。只有实际存在相互隔离的上下文时才可称“独立 / 互盲 reviewer-style pass”；同一上下文顺序执行多个视角只能称 multi-lens review，不能把同源判断包装成独立同行评议。
+
 ## 6. 最终 revision drift 审查
 
 最终审计必须比较修订前后的真实稿件，而不是只看 response letter。重点找：
