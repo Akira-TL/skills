@@ -89,6 +89,19 @@ resolution test
 
 不能用“需要进一步讨论”“建议加强论证”这类无法验收的句子冒充 major concern。
 
+### 4.1 Major / blocking concern 同时给出修复层级
+
+对 major / blocking concern，除了 resolution test，还应区分：
+
+- **minimum honest remedy**：使当前稿件恢复到科学上可辩护状态所需的最小真实改动；
+- **stronger evidence option**：若存在，能够明显提高 evidence strength / scope / certainty，但不是当前 Claim 成立的唯一方式；
+- **trade-off / scope cost**：额外数据、实验、计算、时间或 manuscript scope 会发生什么变化；
+- **no honest remedy**：如果现有设计/数据已经无法支持 central Claim，也没有合理的降级或限定方式，明确指出，不能用 prose 美化成“已解决”。
+
+例如，一个观察性结果被写成因果结论时，minimum honest remedy 可能是降级为 association 并补充 limitation；更强方案可能是新的 identification design / intervention。不能把后者自动包装成“reviewer 唯一可接受的要求”，也不能因为新实验成本高就假装前者已经证明因果。
+
+这些方案是 reviewer-style 建议，不替作者决定 Research Question、投入成本或是否扩大研究。真正新增 Study / Analysis 仍交给对应科研 workflow。
+
 ## 5. 不设 concern 数量配额
 
 每个视角可以：

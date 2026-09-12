@@ -34,6 +34,8 @@ Decision type（例如 Major Revision、Minor Revision、revise-and-resubmit）�
 
 “我们已经修改”不是一个可核验动作；必须指向实际改稿、analysis output、figure、citation 或其他 inspectable artifact。
 
+若 reviewer concern 属于 major / blocking scientific issue，revision planning 还应区分：**minimum honest remedy**（让当前 Claim 恢复到可辩护范围的最小真实修复）与可选的 **stronger evidence option**（能进一步提高证据强度但通常扩大实验/分析范围）。不要把“新增大型实验”默认成唯一修复，也不要因为成本高就用措辞回避真实 validity failure。若没有诚实补救，明确 `no honest remedy` / central Claim 需要撤回或重新研究，而不是把 response prose 写得更有说服力。
+
 ## 2. 修订任务状态必须区分“说完成”和“已核验完成”
 
 对每条意见至少区分以下语义：
