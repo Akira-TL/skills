@@ -25,7 +25,7 @@ Interpretation 结束后没有传播需求时继续科研循环，不机械进�
 - design / hypothesis / data provenance：对应项目 artifacts；
 - derived evidence report / sidecar 只用于导航，不替代原始来源。
 
-Communication artifact 是派生输出，不形成新的科研事实源。正式进入传播前，应在 Analysis / Interpretation / Hypothesis Evaluation 与当前 `RESEARCH.md` 已稳定后形成一个明确的 **pre-communication canonical freeze commit**；传播产物必须声明自己基于哪个冻结版本。写作过程中发现一个重要事实只存在于草稿里时，先退出 Communication，回到应有 canonical source 持久化、重新形成稳定 source commit，再继续写。
+Communication artifact 是派生输出，不形成新的科研事实源。正式进入传播前，应让**当前传播类型真正依赖的 canonical scientific state**稳定并形成明确的 **pre-communication canonical freeze commit**；传播产物必须声明自己基于哪个冻结版本。原始研究论文通常依赖 Analysis / Interpretation / Hypothesis Evaluation；普通综述依赖已经核验的 Literature / synthesis；Proposal 则依赖当前 Research Question、Literature evidence、Hypothesis / Design、preliminary evidence 与现实约束。写作过程中发现一个重要事实或科学决策只存在于草稿里时，先退出 Communication，回到应有 canonical source 持久化、重新形成稳定 source commit，再继续写。
 
 ## 3. Claim traceability
 
@@ -136,7 +136,7 @@ Communication Product 是工程审计对象，不是新的学术概念或科研�
 
 ## 11. 完成条件
 
-Communication artifact 完成前先确认已经按 [`WRITING-ROUTER.md`](WRITING-ROUTER.md) 选择正确 workflow。原始研究论文同时完成 [`RESEARCH-ARTICLE-WORKFLOW.md`](RESEARCH-ARTICLE-WORKFLOW.md)；普通叙述性综述同时完成 [`REVIEW-WORKFLOW.md`](REVIEW-WORKFLOW.md)；系统综述、范围综述或荟萃分析只有在对应正式科研方法流程已经完成并形成稳定 source commit 后，才能在 Communication 宣告成稿。长篇科研稿在进入 reviewer-style review 前完成一次 [`audit/INTEGRITY-AUDIT.md`](audit/INTEGRITY-AUDIT.md) 初稿审计；经过实质 revision 后，在最终交付前再完成最终审计。Reviewer response / revision package 同时完成 [`REVISION-WORKFLOW.md`](REVISION-WORKFLOW.md) 的意见—动作—证据闭环。
+Communication artifact 完成前先确认已经按 [`WRITING-ROUTER.md`](WRITING-ROUTER.md) 选择正确 workflow。原始研究论文同时完成 [`RESEARCH-ARTICLE-WORKFLOW.md`](RESEARCH-ARTICLE-WORKFLOW.md)；普通叙述性综述同时完成 [`REVIEW-WORKFLOW.md`](REVIEW-WORKFLOW.md)；研究计划书 / 开题 / grant proposal 同时完成 [`PROPOSAL-WORKFLOW.md`](PROPOSAL-WORKFLOW.md)；系统综述、范围综述或荟萃分析只有在对应正式科研方法流程已经完成并形成稳定 source commit 后，才能在 Communication 宣告成稿。长篇科研稿在进入 reviewer-style review 前完成一次 [`audit/INTEGRITY-AUDIT.md`](audit/INTEGRITY-AUDIT.md) 初稿审计；经过实质 revision 后，在最终交付前再完成最终审计。Reviewer response / revision package 同时完成 [`REVISION-WORKFLOW.md`](REVISION-WORKFLOW.md) 的意见—动作—证据闭环。
 
 共同检查：
 
@@ -158,6 +158,7 @@ Communication artifact 完成前先确认已经按 [`WRITING-ROUTER.md`](WRITING
 16. 初稿 / 最终稿在适用时已按 [`audit/INTEGRITY-AUDIT.md`](audit/INTEGRITY-AUDIT.md) 核验高风险 Claim、citation support、数字/统计、scope 与 revision drift；无法访问或无法核验的关键 evidence 仍保持显式 unresolved，未被伪造为 PASS；
 17. 若存在 reviewer / editor comments，每一个可识别的独立要求都有 disposition；复合 comment 没有静默漏项，每一个声称“已完成”的修改都有 revised manuscript、analysis output、figure/table、citation 或其他 inspectable artifact 支撑，response letter 没有把尚未完成的实验/分析写成既成事实；
 18. revision package 同时包含 clean manuscript、marked manuscript 与 response letter 时，三者在最后一次编辑后重新核验一致性，reply 中的逐字引用和 page / section / Figure / Table locator 与最终稿对应，未凭旧版本或记忆制造位置；
-19. 正式 publication figure 已按 [`FIGURE-WORKFLOW.md`](FIGURE-WORKFLOW.md) 检查 Figure-level Claim、panel 证据作用、结论边界、统计/单位一致性、source-data provenance 与最终尺寸下的逐 panel 可读性。
+19. 正式 publication figure 已按 [`FIGURE-WORKFLOW.md`](FIGURE-WORKFLOW.md) 检查 Figure-level Claim、panel 证据作用、结论边界、统计/单位一致性、source-data provenance 与最终尺寸下的逐 panel 可读性；
+20. Proposal 在适用时已明确区分 evidence-backed fact、Hypothesis、planned action、expected result 与 unresolved / unsupported claim，且 Research Question → Objective → Design → measurement / Analysis → decision criterion 的未来研究链条与 canonical state 对齐。
 
 发现写作需要新的科学判断时，回到 Interpretation / Evidence Synthesis，而不是在 Communication 层临时创造结论。

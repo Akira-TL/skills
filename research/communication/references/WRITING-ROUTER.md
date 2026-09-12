@@ -1,6 +1,6 @@
 # 科研写作类型路由
 
-进入 `communication` 后、正式起草长篇 prose 前，先判定**整篇传播产物的主要科学贡献来自哪里**，再选择写作流程。不能因为当前正在写 Introduction、文献回顾段落或某一节分析，就改变整篇文稿类型。
+进入 `communication` 后、正式起草长篇 prose 前，先判定**整篇传播产物是在报告既有研究、综合既有文献，还是提出未来研究计划**，再选择写作流程。不能因为当前正在写 Introduction、文献回顾段落或某一节分析，就改变整篇文稿类型。
 
 ## 1. 先判定整篇文稿类型
 
@@ -37,19 +37,28 @@
 
 完成上游研究后，Communication 只负责把已经完成的方法、结果和综合准确写成论文。
 
-### 1.4 其他传播产物
+### 1.4 研究计划书、开题与 Grant Proposal
 
-摘要、poster、presentation、reviewer response、protocol document、项目报告等根据实际目的使用 [`CONTRACT.md`](CONTRACT.md) 与 [`WRITING-EXPRESSION.md`](WRITING-EXPRESSION.md)。若其中包含完整原始研究论文或综述主体，再按其主要科学贡献加载对应 workflow。
+若文稿的核心任务是说明**未来准备回答什么科学问题、为什么值得做、准备如何做、如何判断成败和为什么可行**，而不是报告已经完成的 Results，按 [`PROPOSAL-WORKFLOW.md`](PROPOSAL-WORKFLOW.md) 写作。
+
+这包括研究计划书、开题报告、基金 / grant proposal、项目申请中的科研方案部分，以及在已批准项目框架内编写个人 / 子课题研究计划。Proposal 可以使用已有 preliminary data，但这些数据只承担 rationale / feasibility / preliminary evidence；不能因为有 preliminary result 就把整篇文稿误判为原始研究论文。
+
+Proposal 写作不授权 Communication 临时创造 Design。若 Research Question、Hypothesis、sampling、measurement、comparison、Analysis plan 或 decision rule 尚未形成而它们会改变科学含义，先返回 `akira-research` 对应流程建立 canonical state，再回来起草。
+
+### 1.5 其他传播产物
+
+摘要、poster、presentation、reviewer response、protocol document、项目报告等根据实际目的使用 [`CONTRACT.md`](CONTRACT.md) 与 [`WRITING-EXPRESSION.md`](WRITING-EXPRESSION.md)。若其中包含完整原始研究论文、综述或 Proposal 主体，再加载对应 workflow。
 
 ## 2. 判定依据不是章节名称，而是主要科学贡献
 
 优先回答：
 
-> 如果删除本项目新产生的数据和分析，这篇稿件的核心学术贡献是否仍然成立？
+> 这篇文稿是在**报告已经获得的 scientific result**、**综合已有文献形成新的领域理解**，还是**提出未来要执行的研究计划**？
 
-- 若否，主要贡献依赖本项目新结果，通常属于原始研究论文；
-- 若是，而且主要价值来自对已有文献的重新组织、比较和综合，通常属于普通综述；
-- 若其主要贡献来自预先定义且可复现的检索、筛选、评价与统计综合，则属于系统综述、范围综述或荟萃分析等正式证据综合研究。
+- 主要贡献依赖本项目已经产生的新 Study / Data / Analysis / Observation → 通常属于原始研究论文；
+- 主要价值来自既有文献的组织、比较和综合 → 通常属于普通综述；
+- 主要贡献来自预先定义且可复现的检索、筛选、评价与统计综合 → 属于系统综述、范围综述或荟萃分析等正式证据综合研究；
+- 主要目的在于争取批准 / 资源或明确未来研究路线，正文核心是 Question、Aim、Design、feasibility、risk 和 expected output → 属于 Proposal。
 
 以下现象不能单独决定类型：
 

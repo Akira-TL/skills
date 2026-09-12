@@ -5,7 +5,7 @@ description: 把已经建立的 scientific state、方法、证据边界与 prov
 
 # Communication
 
-`communication` 负责科学表达，不负责创造新的科学结论。进入本 Skill 前，关键 Observation、Claim、Design / Study / Analysis 边界应已在 canonical research state 中稳定。
+`communication` 负责科学表达，不负责在草稿里创造新的科研事实或科学设计。进入本 Skill 前，与当前传播类型有关的 canonical state 必须已经稳定：原始研究论文需要 Observation / Claim / Design / Study / Analysis 边界；综述需要可核验 Literature evidence 与 synthesis boundary；Proposal 则至少需要当前 Research Question、已有 evidence、关键 Hypothesis / Design 与现实约束在项目中有明确来源。
 
 ## 1. 先判定传播类型，再确认适用规范
 
@@ -21,6 +21,7 @@ description: 把已经建立的 scientific state、方法、证据边界与 prov
 
 - 原始研究论文及同类 research thesis / report → [`references/RESEARCH-ARTICLE-WORKFLOW.md`](references/RESEARCH-ARTICLE-WORKFLOW.md)：完整盘点写作材料后，采用“主要结论 → Results → Discussion → 反推 Introduction → Methods → Abstract / Title → Supplement / Appendix”的默认写作顺序，并在完整 prose 前用小标题与 Figure / Table 搭出 Results 骨架；
 - 普通叙述性文献综述 → [`references/REVIEW-WORKFLOW.md`](references/REVIEW-WORKFLOW.md)：先固定 Review Question / Scope，再完整盘点文献材料、建立主题分类、做跨论文综合、形成理论/概念框架并推出真实 gap；不得套用原始研究论文的 Results / Discussion 流程；
+- 研究计划书、开题、grant / funding proposal 与既定项目内研究计划 → [`references/PROPOSAL-WORKFLOW.md`](references/PROPOSAL-WORKFLOW.md)：先锁定 scope 和既定约束，再从 Akira canonical Research / Literature / Hypothesis / Design 建立未来研究论证；严格区分已建立事实、待检验 Hypothesis、planned action、expected result 与 unsupported claim；
 - 所有写作类型的段落衔接、反向提纲（reverse outlining）、英文逻辑连接词、结论强度和术语一致性 → [`references/WRITING-EXPRESSION.md`](references/WRITING-EXPRESSION.md)；
 - 完成长篇 draft 后、进入 reviewer-style review 前，以及 revision 后最终交付前 → [`references/audit/INTEGRITY-AUDIT.md`](references/audit/INTEGRITY-AUDIT.md)，核验 Claim↔source、数字/统计、scope、citation 与 revision drift；
 - reviewer response、major/minor revision、学位评审修改 → [`references/REVISION-WORKFLOW.md`](references/REVISION-WORKFLOW.md)，每条意见先固定验收标准，先核验实际 revised manuscript / artifact，再读取 response letter 判断其是否准确描述真实修改；
