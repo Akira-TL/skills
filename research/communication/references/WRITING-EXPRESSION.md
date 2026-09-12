@@ -205,7 +205,46 @@ overall
 
 中文中的“因此”“从而”“导致”“证明”等同样受 evidence boundary 约束。
 
-## 7. 反向提纲与段落单一信息
+## 7. 压缩完整性：字数变短不能让 Claim 变强
+
+Abstract、Title、Highlights、cover letter、Figure caption、graphical abstract、presentation slide、plain-language summary 等经常有严格字数或空间限制。压缩时，**限定科学真值的词不是可优先删除的修辞冗余，而是 Claim 的组成部分**。
+
+特别保护以下语义：
+
+- epistemic status：`可能`、`提示`、`与……一致`、`初步`、`探索性`；
+- inference boundary：association / causality / mechanism 的真实层级；
+- scope：`在本样本中`、`在该 cohort / population 中`、`在所测试条件下`、物种 / 地区 / setting；
+- design status：confirmatory / exploratory / post hoc；
+- assumption：独立实验单位、随机化、measurement validity 或 identification 所依赖的关键条件；
+- time boundary：特定 observation period、follow-up 或历史时期；
+- uncertainty / limitation：如果删除后会让读者误以为结论更确定、更普遍或已经排除重要替代解释，则不能为了省字删除。
+
+压缩优先级应当是：
+
+```text
+重复信息 / 套话 / 修辞增强
+→ 次要背景与非核心例子
+→ 可由 Figure/Table 承担的重复数字
+→ 句法压缩与短语重组
+→ 次要但真实的细节
+→ 最后才考虑是否能在不改变科学含义的前提下改写限定语
+```
+
+若硬性 word / character limit 与关键条件同时保留发生冲突，应进一步压缩其他内容、减少次要结果或降低覆盖范围；**不能通过删除限定语让原本 conditional / exploratory / local 的结论变成 unconditional / confirmatory / general**。
+
+这里保护的是**语义**，不是某个固定英文词的字面形式。`may` 可以在不改变 certainty 的前提下改写成其他规范表达；不能因为删掉一个词后句子更短，就把“may be associated with”压成“causes”。同理，`in the tested population` 可以更简洁地表达，但 population boundary 必须仍然可恢复。
+
+压缩完成后，至少反查：
+
+1. 与正文相比，当前短文本的 causal / mechanistic 强度是否升高；
+2. population / system / condition / timeframe 是否扩大；
+3. exploratory / post hoc 是否被压没；
+4. uncertainty / assumption 是否消失到足以改变读者判断；
+5. headline number 是否仍带有必要 denominator / unit / comparator。
+
+如果短文本不能同时容纳主要 Claim 和决定其真值的 boundary，应缩小 Claim，而不是牺牲 boundary。
+
+## 8. 反向提纲与段落单一信息
 
 当一节文字“每句话都没错，但读起来仍然散”时，优先做反向提纲（reverse outlining），不要先继续加连接词。
 
@@ -221,7 +260,7 @@ overall
 
 反向提纲完成后再决定哪里真的需要 `however`、`therefore`、`for example` 等显式连接。若交换两个段落的位置几乎不影响逻辑，应重新检查它们是否只是并列堆积，而没有形成推进关系。
 
-## 8. 段落衔接自审
+## 9. 段落衔接自审
 
 完成一段或一节后，不只检查语法，而要检查：
 

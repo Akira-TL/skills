@@ -247,7 +247,7 @@ Figure 顺序必须有科学理由，而不是按分析完成时间、文件名�
 
 完成 Results / Discussion / Introduction 后再补齐 Methods，确保它与真实执行完全一致，并与 [`CONTRACT.md`](CONTRACT.md) 的 reproducibility 规则一致。
 
-Abstract 和 Title 最后写，因为它们必须压缩已经完成的整篇论文，而不是预先规定论文要得到什么。Title、Abstract、Conclusion 的 Claim 强度不得高于正文。
+Abstract 和 Title 最后写，因为它们必须压缩已经完成的整篇论文，而不是预先规定论文要得到什么。Title、Abstract、Conclusion 的 Claim 强度不得高于正文；压缩时按 [`WRITING-EXPRESSION.md`](WRITING-EXPRESSION.md) 的“压缩完整性”规则优先保留会改变科学真值的 scope、certainty、exploratory / confirmatory status、关键 assumption 与 uncertainty，不能把这些限定当作可首先删除的冗词。
 
 Supplement / Appendix 在正文主线稳定后统一整理，承接重要但不宜打断主叙事的材料；Supplement 不是隐藏不利证据的地方，而是完整报告科研材料的一部分。
 

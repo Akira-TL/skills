@@ -149,7 +149,7 @@ Communication artifact 完成前先确认已经按 [`WRITING-ROUTER.md`](WRITING
 7. figure / table 可回到生成流程或对应 Paper / evidence relation；
 8. citations 已按 [`audit/CITATION-AUDIT.md`](audit/CITATION-AUDIT.md) 分别核验 identity、Claim support 与目标 citation style，in-text citation 与 reference list 无未解释 orphan；
 9. 传播产物已经登记 `source_commit` 与实际 artifact provenance，且传播阶段没有在 source freeze 后静默改变科学 canonical evidence；
-10. 中文稿件的标准术语与首次中英文表达已自审，标题/摘要没有因压缩语言而丢失关键条件性；
+10. 中文稿件的标准术语与首次中英文表达已自审，标题 / 摘要 / Highlights / 图注 / 汇报等压缩文本没有因字数或版面限制丢失会改变真值的 scope、certainty、exploratory / confirmatory status、关键 assumption、time boundary 或 uncertainty；
 11. 原始研究论文中，与核心 Research Question 有实质关系的重要材料已经完成去向盘点，不能解释为“因为不适合故事所以不写”；
 12. 原始研究论文的 Introduction、Results、Discussion 与 Conclusion 已形成首尾闭环，Results 小节之间存在真实科学推进而非平铺罗列；
 13. 普通综述已经明确 Review Question / Scope，并完成代表性路线、支持/冲突 evidence、边界条件和重要材料的盘点；
