@@ -45,6 +45,47 @@ def discover_project_root(project: str | None, *, for_init: bool = False) -> Pat
     )
 
 
+GITIGNORE_BEGIN = "# BEGIN akira-research managed ignores"
+GITIGNORE_END = "# END akira-research managed ignores"
+GITIGNORE_BODY = """# Language/runtime caches
+__pycache__/
+*.py[cod]
+.Rhistory
+.RData
+
+# Machine/raw research artifacts and disposable execution outputs
+.research/artifacts/
+.research/cache/
+.research/tmp/
+.research/analysis/**/outputs/
+.research/analysis/**/logs/
+
+# Human convenience copies and reproducible generated figures
+literature/papers/*.pdf
+analysis/**/figures/*.png
+analysis/**/figures/*.jpg
+analysis/**/figures/*.jpeg
+analysis/**/figures/*.tif
+analysis/**/figures/*.tiff
+analysis/**/figures/*.pdf
+analysis/**/figures/*.svg
+"""
+
+
+def ensure_research_gitignore(project_root: Path) -> bool:
+    path = project_root / ".gitignore"
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    if GITIGNORE_BEGIN in existing and GITIGNORE_END in existing:
+        return False
+    block = f"{GITIGNORE_BEGIN}\n{GITIGNORE_BODY}{GITIGNORE_END}\n"
+    if existing and not existing.endswith("\n"):
+        existing += "\n"
+    if existing:
+        existing += "\n"
+    path.write_text(existing + block, encoding="utf-8")
+    return True
+
+
 def init_database(project_root: Path) -> dict[str, Any]:
     db_path = database_path(project_root)
     if db_path.exists():
@@ -52,11 +93,13 @@ def init_database(project_root: Path) -> dict[str, Any]:
     applied = apply_migrations(db_path)
     bundle_dir = db_path.parent / "bundles"
     bundle_dir.mkdir(parents=True, exist_ok=True)
+    gitignore_updated = ensure_research_gitignore(project_root)
     return {
         "project_root": str(project_root),
         "database": str(db_path),
         "bundle_directory": str(bundle_dir),
         "created": True,
+        "gitignore_updated": gitignore_updated,
         "applied_migrations": applied,
         "schema_version": latest_version(),
     }

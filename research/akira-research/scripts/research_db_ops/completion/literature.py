@@ -10,8 +10,10 @@ from research_db_ops.acquisition import (
     acquired_paper_main_text_access_blockers,
 )
 from research_db_ops.candidates import discovery_readiness
+from research_db_ops.user_reading import parse_confirmation_controls
+from research_db_support.storage import ResearchDbError
 
-HUMAN_LITERATURE_DIRS = {"to-read", "read", "collections"}
+HUMAN_LITERATURE_DIRS = {"papers", "collections"}
 HUMAN_READING_SUFFIXES = {".md", ".pdf"}
 
 
@@ -71,19 +73,6 @@ def literature_human_view_readiness(project_root: Path) -> dict[str, Any]:
         relative = child.relative_to(project_root).as_posix()
         if child.name == "README.md" and child.is_file():
             continue
-        if child.name == "papers" and child.is_dir():
-            for legacy_file in sorted(path for path in child.rglob("*") if path.is_file()):
-                legacy_relative = legacy_file.relative_to(project_root).as_posix()
-                if legacy_relative in legacy_registered:
-                    legacy_paths.append(legacy_relative)
-                else:
-                    blockers.append(
-                        {
-                            "reason": "human_literature_unregistered_legacy_file",
-                            "path": legacy_relative,
-                        }
-                    )
-            continue
         if child.name not in HUMAN_LITERATURE_DIRS or not child.is_dir():
             blockers.append(
                 {
@@ -93,41 +82,62 @@ def literature_human_view_readiness(project_root: Path) -> dict[str, Any]:
             )
             continue
 
-        allowed_suffixes = {".md"} if child.name == "collections" else HUMAN_READING_SUFFIXES
+        if child.name == "collections":
+            for entry in sorted(child.iterdir(), key=lambda path: path.name.casefold()):
+                entry_relative = entry.relative_to(project_root).as_posix()
+                if entry.is_dir():
+                    blockers.append({"reason": "human_literature_nested_directory", "path": entry_relative})
+                elif not entry.is_file() or entry.suffix.casefold() != ".md":
+                    blockers.append({"reason": "human_literature_non_readable_file", "path": entry_relative})
+            continue
+
         stems_with_notes: set[str] = set()
         pdf_paths: list[Path] = []
         for entry in sorted(child.iterdir(), key=lambda path: path.name.casefold()):
             entry_relative = entry.relative_to(project_root).as_posix()
             if entry.is_dir():
-                blockers.append(
-                    {
-                        "reason": "human_literature_nested_directory",
-                        "path": entry_relative,
-                    }
-                )
+                legacy_files = sorted(path for path in entry.rglob("*") if path.is_file())
+                if not legacy_files:
+                    blockers.append({"reason": "human_literature_nested_directory", "path": entry_relative})
+                    continue
+                for legacy_file in legacy_files:
+                    legacy_relative = legacy_file.relative_to(project_root).as_posix()
+                    if legacy_relative in legacy_registered:
+                        legacy_paths.append(legacy_relative)
+                    else:
+                        blockers.append(
+                            {
+                                "reason": "human_literature_unregistered_legacy_file",
+                                "path": legacy_relative,
+                            }
+                        )
                 continue
-            if not entry.is_file() or entry.suffix.casefold() not in allowed_suffixes:
-                blockers.append(
-                    {
-                        "reason": "human_literature_non_readable_file",
-                        "path": entry_relative,
-                    }
-                )
+            if not entry.is_file() or entry.suffix.casefold() not in HUMAN_READING_SUFFIXES:
+                blockers.append({"reason": "human_literature_non_readable_file", "path": entry_relative})
                 continue
             if entry.suffix.casefold() == ".md":
                 stems_with_notes.add(entry.stem)
-            elif entry.suffix.casefold() == ".pdf":
-                pdf_paths.append(entry)
-
-        if child.name in {"to-read", "read"}:
-            for pdf_path in pdf_paths:
-                if pdf_path.stem not in stems_with_notes:
+                try:
+                    parse_confirmation_controls(entry.read_text(encoding="utf-8"))
+                except ResearchDbError as exc:
                     blockers.append(
                         {
-                            "reason": "human_literature_pdf_without_note",
-                            "path": pdf_path.relative_to(project_root).as_posix(),
+                            "reason": "human_literature_confirmation_controls_missing",
+                            "path": entry_relative,
+                            "detail": str(exc),
                         }
                     )
+            else:
+                pdf_paths.append(entry)
+
+        for pdf_path in pdf_paths:
+            if pdf_path.stem not in stems_with_notes:
+                blockers.append(
+                    {
+                        "reason": "human_literature_pdf_without_note",
+                        "path": pdf_path.relative_to(project_root).as_posix(),
+                    }
+                )
 
     return {
         "ready": not blockers,

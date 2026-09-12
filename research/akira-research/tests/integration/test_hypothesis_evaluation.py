@@ -13,7 +13,7 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from research_db_core import ResearchDbError, init_database  # noqa: E402
 from research_db_ops.completion import validate_completion  # noqa: E402
-from research_db_ops.downstream import record_analysis, record_dataset  # noqa: E402
+from research_db_ops.downstream import record_analysis, record_analysis_attempt, record_dataset  # noqa: E402
 from research_db_ops.planning import (  # noqa: E402
     record_design,
     record_hypothesis_evaluation,
@@ -30,7 +30,7 @@ class HypothesisEvaluationTests(unittest.TestCase):
         (self.root / "designs").mkdir(parents=True)
         (self.root / "data" / "trial").mkdir(parents=True)
         (self.root / "analysis" / "primary").mkdir(parents=True)
-        (self.root / "scripts").mkdir(parents=True)
+        (self.root / "scripts" / "analyses").mkdir(parents=True)
         (self.root / "RESEARCH.md").write_text(
             """# Research
 
@@ -85,10 +85,10 @@ A 相对 B 的平均处理效应属于哪个预定义效应区域？
         (self.root / "analysis" / "primary" / "README.md").write_text(
             "# 分析计划\n\n主要比较 A-B 平均差。\n", encoding="utf-8"
         )
-        (self.root / "analysis" / "primary" / "run.py").write_text(
+        (self.root / "scripts" / "analyses" / "primary.py").write_text(
             "print('analysis')\n", encoding="utf-8"
         )
-        (self.root / "scripts" / "support.py").write_text(
+        (self.root / "scripts" / "analyses" / "support.py").write_text(
             "print('support diagnostics')\n", encoding="utf-8"
         )
         init_database(self.root)
@@ -189,7 +189,7 @@ A 相对 B 的平均处理效应属于哪个预定义效应区域？
                     "unit_of_inference": "individual",
                     "primary_analysis": "Welch mean difference",
                     "analysis_path": "analysis/primary/README.md",
-                    "code_path": "analysis/primary/run.py",
+                    "code_path": "scripts/analyses/primary.py",
                     "dataset_slugs": ["trial-data"],
                 },
             )
@@ -208,19 +208,30 @@ A 相对 B 的平均处理效应属于哪个预定义效应区域？
                 "unit_of_inference": "individual",
                 "primary_analysis": "Welch mean difference",
                 "analysis_path": "analysis/primary/README.md",
-                "code_path": "analysis/primary/run.py",
+                "code_path": "scripts/analyses/primary.py",
                 "dataset_slugs": ["trial-data"],
                 "design_slug": "treatment-effect",
                 "artifacts": [
                     {
                         "role": "other",
-                        "path": "scripts/support.py",
+                        "path": "scripts/analyses/support.py",
                         "timing_role": "pre_result_support",
                     }
                 ],
             },
         )
         analysis_freeze = self._commit("ANALYSIS: freeze input and plan")
+        record_analysis_attempt(
+            self.root,
+            {
+                "analysis_slug": "primary",
+                "attempt_key": "A001",
+                "status": "selected",
+                "git_commit": analysis_freeze,
+                "reason": "Primary prespecified execution.",
+                "decision_reason": "This execution implements the frozen primary analysis.",
+            },
+        )
         result_path = self.root / "analysis" / "primary" / "result.csv"
         result_path.write_text("estimate,low,high\n1,-5,7\n", encoding="utf-8")
         record_analysis(
@@ -235,7 +246,7 @@ A 相对 B 的平均处理效应属于哪个预定义效应区域？
                 "unit_of_inference": "individual",
                 "primary_analysis": "Welch mean difference",
                 "analysis_path": "analysis/primary/README.md",
-                "code_path": "analysis/primary/run.py",
+                "code_path": "scripts/analyses/primary.py",
                 "dataset_slugs": ["trial-data"],
                 "design_slug": "treatment-effect",
                 "freeze_commit": analysis_freeze,

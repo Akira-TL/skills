@@ -32,9 +32,10 @@ scientific_scope
 linked_objects
 created_at
 closed_at
+closure_reason
 ```
 
-`scientific_scope` 用于保存该对象实际覆盖的人群、系统、时间、条件或其他必要边界，不承担完整科研正文。
+`scientific_scope` 用于保存该对象实际覆盖的人群、系统、时间、条件或其他必要边界，不承担完整科研正文。Node 进入 `closed` 时必须保存 `closure_reason`；关闭只表示当前 workflow 不再继续，不等于该科学对象被证伪。
 
 ## Resources and provenance objects
 
@@ -79,6 +80,10 @@ Observation O1 --supports--> Hypothesis H1
 Observation O1 --weakens--> Hypothesis H2
 Claim C1 --spawns--> Question Q2
 ```
+
+## Git execution topology
+
+Question / Design / Study / Analysis 发生真实科研路线分叉时，可以绑定一个规范 Git branch；命名、merge 和 archival tag 由 [`GIT-BRANCHES.md`](GIT-BRANCHES.md) 统一定义。Git graph 保存代码/配置的执行演化，Research Tree 保存科学语义；参数级执行由 Analysis Attempt + commit 表达，不升格为 Tree Node。
 
 ## Active path
 

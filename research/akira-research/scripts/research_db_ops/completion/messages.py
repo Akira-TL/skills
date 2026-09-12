@@ -49,7 +49,7 @@ def append_literature_errors(errors: list[str], blockers: list[dict[str, Any]]) 
         elif reason == "human_literature_unexpected_top_level":
             errors.append(
                 f"literature/ 是固定的人类阅读区，不允许临时新增顶层目录或文件：{blocker.get('path')}。"
-                "只使用 literature/to-read/、literature/read/、literature/collections/ 与 literature/README.md。"
+                "只使用 literature/papers/、literature/collections/ 与 literature/README.md；阅读状态由数据库和用户确认记录表达，不再通过移动文件表示。"
             )
         elif reason == "human_literature_non_readable_file":
             errors.append(
@@ -63,6 +63,10 @@ def append_literature_errors(errors: list[str], blockers: list[dict[str, Any]]) 
         elif reason == "human_literature_pdf_without_note":
             errors.append(
                 f"人类阅读区中的 PDF 缺少同名 Markdown 阅读入口：{blocker.get('path')}。"
+            )
+        elif reason == "human_literature_confirmation_controls_missing":
+            errors.append(
+                f"人类阅读 Markdown 缺少顶部/底部标准“我已阅读并确认当前版本”复选框：{blocker.get('path')}。"
             )
         elif reason == "human_literature_unregistered_legacy_file":
             errors.append(
@@ -89,6 +93,15 @@ def append_downstream_errors(errors: list[str], blockers: list[dict[str, Any]]) 
             errors.append(f"已完成 Analysis {blocker.get('analysis')} 没有登记主要 estimate artifact。")
         elif reason == "completed_analysis_missing_project_observation":
             errors.append(f"已完成 Analysis {blocker.get('analysis')} 没有登记项目自身 Observation。")
+        elif reason == "completed_analysis_missing_selected_attempt":
+            errors.append(
+                f"已完成 Analysis {blocker.get('analysis')} 没有且仅有一个 selected Analysis Attempt；"
+                f"当前 selected 数量为 {blocker.get('selected_attempt_count')}。"
+            )
+        elif reason == "selected_analysis_attempt_missing_commit":
+            errors.append(
+                f"Analysis {blocker.get('analysis')} 的 selected Attempt {blocker.get('attempt')} 缺少 Git commit。"
+            )
         elif reason == "analysis_timestamp_invalid":
             errors.append(f"Analysis {blocker.get('analysis')} 的 started_at/completed_at/updated_at 时间戳无效。")
         elif reason == "analysis_completed_before_started":
@@ -261,6 +274,40 @@ def append_research_tree_errors(errors: list[str], blockers: list[dict[str, Any]
         elif reason == "research_tree_active_outside_root":
             errors.append(
                 f"Research Tree active node {blocker.get('active')} 不位于 root {blocker.get('root')} 的结构子树中。"
+            )
+        elif reason == "research_tree_closed_without_reason":
+            errors.append(f"Research Node {blocker.get('node')} 已关闭但缺少 closure_reason。")
+        elif reason == "research_git_branch_name_invalid":
+            errors.append(
+                f"Research Node {blocker.get('node')} 的 Git branch 命名不符合科研分支规范："
+                f"{blocker.get('branch')}；应为 {blocker.get('expected')}。"
+            )
+        elif reason == "research_git_commit_missing":
+            errors.append(
+                f"Research Node {blocker.get('node')} 的 Git branch provenance 引用了不存在的 base/tip commit。"
+            )
+        elif reason == "research_git_base_not_ancestor":
+            errors.append(
+                f"Research Node {blocker.get('node')} 的已登记 base commit 不是当前 tip 的祖先；"
+                "科研 branch 历史可能被重写。"
+            )
+        elif reason == "research_git_active_branch_out_of_sync":
+            errors.append(
+                f"Research Node {blocker.get('node')} 的 active Git branch 与数据库 tip 不一致："
+                f"{blocker.get('branch')}。完成前先同步 branch provenance。"
+            )
+        elif reason == "research_git_merged_tip_not_in_main":
+            errors.append(
+                f"Research Node {blocker.get('node')} 标记为 merged，但已登记 branch tip 尚未进入 main。"
+            )
+        elif reason == "research_git_archive_ref_invalid":
+            errors.append(
+                f"Research Node {blocker.get('node')} 的归档 ref 不符合 research-closed/<kind>/<slug>："
+                f"应为 {blocker.get('expected')}。"
+            )
+        elif reason == "research_git_archive_tag_mismatch":
+            errors.append(
+                f"Research Node {blocker.get('node')} 的 archival tag {blocker.get('tag')} 不存在或没有固定已登记 tip。"
             )
 
 

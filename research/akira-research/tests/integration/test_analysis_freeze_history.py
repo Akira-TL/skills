@@ -50,7 +50,8 @@ class AnalysisFreezeHistoryTests(unittest.TestCase):
         (self.root / "analysis" / "trajectory" / "README.md").write_text(
             "# 分析计划\n\n主要估计量为每日变化斜率。\n", encoding="utf-8"
         )
-        (self.root / "analysis" / "trajectory" / "run.py").write_text(
+        (self.root / "scripts" / "analyses").mkdir(parents=True, exist_ok=True)
+        (self.root / "scripts" / "analyses" / "trajectory.py").write_text(
             "print('analysis')\n", encoding="utf-8"
         )
 
@@ -87,7 +88,7 @@ class AnalysisFreezeHistoryTests(unittest.TestCase):
                 "unit_of_inference": "participant",
                 "primary_analysis": "Mixed model with participant random intercept and slope",
                 "analysis_path": "analysis/trajectory/README.md",
-                "code_path": "analysis/trajectory/run.py",
+                "code_path": "scripts/analyses/trajectory.py",
                 "dataset_slugs": ["sleep-data"],
             },
         )
@@ -150,7 +151,7 @@ class AnalysisFreezeHistoryTests(unittest.TestCase):
                 "unit_of_inference": "participant",
                 "primary_analysis": "Mixed model with participant random intercept and slope",
                 "analysis_path": "analysis/trajectory/README.md",
-                "code_path": "analysis/trajectory/run.py",
+                "code_path": "scripts/analyses/trajectory.py",
                 "dataset_slugs": ["sleep-data"],
                 "freeze_commit": freeze_commit,
                 "dataset_artifact_timing": [
@@ -213,7 +214,7 @@ class AnalysisFreezeHistoryTests(unittest.TestCase):
                 "unit_of_inference": "participant",
                 "primary_analysis": "Mixed model with participant random intercept and slope",
                 "analysis_path": "analysis/trajectory/README.md",
-                "code_path": "analysis/trajectory/run.py",
+                "code_path": "scripts/analyses/trajectory.py",
                 "dataset_slugs": ["sleep-data"],
                 "freeze_commit": freeze_commit,
                 "artifacts": [
@@ -261,7 +262,7 @@ class AnalysisFreezeHistoryTests(unittest.TestCase):
                 "unit_of_inference": "participant",
                 "primary_analysis": "Mixed model with participant random intercept and slope",
                 "analysis_path": "analysis/trajectory/README.md",
-                "code_path": "analysis/trajectory/run.py",
+                "code_path": "scripts/analyses/trajectory.py",
                 "dataset_slugs": ["sleep-data"],
                 "freeze_commit": freeze_commit,
                 "completed_at": completed_at,
@@ -310,7 +311,7 @@ class AnalysisFreezeHistoryTests(unittest.TestCase):
                 "unit_of_inference": "participant",
                 "primary_analysis": "Mixed model with participant random intercept and slope",
                 "analysis_path": "analysis/trajectory/README.md",
-                "code_path": "analysis/trajectory/run.py",
+                "code_path": "scripts/analyses/trajectory.py",
                 "dataset_slugs": ["sleep-data"],
                 "freeze_commit": freeze_commit,
                 "dataset_artifact_timing": [
@@ -349,7 +350,7 @@ class AnalysisFreezeHistoryTests(unittest.TestCase):
                     "unit_of_inference": "participant",
                     "primary_analysis": "Mixed model with participant random intercept and slope",
                     "analysis_path": "analysis/trajectory/README.md",
-                    "code_path": "analysis/trajectory/run.py",
+                    "code_path": "scripts/analyses/trajectory.py",
                     "dataset_slugs": ["sleep-data"],
                     "freeze_commit": freeze_commit,
                     "completed_at": "2999-01-01T00:00:00+00:00",
@@ -386,7 +387,7 @@ class AnalysisFreezeHistoryTests(unittest.TestCase):
                 "unit_of_inference": "participant",
                 "primary_analysis": "Mixed model with participant random intercept and slope",
                 "analysis_path": "analysis/trajectory/README.md",
-                "code_path": "analysis/trajectory/run.py",
+                "code_path": "scripts/analyses/trajectory.py",
                 "dataset_slugs": ["sleep-data"],
                 "freeze_commit": freeze_commit,
                 "artifacts": [
@@ -434,7 +435,7 @@ class AnalysisFreezeHistoryTests(unittest.TestCase):
                 "unit_of_inference": "participant",
                 "primary_analysis": "Mixed model with participant random intercept and slope",
                 "analysis_path": "analysis/trajectory/README.md",
-                "code_path": "analysis/trajectory/run.py",
+                "code_path": "scripts/analyses/trajectory.py",
                 "dataset_slugs": ["sleep-data"],
                 "freeze_commit": freeze_commit,
                 "completed_at": completed_at,
@@ -464,7 +465,7 @@ class AnalysisFreezeHistoryTests(unittest.TestCase):
                     "unit_of_inference": "participant",
                     "primary_analysis": "Mixed model with participant random intercept and slope",
                     "analysis_path": "analysis/trajectory/README.md",
-                    "code_path": "analysis/trajectory/run.py",
+                    "code_path": "scripts/analyses/trajectory.py",
                     "dataset_slugs": ["sleep-data"],
                     "freeze_commit": freeze_commit,
                     "completed_at": changed_completed_at,
@@ -488,7 +489,7 @@ class AnalysisFreezeHistoryTests(unittest.TestCase):
                 "unit_of_inference": "participant",
                 "primary_analysis": "Mixed model with participant random intercept and slope",
                 "analysis_path": "analysis/trajectory/README.md",
-                "code_path": "analysis/trajectory/run.py",
+                "code_path": "scripts/analyses/trajectory.py",
                 "dataset_slugs": ["sleep-data"],
                 "freeze_commit": freeze_commit,
             },
@@ -508,7 +509,7 @@ class AnalysisFreezeHistoryTests(unittest.TestCase):
                     "unit_of_inference": "participant",
                     "primary_analysis": "Mixed model with participant random intercept and slope",
                     "analysis_path": "analysis/trajectory/README.md",
-                    "code_path": "analysis/trajectory/run.py",
+                    "code_path": "scripts/analyses/trajectory.py",
                     "dataset_slugs": ["sleep-data"],
                     "freeze_commit": later_commit,
                 },

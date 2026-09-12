@@ -15,7 +15,7 @@ Analysis 的任务是用已经冻结、可追溯的数据去估计 [`design`](..
 
 ## 2. Analysis artifact
 
-需要独立分析时按需创建 `analysis/<slug>/`，至少保留一个简洁 `README.md` 作为该分析的人类入口，并把脚本、配置、输入 pointer 和结果放在其下或清晰指向其他位置。
+需要独立分析时按需创建 `analysis/<slug>/`，至少保留一个简洁 `README.md` 作为该分析的人类入口。科研代码不放在这个人类结果目录里：项目级可复用 Python 实现进入 `src/<project-package>/`，具体 Python 分析入口进入 `scripts/analyses/`，R 绘图入口进入 `scripts/figures/`；每次执行的 config/output/log 使用独立 `.research/analysis/<slug>/<attempt-key>/` 工作目录。完整 Attempt 隔离见 [`ATTEMPTS.md`](ATTEMPTS.md)。
 
 `README.md` 至少回答：
 
@@ -31,7 +31,7 @@ Reproduction command / entrypoint
 Result boundary
 ```
 
-核心数值结果必须能从冻结输入和代码重新生成；Notebook 可以用于探索，但不应成为唯一不可重放的 primary-result source。
+核心数值结果必须能从冻结输入、Git commit、配置与环境重新生成；Notebook 可以用于探索，但不应成为唯一不可重放的 primary-result source。同一 Analysis 下的参数/specification 尝试用 Analysis Attempt 记录，不复制代码快照；真正科学路线分叉才建立新的 Analysis / Git research branch。
 
 ## 3. Design alignment
 
@@ -115,7 +115,7 @@ Exploration 可以用于发现：
 
 真实纵向数据黑盒已经稳定暴露出一组值得进入 `research.sqlite` 的下游对象：Dataset、Analysis Run、Analysis Amendment 与项目自身 Observation。使用 `research-db record-analysis` 持久化它们，但仍保持以下边界：
 
-- 数值结果和图表的文件本身仍是可重建 analysis artifact；SQLite 只保存语义、路径与 provenance；除主要 `code_path` 外，任何实际生成主要结果、敏感性结果或关键诊断的附加脚本/workflow 也必须作为当前 Analysis artifact（通常 `role=other`）登记，不能因为文件放在 `scripts/` 目录就游离于 completion provenance。任何 Analysis 在第一次运行结果生成代码前必须先登记当前 plan：exploratory Analysis 首次登记必须为 `planned`，并在该结果前登记时完成 Analysis plan、人类 `pre_result_support` 以及输入 Dataset / Study 人类可读 provenance 的学术语言检查；confirmatory Analysis 还要继续满足正式 freeze。结果前已经存在并参与确认性执行的脚本/配置标记 `timing_role=pre_result_support`，真正由分析产生的 estimate/diagnostic/figure/report 标记 `timing_role=result`；前者必须出现在 freeze 中，后者不得出现在 freeze 中；
+- 数值结果和图表的文件本身仍是可重建 analysis artifact；SQLite 只保存语义、路径与 provenance；除主要 `code_path` 外，任何实际生成主要结果、敏感性结果或关键诊断的附加脚本/workflow 也必须作为当前 Analysis artifact（通常 `role=other`）登记，不能因为文件放在 `scripts/` 目录就游离于 completion provenance。任何 Analysis 在第一次运行结果生成代码前必须先登记当前 plan：exploratory Analysis 首次登记必须为 `planned`，并在该结果前登记时完成 Analysis plan、人类 `pre_result_support` 以及输入 Dataset / Study 人类可读 provenance 的学术语言检查；confirmatory Analysis 还要继续满足正式 freeze。实际执行使用 `record-analysis-attempt` 把 Attempt 固定到真实 Git commit；兄弟 Attempt/Analysis 之间不能形成运行时文件依赖。结果前已经存在并参与确认性执行的脚本/配置标记 `timing_role=pre_result_support`，真正由分析产生的 estimate/diagnostic/figure/report 标记 `timing_role=result`；前者必须出现在 freeze 中，后者不得出现在 freeze 中；
 - confirmatory Analysis 必须记录结果可见前的 Git `freeze_commit`，该提交应已经包含主要分析计划、代码和输入，但不能已经包含本轮结果 artifact；Analysis 进入 frozen/completed 后不得替换这个 freeze pointer。进入该 freeze scope 的文件在当前 Analysis 历史上必须保留冻结版本，`validate --completion` 同时检查“freeze 时存在”与“freeze 后的 Git 历史没有该路径的提交改写”；中间改写后再 revert 回原内容仍属于破坏冻结，不能只凭 HEAD 内容再次相同声称预先冻结；Analysis 首次完成时固定 `completed_at`，且必须满足 `started_at ≤ completed_at ≤` 实际登记时刻，后续追加 provenance 不重记完成时间；
 - 结果可见后新增的敏感性分析或规则进入 Analysis Amendment，并标明 `post_result`，不能静默改写冻结的 estimand / primary analysis；若需要修订已冻结代码、输入或计划，保留原冻结文件并以新增版本/artifact + amendment 表达，必要时建立新的 Analysis，而不是覆盖旧版本后继续沿用原 `freeze_commit`；
 - 项目自身 Observation 写入 `project_observations`，必须指向当前 Analysis 的具体结果 artifact；不要把项目结果伪装成 literature Observation 写进 paper-bound `observations`；

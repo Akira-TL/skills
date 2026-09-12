@@ -5,7 +5,9 @@ from typing import Any, Callable
 from research_db_core import discover_project_root
 from research_db_ops.project import (
     get_research_tree,
+    list_research_branches,
     list_studies,
+    record_research_branch,
     record_research_edge,
     record_research_node,
     record_study,
@@ -16,6 +18,7 @@ from research_db_ops.project import (
 PROJECT_BUNDLE_DEFAULTS = {
     "record-research-node": "research-node.json",
     "record-research-edge": "research-edge.json",
+    "record-research-branch": "research-branch.json",
     "set-research-tree-state": "research-tree-state.json",
     "record-study": "study.json",
 }
@@ -62,6 +65,21 @@ def register_project_commands(
         emit(get_research_tree(project_root, limit=args.limit))
         return 0
 
+    def cmd_research_branches(args: Any) -> int:
+        project_root = discover_project_root(args.project)
+        emit(list_research_branches(project_root, limit=args.limit))
+        return 0
+
+    def cmd_record_research_branch(args: Any) -> int:
+        project_root = discover_project_root(args.project)
+        emit(
+            record_research_branch(
+                project_root,
+                load_json(project_root, "record-research-branch", args.bundle),
+            )
+        )
+        return 0
+
     def cmd_record_study(args: Any) -> int:
         project_root = discover_project_root(args.project)
         emit(
@@ -79,6 +97,7 @@ def register_project_commands(
 
     for name, help_text, handler in (
         ("research-tree", "读取项目 Research Tree、active path 与科学关系。", cmd_research_tree),
+        ("research-branches", "列出 Research Tree 与 Git 科研分支的绑定和归档状态。", cmd_research_branches),
         ("studies", "列出项目级 Study execution、Sample、Assay 与 deviation provenance。", cmd_studies),
     ):
         parser = subparsers.add_parser(name, help=help_text)
@@ -97,6 +116,12 @@ def register_project_commands(
             "登记主模型已核验的 Research Tree 科学关系及其 evidence basis。",
             "Research Edge JSON bundle；默认 .research/bundles/research-edge.json；传 '-' 从 stdin 读取。",
             cmd_record_research_edge,
+        ),
+        (
+            "record-research-branch",
+            "登记 Research Node 对应的 canonical Git 科研分支，以及 merged/archived 收口状态。",
+            "Research Branch JSON bundle；默认 .research/bundles/research-branch.json；传 '-' 从 stdin 读取。",
+            cmd_record_research_branch,
         ),
         (
             "set-research-tree-state",

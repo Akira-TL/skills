@@ -63,7 +63,7 @@ Active Uncertainty
 - 调整全文阅读优先级；
 - 在写作阶段补充一个只需要摘要级背景的引用。
 
-研究启动、问题发现、方法学习与证据综合阶段，不以“摘要看起来足够”作为结束条件。Candidate 的 `relevance_status`、`acquisition_status` 与 `reading_priority` 分开维护：相关性决定是否属于问题空间，获取状态说明全文是否已拿到，优先级只决定阅读顺序；`excluded` 必须留下明确 exclusion reason。相关 Candidate 默认进入 `queued` 全文获取队列，成功 `ingest-paper` 后自动回链正式 Paper。如何用标题/摘要/方法信号判断阅读价值、如何处理“摘要难懂但高度相关”的论文，以及 `to-read → read` 的人类阅读视图，统一按 [`READING-PROTOCOL.md`](READING-PROTOCOL.md) 执行。
+研究启动、问题发现、方法学习与证据综合阶段，不以“摘要看起来足够”作为结束条件。Candidate 的 `relevance_status`、`acquisition_status` 与 `reading_priority` 分开维护：相关性决定是否属于问题空间，获取状态说明全文是否已拿到，优先级只决定阅读顺序；`excluded` 必须留下明确 exclusion reason。相关 Candidate 默认进入 `queued` 全文获取队列，成功 `ingest-paper` 后自动回链正式 Paper。如何用标题/摘要/方法信号判断阅读价值、如何处理“摘要难懂但高度相关”的论文，以及稳定的人类 `literature/papers/` 阅读视图，统一按 [`READING-PROTOCOL.md`](READING-PROTOCOL.md) 执行；待读/已读不再通过目录移动表达。
 
 `unavailable` 不是自由文本结论。每次正文获取尝试必须用 `research-db record-access-attempt` 持久化获取路径类别、资源类别、来源地址、实际结果和获取时间。对 `outcome=acquired` 还必须保存可审计的**获取依据（access basis）**，说明该全文属于出版社开放版本、公共/机构知识库、作者公开稿、预印本、用户认证访问或用户提供文件中的哪一种。一个互联网上可下载且身份匹配的 PDF 本身不足以证明它是可作为规范科研来源自动获取的全文；来源授权或开放依据无法核验时，不得用 `acquired` 闭合 Candidate，应继续正式开放路径或进入用户协同。检索运行（Search Run）不允许直接创建 `unavailable` Candidate；必须先进入待获取状态，实际调用 `literature-access`，记录失败/受限路径后再更新 Candidate。有 DOI 时至少检查出版社路径（publisher route）；同时至少有一个独立开放解析路径（open index / repository / preprint）。单一 PDF 的 403 或访问挑战不能闭合全文获取：必须继续检查出版社论文页面/网页全文以及解析器暴露的 PMCID、机构知识库或其他全文位置。
 
@@ -152,9 +152,9 @@ concern
 
 ## 5. 人类阅读输出
 
-人类阅读输出统一按 [`READING-PROTOCOL.md`](READING-PROTOCOL.md) 生成。`literature/` 是人类阅读区，不是 raw artifact 仓库：待读论文进入 `literature/to-read/`，完成 Reconstruction + Critical Audit 后进入 `literature/read/`；两处只保留同名 Markdown/PDF 视图，文件基础名采用“论文题名 - 第一作者 - 年份”。主题“必读”集合使用 `literature/collections/*.md` 作为索引，不另建 `*_must_read/` 目录复制论文。
+人类阅读输出统一按 [`READING-PROTOCOL.md`](READING-PROTOCOL.md) 生成。`literature/` 是人类阅读区，不是 raw artifact 仓库：论文的人类 Markdown 与可选 PDF 稳定放在 `literature/papers/` 根层，文件基础名采用“论文题名 - 第一作者 - 年份”；阅读优先级、Agent 阅读状态和用户本人是否确认当前版本都由数据库/Git provenance 表达，不再使用 `to-read/read` 目录移动。主题/状态集合使用 `literature/collections/*.md` 作为索引，不另建 `*_must_read/` 目录复制论文。
 
-最终 Markdown 以“三句话总结 → 论文逻辑 → 方法拆解 → 实验逻辑 → 数据直接显示 → 作者解释 → 我们的证据评估 → 可复用内容 → 科研启发 → 结论边界”为主线，并作为 `papers.sidecar_path` 关联。书目信息中的论文原始英文题名可以保留；科学叙述继续遵守学术语言规则。数据库保存完整结构化 extraction，sidecar 只保存高价值、可快速恢复理解的人类 synthesis。
+最终 Markdown 以“三句话总结 → 论文逻辑 → 方法拆解 → 实验逻辑 → 数据直接显示 → 作者解释 → 我们的证据评估 → 可复用内容 → 科研启发 → 结论边界”为主线，并作为 `papers.sidecar_path` 关联。顶部和结尾各保留一个标准“我已阅读并确认当前版本”复选框；两者是同一用户确认状态的入口，使用 `research-db sync-user-reading` 同步，版本由复选框归一化后的 Git content OID 固定。Agent 更新正文时不得把旧 `[x]` 当成用户对新版本的确认；同步器发现版本变化会使旧确认失效并清空复选框。用户确认与 Agent Reconstruction/Critical Audit 分开，不作为 Literature completion 条件。书目信息中的论文原始英文题名可以保留；科学叙述继续遵守学术语言规则。数据库保存完整结构化 extraction，sidecar 只保存高价值、可快速恢复理解的人类 synthesis。
 
 ## 6. 科研结论的 Evidence Gate
 

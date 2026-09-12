@@ -74,6 +74,7 @@ def record_research_node(project_root: Path, bundle: dict[str, Any]) -> dict[str
     artifact_path = _optional_local_path(
         project_root, bundle.get("artifact_path"), field="research node artifact_path"
     )
+    closure_reason = common.text(bundle.get("closure_reason"))
     now = common.now()
 
     with connect(common.db_path(project_root)) as connection:
@@ -91,13 +92,17 @@ def record_research_node(project_root: Path, bundle: dict[str, Any]) -> dict[str
             ).fetchone()
             closed_at = now if workflow_status == "closed" else None
             if existing is None:
+                if workflow_status == "closed" and not closure_reason:
+                    raise ResearchDbError("新建 closed Research Node 必须说明 closure_reason。")
+                if workflow_status != "closed" and closure_reason:
+                    raise ResearchDbError("closure_reason 只在 Research Node 进入 closed 时记录。")
                 cursor = connection.execute(
                     """
                     INSERT INTO research_nodes(
                         slug, kind, label, scientific_scope, workflow_status, branch_priority,
                         parent_node_id, canonical_entity_type, canonical_entity_id,
-                        artifact_path, created_at, updated_at, closed_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        artifact_path, created_at, updated_at, closed_at, closure_reason
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         slug,
@@ -113,6 +118,7 @@ def record_research_node(project_root: Path, bundle: dict[str, Any]) -> dict[str
                         now,
                         now,
                         closed_at,
+                        closure_reason,
                     ),
                 )
                 node_id = int(cursor.lastrowid)
@@ -145,15 +151,25 @@ def record_research_node(project_root: Path, bundle: dict[str, Any]) -> dict[str
                     )
                 if old_status == "closed":
                     closed_at = existing["closed_at"]
-                elif workflow_status != "closed":
+                    existing_reason = existing["closure_reason"] if "closure_reason" in existing.keys() else None
+                    if closure_reason and existing_reason and closure_reason != existing_reason:
+                        raise ResearchDbError("closed Research Node 的 closure_reason 不可静默改写。")
+                    closure_reason = closure_reason or existing_reason
+                elif workflow_status == "closed":
+                    if not closure_reason:
+                        raise ResearchDbError("Research Node 进入 closed 时必须说明 closure_reason。")
+                else:
+                    if closure_reason:
+                        raise ResearchDbError("closure_reason 只在 Research Node 进入 closed 时记录。")
                     closed_at = None
                 connection.execute(
                     """
                     UPDATE research_nodes
-                    SET workflow_status = ?, branch_priority = ?, updated_at = ?, closed_at = ?
+                    SET workflow_status = ?, branch_priority = ?, updated_at = ?, closed_at = ?,
+                        closure_reason = ?
                     WHERE id = ?
                     """,
-                    (workflow_status, branch_priority, now, closed_at, node_id),
+                    (workflow_status, branch_priority, now, closed_at, closure_reason, node_id),
                 )
 
             connection.execute(
@@ -180,6 +196,7 @@ def record_research_node(project_root: Path, bundle: dict[str, Any]) -> dict[str
         "kind": kind,
         "workflow_status": workflow_status,
         "branch_priority": branch_priority,
+        "closure_reason": closure_reason,
     }
 
 

@@ -64,7 +64,12 @@ from research_db_ops.query import (
 )
 from research_db_reading import ingest_reading
 from research_db_ops.relations import add_relation
-from research_db_cli import bundle_path, load_json_object, register_project_commands
+from research_db_cli import (
+    bundle_path,
+    load_json_object,
+    register_execution_commands,
+    register_project_commands,
+)
 from research_db_support.schema import ACADEMIC_LANGUAGE_LEGACY_BASELINE_META_KEY
 from research_db_support.storage import connect
 
@@ -625,6 +630,11 @@ def build_parser() -> argparse.ArgumentParser:
     evidence_parser.set_defaults(handler=cmd_evidence)
 
     register_project_commands(
+        subparsers,
+        emit=emit,
+        load_json=_load_json_object,
+    )
+    register_execution_commands(
         subparsers,
         emit=emit,
         load_json=_load_json_object,

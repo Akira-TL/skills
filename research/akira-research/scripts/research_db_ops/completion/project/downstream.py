@@ -388,6 +388,7 @@ def downstream_completion_readiness(project_root: Path) -> dict[str, Any]:
             "datasets",
             "dataset_artifacts",
             "analysis_runs",
+            "analysis_attempts",
             "analysis_inputs",
             "analysis_artifacts",
             "analysis_amendments",
@@ -410,10 +411,52 @@ def downstream_completion_readiness(project_root: Path) -> dict[str, Any]:
         )
         _append_registration_blockers(project_root, blockers, dataset_count, analysis_count)
 
+        attempt_workflow_row = connection.execute(
+            "SELECT value FROM meta WHERE key = 'analysis_attempt_workflow_started_at'"
+        ).fetchone()
+        attempt_workflow_started = (
+            common.parse_timestamp(
+                str(attempt_workflow_row["value"]),
+                field="analysis_attempt_workflow_started_at",
+            )
+            if attempt_workflow_row is not None
+            else None
+        )
+
         for run in connection.execute(
             "SELECT * FROM analysis_runs WHERE status = 'completed' ORDER BY id"
         ):
             input_rows = _append_analysis_completeness_blockers(connection, run, blockers)
+            if attempt_workflow_started is not None:
+                run_created = common.parse_timestamp(
+                    str(run["created_at"]), field="analysis created_at"
+                )
+                if run_created >= attempt_workflow_started:
+                    selected = connection.execute(
+                        """
+                        SELECT attempt_key, git_commit
+                        FROM analysis_attempts
+                        WHERE analysis_id = ? AND status = 'selected'
+                        ORDER BY id
+                        """,
+                        (int(run["id"]),),
+                    ).fetchall()
+                    if len(selected) != 1:
+                        blockers.append(
+                            {
+                                "reason": "completed_analysis_missing_selected_attempt",
+                                "analysis": run["slug"],
+                                "selected_attempt_count": len(selected),
+                            }
+                        )
+                    elif not selected[0]["git_commit"]:
+                        blockers.append(
+                            {
+                                "reason": "selected_analysis_attempt_missing_commit",
+                                "analysis": run["slug"],
+                                "attempt": selected[0]["attempt_key"],
+                            }
+                        )
             if run["analysis_mode"] == "confirmatory":
                 _append_confirmatory_blockers(
                     project_root, connection, run, input_rows, blockers

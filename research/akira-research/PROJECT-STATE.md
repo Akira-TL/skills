@@ -4,7 +4,7 @@
 
 ## Bootstrap
 
-新的科研项目首先确认 Git 仓库；若当前目录尚不是 Git repository，则初始化 Git。Bootstrap 只强制创建 `RESEARCH.md`，其他目录和文件按真实需求出现，不预生成空的 `literature/`、`hypotheses/`、`analysis/` 等目录。初始化 Git 不等于完成 provenance：最迟在第一个可独立解释的科研状态形成时必须提交一次，不能让整个科研项目长期停留在“有 `.git` 但没有任何 commit”的状态。
+新的科研项目首先确认 Git 仓库；若当前目录尚不是 Git repository，则以 `main` 作为 canonical branch 初始化（等价于 `git init -b main`）。Bootstrap 只强制创建 `RESEARCH.md`，其他科研内容目录按真实需求出现，不预生成空的 `literature/`、`hypotheses/`、`analysis/` 等目录。`research-db init` 同时维护一段项目级 `.gitignore`：默认排除 `.research/artifacts/`、cache/tmp、Attempt 可重建 outputs/logs、人类 convenience PDF 和常见可重建分析图；不使用全局 `*.pdf` / `*.png` 之类规则误伤需要审阅的显式 artifact。初始化 Git 不等于完成 provenance：最迟在第一个可独立解释的科研状态形成时必须提交一次，不能让整个科研项目长期停留在“有 `.git` 但没有任何 commit”的状态。
 
 最小结构：
 
@@ -71,13 +71,15 @@
 
 `validate --completion` 对这一 current-state contract 只做保守的机械检查：`Objective`、`Current Loop`、`Active Uncertainty`、`Current State`、`Active Work`、`Open Threads`、`Key Decisions`、`References` 八个二级 section 必须存在；`Current Loop` 必须是本文件定义的九个定位词之一；`Active Work` 不能为空，也不能仍把项目 `bootstrap`、`git commit`、`research-db validate --completion`、`clean-tree` 等已经完成的基础设施/收尾动作写成当前工作。若 `Active Uncertainty` 明确采用 `Competing explanations:` 列表，门禁还会保守拦截把“证据不足”“当前无法判断”“不足以区分”“无法识别”等证据/工作状态直接写成 competing explanation 的明显违规；完整科学语义仍按 [`research-tree` 的 Active Uncertainty 契约](../research-tree/references/ACTIVE-UNCERTAINTY.md) 由主模型判断。这个检查用于捕获“最终提交后状态地图仍停留在收尾过程”或把知识状态伪装成科学替代状态的低歧义错误，不替代主模型判断 Objective、Active Uncertainty、Current State 或下一条 evidence 在科学上是否准确。
 
-详细文献知识、检索历史、方法、实验、观察、声明、批判问题和关系进入项目级 SQLite；原始 PDF 与 supplement 保持为独立 artifact。Git 负责保存 `RESEARCH.md` 与数据库的版本演化，因此不额外维护重复的 research log。每个可独立解释的科研事件完成后提交本轮 owned changes；用户已有、与本轮无关的工作区修改不触碰、不暂存、不重置。
+详细文献知识、检索历史、方法、实验、观察、声明、批判问题和关系进入项目级 SQLite；原始 PDF/XML、supplement、大型数据、可重建图片和临时计算产物保持为独立/ignored artifact。Git 默认保存科研代码与配置、`RESEARCH.md`、Hypothesis/Design/Analysis/Literature 等人类 Markdown、`research.sqlite` 以及需要长期审计的小型 canonical result；因此不额外维护重复的 research log，也不把 Git 当成大型二进制 artifact store。每个可独立解释的科研事件完成后提交本轮 owned changes；用户已有、与本轮无关的工作区修改不触碰、不暂存、不重置。
 
 当 Agent 准备向用户声明某个**有边界的科研工作流或里程碑已经完成**时，必须先提交本轮拥有的 canonical research artifacts 和本轮生成的 derived outputs，然后运行 `research-db validate --completion`。普通 `research-db validate` 只证明 SQLite/科研知识库内部一致，不证明 Git provenance 已完成；`--completion` 额外要求科研项目本身是独立 Git repository、已经存在 commit、需要完整性审计的科研/传播 artifact 已被 Git 跟踪且当前没有未提交修改，并对当前已经实现机械门禁的工作流检查其闭合条件。项目存在 `hypotheses/`、`designs/`、`data/` 或 `analysis/` 科研资产时，还必须把 Hypothesis Set、Research Design、Dataset、Analysis Run、结果 artifact 与项目 Observation 中当前已有稳定 provenance 模型的对象登记到数据库；冻结的 Hypothesis/Design 及确认性 Analysis 都需要可核验的结果可见前 Git freeze commit。确认性 Analysis 实现已登记 Research Design 时必须显式关联该 Design；completed Analysis 已用于更新其 Hypothesis Set 时还必须保存结果后 Hypothesis Evaluation。项目存在 `communication/` 传播产物时，还必须登记 Communication Product、pre-communication source commit 与实际传播 artifact；传播文件进入 Git 完整性门禁，但不因此成为 canonical scientific source。任何一项失败都不得宣称对应工作流完成。
 
 `validate --completion` **不是“科学问题已经解决”或“整个科研项目已经结束”的判定器**。例如 Literature Research 可以在明确留下 unresolved scientific question、Active Uncertainty 与下一条判别性证据的情况下完整结束。只有当用户要求的是整个科研目标收口时，Agent 才需要另外判断 Objective 是否已经在当前证据边界内得到足够回答、仍存的 Active Uncertainty 是否会改变核心结论，以及继续取得新证据是否仍具有合理信息增益；若研究因数据、伦理、样本、权限或现实成本停止，也应明确写成停止边界，而不是把 `completion=true` 解释成科学问题已经被证明。
 
 ## Git 语义
+
+`main` 固定表示当前已经接受、可供后续研究继续依赖的 canonical research state。真实科研路线分叉使用 `research/<kind>/<slug>`；同一路线中的可重放参数/配置执行使用 commit + Analysis Attempt，不为每次运行开 branch。接受路线使用保留拓扑的普通 merge 进入 `main`；关闭且不 merge 的路线用 `research-closed/<kind>/<slug>` annotated archival tag 固定 tip。分支名、允许的 kind、首次登记、`closure_reason` 与禁止 rewrite 的完整契约只在 [`research-tree/references/GIT-BRANCHES.md`](../research-tree/references/GIT-BRANCHES.md) 维护，此处不重复第二套规则。
 
 科研提交继续使用全局 `<TYPE>: (<SCOPE>) <DETAIL>` 格式；科研事件放在 `SCOPE` 与具体 `DETAIL` 中，不另造一套会被 Guard 拒绝的提交类型。例如：
 

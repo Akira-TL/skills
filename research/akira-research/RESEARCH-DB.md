@@ -24,6 +24,7 @@ papers
 artifacts
 search_runs
 candidates
+search_run_candidates
 acquisition_attempts
 reading_runs
 methods
@@ -37,6 +38,7 @@ change_log
 datasets
 dataset_artifacts
 analysis_runs
+analysis_attempts
 analysis_inputs
 analysis_dataset_artifact_timing
 analysis_artifacts
@@ -49,8 +51,19 @@ research_judgments
 hypothesis_sets
 research_designs
 hypothesis_evaluations
+research_nodes
+research_edges
+research_tree_state
+research_git_branches
+studies
+study_samples
+study_assays
+study_assay_samples
+study_deviations
+study_artifacts
 communication_products
 communication_artifacts
+user_reading_events
 ```
 
 暂不建立独立 evidence graph、method graph、evidence family 或 contradiction Markdown / tables；能够从现有节点与关系动态查询得到的视图先不物化。未来只有出现稳定的独立领域对象时再通过 migration 增加表。
@@ -190,6 +203,8 @@ Candidate ID 主要供数据库内部使用。
 
 `analysis_runs` 保存一个可独立解释的分析动作：当前不确定性、估计目标（estimand / target contrast）、独立推断单位、主要分析、分析入口、可重放代码和状态。任何 Analysis 在第一次运行结果生成代码前都必须先登记当前 plan 并通过结果前学术语言检查；检查范围包括 Analysis plan、人类 `pre_result_support`，以及当前输入 Dataset / Study 的人类可读 provenance。探索性分析（exploratory analysis）第一次登记必须使用 `status=planned`，不能在结果产生后才首次登记为 `completed`。这项结果前登记不等于确认性 freeze。确认性分析（confirmatory analysis）在进入 `frozen/completed` 时仍必须记录结果可见前的 `freeze_commit`；一旦进入 frozen/completed，该 freeze pointer 不得被后续调用替换。Analysis 首次进入 `completed` 时固定 `completed_at`，后续仅追加 artifact、amendment、Observation 或 provenance relation 时保留原完成时间；显式传入冲突时间应拒绝，而不是覆盖或静默重记。从 schema v15 起，Analysis 如果实现已登记的 Research Design，还通过 `design_id` / `design_slug` 建立显式连接；不能只依靠重复的 estimand 文本形成隐式对应。
 
+从 schema v22 起，`analysis_attempts` 保存同一 Analysis 下具体执行尝试。Attempt 不复制代码 snapshot，而用不可改写的 Git commit 固定当次代码版本，并保存独立 `config_path` / `output_path`、父 Attempt provenance、状态与选择/放弃理由；若提供 config，该 config 必须已经存在于同一个 `git_commit`，使代码和参数由同一 Git 状态固定。Attempt 的 config/output 必须属于 `.research/analysis/<analysis>/<attempt>/` 自己的工作目录；v22 启用后新建 Analysis 的执行入口必须位于 `scripts/analyses/` 或 `src/`，并拒绝 `sys.path` 路径注入、跨 sibling Analysis/Attempt 工作目录依赖等明显污染。参数/specification 的改变通常是新 Attempt；scientific question / estimand / population / unit of inference 或 confirmatory target 实质改变时建立新的 Analysis / Research Tree branch。迁移前已经存在的 Analysis 不追溯伪造 Attempt；v22 之后新建且进入 `completed` 的 Analysis 在 completion gate 中必须且只能有一个 `selected` Attempt，并由该 Attempt 指向真实 Git commit。
+
 `analysis_inputs` 连接 Analysis 与 Dataset；`analysis_artifacts` 保存 estimate、diagnostic、figure、table、log、附加代码/报告等文件，并用 `timing_role=pre_result_support|result` 区分结果前必须已经存在的支持 artifact 与真正由分析产生的结果 artifact；`analysis_amendments` 区分 `pre_result` 与 `post_result` 的分析修改；`project_observations` 保存由项目自身分析直接得到的 Observation，并必须指向具体 Analysis artifact。它与论文绑定的 `observations` 分开，不能用后者伪装项目自己的结果。
 
 `research-db validate --completion` 会把已登记且需要 Git 跟踪的 data/analysis artifact 纳入 canonical path gate。`data/` 或 `analysis/` 下已经被 Git 跟踪但没有进入上述 provenance 的文件会阻止完成；实际生成 curated 数据、主要结果、敏感性结果或关键诊断的项目脚本即使位于 `scripts/`，也应作为 Dataset / Analysis artifact 登记，从而进入同一 canonical Git gate。已完成的确认性 Analysis 还必须证明其 freeze commit 是当前 HEAD 的祖先、主要计划/代码/输入以及未被该 Analysis 标为 `post_result_context` 的 canonical Dataset artifact 在 freeze 时已经存在，并且这些路径在 `freeze_commit..HEAD` 的提交历史中从未被改写；中间改写后再 revert 也不能恢复原 freeze 资格。本轮结果 artifact 在 freeze 时必须尚不存在。`post_result_context` artifact 仍进入 canonical Git gate；completion 要求它在该 Analysis 的 freeze 时不存在，且它首次进入 Git 历史的提交中已经存在当前 Analysis 的至少一个已登记 result artifact，防止把仅仅“晚于 freeze”但实际早于结果的 provenance 事后洗成 post-result context。
@@ -200,7 +215,11 @@ Candidate ID 主要供数据库内部使用。
 
 schema v19 同时加入 `research_nodes`、`research_edges` 与单例 `research_tree_state`。Research Tree 保存 Objective / Question / Hypothesis / Design / Study / Analysis / Observation / Claim 等科研进程节点、结构 parent、当前 root/active path，以及 `spawned_from | addresses | tests | supports | weakens | contradicts | qualifies | alternative_to | depends_on | uses | produces` 等科学或工作关系。`supports/weakens/contradicts/qualifies` 必须带可追溯 `basis_ref`；Research Tree 只保存研究结构与关系，不复制 Dataset/File/Code provenance。
 
+从 schema v21 起，`research_git_branches` 把可独立科研路线的 Research Node 与 Git branch/ref 连接起来。`main` 表示当前接受的 canonical research state；开放路线使用 `research/<kind>/<slug>`（`kind=question|design|study|analysis`）。首次登记必须发生在 branch 仍为 active 时，以固定真实 `base_commit`；后续保存 tip、`active|merged|archived` disposition 和收口 ref/reason。登记后的 branch tip 允许再追加只修改 `.research/research.sqlite` 的 provenance-only commit；代码、配置、科研 Markdown 或结果继续变化时必须重新同步 branch provenance。由于 SQLite canonical state 不能安全自动合并，科研 branch 打开后对应的 `main` 基线保持冻结；接受路线必须用 `--no-ff` 保留拓扑 merge，且 merge commit 第一父节点必须等于首次登记的 `base_commit`。若 `main` 已因其他路线推进，旧 sibling branch 不能直接并入新的 canonical state，应归档或从当前 `main` 建立新路线。关闭且不 merge 的路线先写 closure provenance 并提交，再在 closure commit 上建立 `research-closed/<kind>/<slug>` annotated archival tag；tag 与最后科研内容 tip 之间只能有 SQLite provenance 变化。已登记历史拒绝 rebase/reset/amend 等重写。`research_nodes.closure_reason` 保存 Node 关闭原因，与 Git branch disposition 分开。
+
 从 schema v20 起，真实研究实施过程进入独立 Study provenance：`studies` 指向已冻结 Research Design；`study_samples` 保存稳定 Sample identity 与 parent sample；`study_assays` / `study_assay_samples` 保存实际 Assay、batch/run/instrument/operator 与 Sample 映射；`study_deviations` 保存实际偏离及其 scientific impact；`study_artifacts` 保存 protocol、sample manifest、assay metadata、deviation/execution log 等 artifact。`datasets.study_id` 允许 raw/curated Dataset 指回产生它的 Study；Design 继续表示“计划做什么”，Study 表示“实际做了什么”，Dataset 表示“进入数据管理的是什么”。
+
+从 schema v23 起，`user_reading_events` 保存用户本人对人类论文 sidecar 的追加式阅读确认历史，action 为 `confirmed | revoked | invalidated`。它与 Agent 的 `reading_status` / `critical_status` 完全分离。每次事件记录 `sidecar_path` 与复选框归一化后的 Git content OID；因此上下两个复选框只是同一状态的两个点击入口，不会因勾选动作本身改变正文版本身份。若 sidecar 正文变化，旧确认不再适用于当前 content OID；残留的旧 `[x]` 会在同步时被 fail-closed 地标记 invalidated 并清空，不能替用户确认新版本。
 
 从 schema v18 起，Hypothesis 形成过程进一步保存来源而不把不同主体的判断混成一条叙事。`hypothesis_proposals` 保存一个值得持续追踪的科学猜想最初由 `user|agent` 谁提出、原始表述、后续可检验操作化及其执行者；Agent-origin proposal 必须保存 rationale。Proposal 的来源字段不可覆盖；允许后续一次性补入 `operationalized_statement + operationalized_by`，已有操作化表述不得改写。科学语义实质改变时建立新 proposal。`hypothesis_set_proposals` 把正式 Hypothesis Set 指回形成它的 proposal；v18 之后新建的 Hypothesis Set 至少需要一个 proposal link，迁移前已经存在的集合按 `hypothesis_provenance_started_at` 保持 grandfathered，不追溯补造来源历史。
 
@@ -617,7 +636,7 @@ Agent 根据用户问题生成关键词、同义词或结构过滤条件；SQLit
 research-db paper-context P000001 --for-sidecar
 ```
 
-它返回 identity、high-value methods、major observations、main claims、critical/major issues、reusable knowledge 与 innovation candidates。Agent据此结合全文理解更新 `literature/read/<题名> - <第一作者> - <年份>.md`；该文件通过 `papers.sidecar_path` 关联，目标是短小且可快速恢复论文理解的人类 synthesis，而不是模板化 dump。机器 canonical artifact 继续留在 `.research/artifacts/papers/<paper-id>/`。
+它返回 identity、high-value methods、major observations、main claims、critical/major issues、reusable knowledge 与 innovation candidates。Agent据此结合全文理解更新 `literature/papers/<题名> - <第一作者> - <年份>.md`；该文件通过 `papers.sidecar_path` 关联，目标是短小且可快速恢复论文理解的人类 synthesis，而不是模板化 dump。机器 canonical artifact 继续留在 `.research/artifacts/papers/<paper-id>/`。用户本人是否已确认当前 Markdown 版本由 `user_reading_events` + 标准双复选框独立记录，不从 Paper 的 Agent 阅读状态推断。
 
 ## 9. Validate
 

@@ -20,6 +20,7 @@ BUNDLE_DEFAULTS = {
     "ingest-critical": "critical.json",
     "record-dataset": "dataset.json",
     "record-analysis": "analysis.json",
+    "record-analysis-attempt": "analysis-attempt.json",
     **PROJECT_BUNDLE_DEFAULTS,
     "record-hypothesis-proposal": "hypothesis-proposal.json",
     "record-user-hypothesis-decision": "user-hypothesis-decision.json",

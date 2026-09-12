@@ -11,7 +11,12 @@ sys.path.insert(0, str(SCRIPT_DIR))
 
 from research_db_core import ResearchDbError, init_database  # noqa: E402
 from research_db_ops.completion import validate_completion  # noqa: E402
-from research_db_ops.downstream import list_analyses, record_analysis, record_dataset  # noqa: E402
+from research_db_ops.downstream import (  # noqa: E402
+    list_analyses,
+    record_analysis,
+    record_analysis_attempt,
+    record_dataset,
+)
 
 
 class DownstreamResearchProvenanceTests(unittest.TestCase):
@@ -81,7 +86,8 @@ ANALYSIS
         (self.root / "analysis" / "trajectory" / "README.md").write_text(
             "# 分析计划\n\n主要估计量为每日变化斜率。\n", encoding="utf-8"
         )
-        (self.root / "analysis" / "trajectory" / "run.py").write_text(
+        (self.root / "scripts" / "analyses").mkdir(parents=True, exist_ok=True)
+        (self.root / "scripts" / "analyses" / "trajectory.py").write_text(
             "print('analysis')\n", encoding="utf-8"
         )
 
@@ -118,8 +124,21 @@ ANALYSIS
                 "unit_of_inference": "participant",
                 "primary_analysis": "Mixed model with participant random intercept and slope",
                 "analysis_path": "analysis/trajectory/README.md",
-                "code_path": "analysis/trajectory/run.py",
+                "code_path": "scripts/analyses/trajectory.py",
                 "dataset_slugs": ["sleep-data"],
+            },
+        )
+
+    def _select_attempt(self, git_commit: str, *, attempt_key: str = "A001") -> None:
+        record_analysis_attempt(
+            self.root,
+            {
+                "analysis_slug": "sleep-trajectory",
+                "attempt_key": attempt_key,
+                "status": "selected",
+                "git_commit": git_commit,
+                "reason": "Primary executable specification for this test.",
+                "decision_reason": "This is the prespecified execution used for the reported result.",
             },
         )
 
@@ -152,6 +171,7 @@ ANALYSIS
         self._record_dataset()
         self._record_planned_analysis()
         freeze_commit = self._commit("ANALYSIS: freeze primary plan")
+        self._select_attempt(freeze_commit)
 
         outputs = self.root / "analysis" / "trajectory" / "outputs"
         outputs.mkdir()
@@ -173,7 +193,7 @@ ANALYSIS
                 "unit_of_inference": "participant",
                 "primary_analysis": "Mixed model with participant random intercept and slope",
                 "analysis_path": "analysis/trajectory/README.md",
-                "code_path": "analysis/trajectory/run.py",
+                "code_path": "scripts/analyses/trajectory.py",
                 "dataset_slugs": ["sleep-data"],
                 "freeze_commit": freeze_commit,
                 "completed_at": completed_at,
@@ -207,7 +227,7 @@ ANALYSIS
         self.assertTrue(result["downstream"]["ready"])
         canonical = set(result["git"]["canonical_paths"])
         self.assertIn("data/sleep/raw.csv", canonical)
-        self.assertIn("analysis/trajectory/run.py", canonical)
+        self.assertIn("scripts/analyses/trajectory.py", canonical)
         self.assertIn("analysis/trajectory/outputs/primary.csv", canonical)
 
     def test_post_result_dataset_provenance_can_remain_canonical_without_joining_freeze(self) -> None:
@@ -215,6 +235,7 @@ ANALYSIS
         self._record_dataset()
         self._record_planned_analysis()
         freeze_commit = self._commit("ANALYSIS: freeze primary plan")
+        self._select_attempt(freeze_commit)
 
         provenance_path = self.root / "data" / "sleep" / "post-result-provenance.md"
         provenance_path.write_text(
@@ -257,7 +278,7 @@ ANALYSIS
                 "unit_of_inference": "participant",
                 "primary_analysis": "Mixed model with participant random intercept and slope",
                 "analysis_path": "analysis/trajectory/README.md",
-                "code_path": "analysis/trajectory/run.py",
+                "code_path": "scripts/analyses/trajectory.py",
                 "dataset_slugs": ["sleep-data"],
                 "freeze_commit": freeze_commit,
                 "dataset_artifact_timing": [
@@ -332,7 +353,7 @@ ANALYSIS
                 "unit_of_inference": "participant",
                 "primary_analysis": "Mixed model with participant random intercept and slope",
                 "analysis_path": "analysis/trajectory/README.md",
-                "code_path": "analysis/trajectory/run.py",
+                "code_path": "scripts/analyses/trajectory.py",
                 "dataset_slugs": ["sleep-data"],
                 "freeze_commit": freeze_commit,
                 "dataset_artifact_timing": [
@@ -410,7 +431,7 @@ ANALYSIS
                 "unit_of_inference": "participant",
                 "primary_analysis": "Mixed model with participant random intercept and slope",
                 "analysis_path": "analysis/trajectory/README.md",
-                "code_path": "analysis/trajectory/run.py",
+                "code_path": "scripts/analyses/trajectory.py",
                 "dataset_slugs": ["sleep-data"],
                 "freeze_commit": first_freeze,
                 "dataset_artifact_timing": [
@@ -439,7 +460,9 @@ ANALYSIS
         (second_dir / "README.md").write_text(
             "# 第二轮分析计划\n\n此时后验来源核验已成为既有上下文。\n", encoding="utf-8"
         )
-        (second_dir / "run.py").write_text("print('second analysis')\n", encoding="utf-8")
+        (self.root / "scripts" / "analyses" / "trajectory-second.py").write_text(
+            "print('second analysis')\n", encoding="utf-8"
+        )
         record_analysis(
             self.root,
             {
@@ -452,7 +475,7 @@ ANALYSIS
                 "unit_of_inference": "participant",
                 "primary_analysis": "Second prespecified mixed model",
                 "analysis_path": "analysis/trajectory-second/README.md",
-                "code_path": "analysis/trajectory-second/run.py",
+                "code_path": "scripts/analyses/trajectory-second.py",
                 "dataset_slugs": ["sleep-data"],
             },
         )
@@ -476,7 +499,7 @@ ANALYSIS
                 "unit_of_inference": "participant",
                 "primary_analysis": "Second prespecified mixed model",
                 "analysis_path": "analysis/trajectory-second/README.md",
-                "code_path": "analysis/trajectory-second/run.py",
+                "code_path": "scripts/analyses/trajectory-second.py",
                 "dataset_slugs": ["sleep-data"],
                 "freeze_commit": second_freeze,
                 "artifacts": [
@@ -512,7 +535,7 @@ ANALYSIS
         (self.root / "data" / "sleep" / "raw.csv").write_text(
             "subject,day,y\n1,0,10\n1,1,99\n", encoding="utf-8"
         )
-        (self.root / "analysis" / "trajectory" / "run.py").write_text(
+        (self.root / "scripts" / "analyses" / "trajectory.py").write_text(
             "print('changed after results were visible')\n", encoding="utf-8"
         )
         outputs = self.root / "analysis" / "trajectory" / "outputs"
@@ -531,7 +554,7 @@ ANALYSIS
                 "unit_of_inference": "participant",
                 "primary_analysis": "Mixed model with participant random intercept and slope",
                 "analysis_path": "analysis/trajectory/README.md",
-                "code_path": "analysis/trajectory/run.py",
+                "code_path": "scripts/analyses/trajectory.py",
                 "dataset_slugs": ["sleep-data"],
                 "freeze_commit": freeze_commit,
                 "artifacts": [
@@ -557,7 +580,7 @@ ANALYSIS
         self.assertEqual(len(blockers), 1)
         self.assertEqual(
             set(blockers[0]["paths"]),
-            {"data/sleep/raw.csv", "analysis/trajectory/run.py"},
+            {"data/sleep/raw.csv", "scripts/analyses/trajectory.py"},
         )
 
     def test_result_artifact_cannot_exist_in_declared_pre_result_freeze(self) -> None:
@@ -582,7 +605,7 @@ ANALYSIS
                 "unit_of_inference": "participant",
                 "primary_analysis": "Mixed model with participant random intercept and slope",
                 "analysis_path": "analysis/trajectory/README.md",
-                "code_path": "analysis/trajectory/run.py",
+                "code_path": "scripts/analyses/trajectory.py",
                 "dataset_slugs": ["sleep-data"],
                 "freeze_commit": freeze_commit,
                 "artifacts": [
@@ -618,7 +641,7 @@ ANALYSIS
                 "unit_of_inference": "participant",
                 "primary_analysis": "Mixed model with participant random intercept and slope",
                 "analysis_path": "analysis/trajectory/README.md",
-                "code_path": "analysis/trajectory/run.py",
+                "code_path": "scripts/analyses/trajectory.py",
                 "dataset_slugs": ["sleep-data"],
                 "freeze_commit": freeze_commit,
             },
@@ -636,7 +659,7 @@ ANALYSIS
                     "unit_of_inference": "participant",
                     "primary_analysis": "Mixed model with participant random intercept and slope",
                     "analysis_path": "analysis/trajectory/README.md",
-                    "code_path": "analysis/trajectory/run.py",
+                    "code_path": "scripts/analyses/trajectory.py",
                     "dataset_slugs": ["sleep-data"],
                     "freeze_commit": freeze_commit,
                 },

@@ -25,7 +25,7 @@ Research Question 与 Active Uncertainty 的写法按需读取 [`references/ACTI
 - 回答不同科学问题的 Analysis；
 - 能改变上游判断的重要 Observation / Claim。
 
-参数微调、重复运行、软件兼容修复、文件格式变化和纯实现步骤属于 provenance，不自动产生科研节点。合理的 sensitivity analysis 是否成为独立 Analysis 节点，由它是否回答独立科学问题决定，而不是由运行次数决定。
+参数微调、重复运行、软件兼容修复、文件格式变化和纯实现步骤属于 provenance，不自动产生科研节点。合理的 sensitivity analysis 是否成为独立 Analysis 节点，由它是否回答独立科学问题决定，而不是由运行次数决定。Git 中同样保持这一区分：**commit / Analysis Attempt 表示同一路线的一次可重放执行状态，branch 只表示真实科研路线分叉**。完整命名、merge、归档和禁止历史重写规则见 [`references/GIT-BRANCHES.md`](references/GIT-BRANCHES.md)。
 
 ## 3. 主树与科学关系同时维护
 
@@ -67,10 +67,10 @@ Evidence 默认表现为“有来源依据的科学关系”，不为了结构�
 
 节点 workflow state 只表示工作状态，例如 `open`、`active`、`blocked`、`resolved`、`closed`。Hypothesis 的 `favored`、`weakened`、`ruled_out_within_scope` 等属于科学状态，由 `hypothesis` / `interpretation` 根据 evidence 更新，不和 workflow state 混用。
 
-关闭分支时保留最窄结论、适用范围、剩余 uncertainty 和对父节点的影响。旧分支不因被替代而从研究历史消失。
+关闭分支时保留最窄结论、适用范围、剩余 uncertainty、`closure_reason` 和对父节点的影响。旧分支不因被替代而从研究历史消失。未 merge 的 Git 科研路线使用 `research-closed/<kind>/<slug>` annotated archival tag 固定 branch tip；已接受路线使用保留拓扑的普通 merge 进入 `main`。
 
 ## 6. Artifact 与 provenance
 
-树保存科研语义和 pointer，不要求大型 Dataset、模型、中间矩阵或图片进入 Git。Research Node、Edge 与 root/active path 已进入项目 `research.sqlite`；数据库契约由 [`akira-research/RESEARCH-DB.md`](../akira-research/RESEARCH-DB.md) 统一维护。文件、数据、代码、模型等 provenance 仍由 `study` / `data` / `analysis` 按项目约束记录；树只连接它们与对应科研对象。需要外部 artifact 边界时读取 [`references/ARTIFACTS.md`](references/ARTIFACTS.md)。
+树保存科研语义和 pointer，不要求大型 Dataset、模型、中间矩阵或图片进入 Git。Research Node、Edge、root/active path 与已登记 Research branch provenance 进入项目 `research.sqlite`；数据库契约由 [`akira-research/RESEARCH-DB.md`](../akira-research/RESEARCH-DB.md) 统一维护。Git branch 名不承担 workflow state：`main` 是当前接受的 canonical research state，开放科研路线使用 `research/<kind>/<slug>`。文件、数据、代码、模型等 provenance 仍由 `study` / `data` / `analysis` 按项目约束记录；树只连接它们与对应科研对象。需要外部 artifact 边界时读取 [`references/ARTIFACTS.md`](references/ARTIFACTS.md)。
 
 完成标准：新的科学分叉、关系、状态和 active path 已可恢复，且总 Router 能据此选择下一条实际科研动作。

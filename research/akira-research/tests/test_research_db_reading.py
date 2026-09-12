@@ -587,7 +587,7 @@ class ResearchDbReadingTests(unittest.TestCase):
     def test_critical_audit_links_issue_and_sidecar(self) -> None:
         reading = ingest_reading(self.root, self.reconstruction_bundle())
         claim_id = reading["refs"]["claim:claim-1"]
-        sidecar = self.root / "literature" / "read" / "Reading Test Paper - A. Author - 2026.md"
+        sidecar = self.root / "literature" / "papers" / "Reading Test Paper - A. Author - 2026.md"
         sidecar.parent.mkdir(parents=True, exist_ok=True)
         sidecar.write_text("# Reading Test Paper\n\nCritical synthesis.\n", encoding="utf-8")
 
@@ -598,7 +598,7 @@ class ResearchDbReadingTests(unittest.TestCase):
                 "depth": "full_scan",
                 "artifacts_checked": [{"artifact_kind": "main_text"}],
                 "sections_checked": ["Methods", "Results", "Discussion"],
-                "sidecar_path": "literature/read/Reading Test Paper - A. Author - 2026.md",
+                "sidecar_path": "literature/papers/Reading Test Paper - A. Author - 2026.md",
                 "issues": [
                     {
                         "ref": "issue-1",
@@ -631,7 +631,7 @@ class ResearchDbReadingTests(unittest.TestCase):
         self.assertEqual(result["critical_status"], "critically_reviewed")
         self.assertEqual(result["reading_status"], "extracted")
         self.assertEqual(result["counts"], {"issues": 1, "relations": 1})
-        self.assertEqual(result["sidecar_path"], "literature/read/Reading Test Paper - A. Author - 2026.md")
+        self.assertEqual(result["sidecar_path"], "literature/papers/Reading Test Paper - A. Author - 2026.md")
 
         with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             paper = connection.execute(
@@ -649,7 +649,7 @@ class ResearchDbReadingTests(unittest.TestCase):
                 "full_scan",
                 "extracted",
                 "critically_reviewed",
-                "literature/read/Reading Test Paper - A. Author - 2026.md",
+                "literature/papers/Reading Test Paper - A. Author - 2026.md",
             ),
         )
         self.assertEqual(issue, ("scope_limitation", "demonstrated", "claim", claim_id))

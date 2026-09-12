@@ -19,32 +19,29 @@
 
 这里可以保存 PDF、XML、HTML、表格、补充材料、代码/数据附件等真实来源表示。它用于 Agent、数据库 provenance 与审计，不是用户日常浏览论文的入口。
 
-`literature/` 只作为人类阅读区：
+`literature/` 只作为稳定的人类阅读区，文件位置不再编码“待读/已读”状态：
 
 ```text
 literature/
 ├── README.md                 # 可选，总索引
-├── to-read/                  # 已筛选、等待完整阅读
+├── papers/                   # 人类论文阅读入口，保持平铺
 │   ├── <题名> - <第一作者> - <年份>.md
 │   └── <题名> - <第一作者> - <年份>.pdf
-├── read/                     # 已完成 Reconstruction + Critical Audit
-│   ├── <题名> - <第一作者> - <年份>.md
-│   └── <题名> - <第一作者> - <年份>.pdf
-└── collections/              # 可选，仅放主题索引 Markdown
+└── collections/              # 可选，仅放主题/状态索引 Markdown
     └── <主题>.md
 ```
 
 约束：
 
-- `to-read/` 与 `read/` 保持平铺，不再建立 `P000001/`、`Dprime_must_read/`、`important/` 等临时层级。
-- `to-read/` 与 `read/` 只出现 `.md` 与 `.pdf`；XML、HTML、JSON、CSV、XLSX、图片、补充附件和其他机器 artifact 留在 `.research/artifacts/papers/`。
-- `collections/` 只保存 Markdown 索引，通过链接组织“必读”“方法学”“某研究问题”等集合，不复制论文或另造一套状态目录。
+- 新的人类论文文件只放在 `literature/papers/` 根层，不再使用 `to-read/`、`read/`、`Dprime_must_read/`、`important/` 等状态/临时目录，也不因为阅读状态变化移动文件。
+- `literature/papers/` 根层只出现 `.md` 与可选 `.pdf`；XML、HTML、JSON、CSV、XLSX、图片、补充附件和其他机器 artifact 留在 `.research/artifacts/papers/`。
+- `collections/` 只保存 Markdown 索引，通过数据库状态生成或链接组织“待读”“核心文献”“方法学”“某研究问题”等集合，不复制论文、不成为第二套 canonical 状态。
 - 人类文件的基础名采用 `<论文题名> - <第一作者> - <年份>`。只对文件系统非法字符做必要替换；不要用 Paper ID、内部缩写或 Agent 自造主题名替代书目信息。
 - Paper ID、DOI、PMID 等稳定身份写在 Markdown 内，不要求用户从文件名记忆数据库 ID。
-- 人类 PDF 是方便阅读的视图，不是新的 scientific source。已有合法 PDF 表示时可复制或链接到人类区；如果当前合法全文只有 XML/HTML，不把 XML/HTML 暴露到 `literature/`，而是在 Markdown 中说明当前没有可供人直接阅读的 PDF，并继续按 `literature-access` 检查合法 PDF 路径。
-- 历史项目原有 `literature/papers/` 只作为 legacy 兼容来源；新 artifact 不再写入该目录，也不在其上继续扩展人类阅读结构。
+- 人类 Markdown 属于科研阅读 synthesis，默认进入 Git；人类 PDF 只是方便阅读的视图，默认 Git ignore，不是新的 scientific source。已有合法 PDF 表示时可复制或链接到人类区；如果当前合法全文只有 XML/HTML，不把 XML/HTML 暴露到 `literature/`，而是在 Markdown 中说明当前没有可供人直接阅读的 PDF，并继续按 `literature-access` 检查合法 PDF 路径。
+- 历史项目若已经存在旧式 `literature/papers/P000001/...` 机器 artifact 子目录，只对数据库已经登记的 legacy 文件继续兼容；新机器 artifact 一律进入 `.research/artifacts/papers/<paper-id>/`，新的人类 Markdown/PDF 只使用 `literature/papers/` 根层。
 
-完成 Critical Audit 时，最终 Markdown 必须位于 `literature/read/` 并作为 `papers.sidecar_path` 关联。尚在阅读队列中的 Markdown/PDF 位于 `literature/to-read/`；阅读完成后把对应人类视图移动到 `read/`，机器 canonical artifact 不移动。
+完成 Critical Audit 后，最终 Markdown 固定在 `literature/papers/` 并作为 `papers.sidecar_path` 关联。Agent 的 `reading_status` / `critical_status`、用户本人是否已确认当前笔记版本、阅读优先级等状态均由 SQLite/Git provenance 表达，不通过文件移动推断。
 
 ## 2. 先判断是否值得投入阅读
 
@@ -127,14 +124,20 @@ Candidate 完成 identity resolution 后，先用标题、摘要、关键词、�
 
 Observation、作者 Claim 与 Agent 科研判断始终分开。人类笔记可以把它们组织得更易读，但不得把三个层级压成一句“论文证明了……”。
 
-## 7. 人类 Markdown 的固定阅读结构
+## 7. 人类 Markdown 的固定阅读结构与用户确认
 
-完成阅读后，`literature/read/<题名> - <第一作者> - <年份>.md` 至少使用以下顺序；不要求机械填满没有内容的栏目，但不得省略会影响理解或证据边界的部分。
+完成阅读后，`literature/papers/<题名> - <第一作者> - <年份>.md` 至少使用以下顺序；不要求机械填满没有内容的栏目，但不得省略会影响理解或证据边界的部分。
+
+顶部和结尾各放一个标准复选框，它们是**同一个用户阅读确认状态的两个入口**，不是两个独立字段：
 
 ```text
 # 论文题名
 
 书目信息
+
+<!-- akira:user-read:top -->
+- [ ] **我已阅读并确认当前版本**
+<!-- /akira:user-read:top -->
 
 ## 三句话总结
 1. 这篇论文解决什么问题。
@@ -185,6 +188,14 @@ Observation、作者 Claim 与 Agent 科研判断始终分开。人类笔记可�
 - 产生了什么新 Research Question / Hypothesis / Analysis / Design 线索
 
 ## 结论边界
+
+<!-- akira:user-read:bottom -->
+- [ ] **我已阅读并确认当前版本**
+<!-- /akira:user-read:bottom -->
 ```
+
+任意一个复选框被用户勾选后，运行 `research-db sync-user-reading` 即把这次确认记录到 `user_reading_events`，并把上下两个框规范化为 `[x]`。**Agent 不得自行把 `[ ]` 改成 `[x]` 来制造用户确认**；只有用户在文件中实际勾选的状态可以触发新的 `confirmed` 事件。确认版本使用**把两个复选框归一化为未勾选后的 Git 内容对象 ID（content OID）**，因此单纯点击复选框不会制造一个新的“正文版本”。上下两个框同时恢复 `[ ]` 并同步时，可撤销当前版本确认。
+
+用户确认与 Agent 的 Reconstruction / Critical Audit 完全分开：Agent 完成科研阅读不等于用户本人已读，用户未勾选也不阻断 Literature completion。若 Markdown 正文、证据评估、结论边界等内容发生实质变化，旧用户确认只适用于旧 content OID；Agent 修改 sidecar 时应主动把两个框重置为 `[ ]`。即使遗漏重置，`sync-user-reading` 发现“正文版本已变但旧 `[x]` 仍残留”时也必须 fail closed：记录旧确认失效并清空两个框，不得替用户确认新版本。用户重新阅读后再点击任一复选框即可确认当前版本。
 
 “三句话总结”是用户恢复论文的入口，不替代后文证据层级。科研启发属于 Agent/项目产生的新判断，不得伪装成作者结论；值得持续追踪的启发继续按项目 provenance 写入 Lead、Research Question、Hypothesis Proposal 或 Research Tree。

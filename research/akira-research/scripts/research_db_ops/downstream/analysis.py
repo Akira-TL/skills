@@ -547,6 +547,29 @@ def record_analysis(project_root: Path, bundle: dict[str, Any]) -> dict[str, Any
         try:
             dataset_ids = _dataset_ids(connection, bundle.get("dataset_slugs"))
             existing = connection.execute("SELECT * FROM analysis_runs WHERE slug = ?", (slug,)).fetchone()
+            workflow_row = connection.execute(
+                "SELECT value FROM meta WHERE key = 'analysis_attempt_workflow_started_at'"
+            ).fetchone()
+            attempt_workflow_active = False
+            if workflow_row is not None:
+                workflow_started = common.parse_timestamp(
+                    workflow_row["value"], field="analysis_attempt_workflow_started_at"
+                )
+                if existing is None:
+                    attempt_workflow_active = True
+                else:
+                    attempt_workflow_active = (
+                        common.parse_timestamp(existing["created_at"], field="analysis created_at")
+                        >= workflow_started
+                    )
+            if attempt_workflow_active and not (
+                spec.code_path.startswith("scripts/analyses/")
+                or spec.code_path.startswith("src/")
+            ):
+                raise ResearchDbError(
+                    "新 Analysis 的 code_path 必须位于 scripts/analyses/ 或 src/；"
+                    "不要继续把科研实现散放在 analysis/ 或临时脚本目录。"
+                )
             language_paths = _pre_result_language_paths(
                 project_root,
                 connection,
@@ -633,6 +656,7 @@ def list_analyses(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
         }
         has_design_link = "design_id" in analysis_columns
         has_dataset_artifact_timing = "analysis_dataset_artifact_timing" in tables
+        has_attempts = "analysis_attempts" in tables
         rows = []
         for row in connection.execute("SELECT * FROM analysis_runs ORDER BY id LIMIT ?", (limit,)):
             item = dict(row)
@@ -690,6 +714,17 @@ def list_analyses(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
                     "SELECT * FROM project_observations WHERE analysis_id = ? ORDER BY id", (row["id"],)
                 )
             ]
+            item["attempts"] = (
+                [
+                    dict(x)
+                    for x in connection.execute(
+                        "SELECT * FROM analysis_attempts WHERE analysis_id = ? ORDER BY id",
+                        (row["id"],),
+                    )
+                ]
+                if has_attempts
+                else None
+            )
             rows.append(item)
     return {
         "ok": True,
@@ -697,5 +732,6 @@ def list_analyses(project_root: Path, *, limit: int = 100) -> dict[str, Any]:
         "schema_capabilities": {
             "analysis_design_link": has_design_link,
             "dataset_artifact_timing": has_dataset_artifact_timing,
+            "analysis_attempts": has_attempts,
         },
     }

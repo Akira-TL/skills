@@ -62,6 +62,13 @@ class AcademicLanguageFreezeTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tempdir.cleanup()
 
+    def _write_analysis_code(self, slug: str) -> str:
+        scripts = self.root / "scripts" / "analyses"
+        scripts.mkdir(parents=True, exist_ok=True)
+        path = scripts / f"{slug}.py"
+        path.write_text("print('ok')\n", encoding="utf-8")
+        return path.relative_to(self.root).as_posix()
+
     def test_academic_language_ignores_analysis_machine_log_artifacts(self) -> None:
         analysis_dir = self.root / "analysis" / "example"
         analysis_dir.mkdir(parents=True)
@@ -132,7 +139,7 @@ class AcademicLanguageFreezeTests(unittest.TestCase):
             "# 探索性分析计划\n\n当前 exploratory analysis 使用 randomization 检查候选模式。\n",
             encoding="utf-8",
         )
-        (analysis_dir / "run.py").write_text("print('ok')\n", encoding="utf-8")
+        code_path = self._write_analysis_code("exploratory-language")
         bundle = {
             "slug": "exploratory-language",
             "title": "探索性语言测试",
@@ -143,7 +150,7 @@ class AcademicLanguageFreezeTests(unittest.TestCase):
             "unit_of_inference": "sample",
             "primary_analysis": "描述性探索与预先说明的诊断",
             "analysis_path": "analysis/exploratory-language/README.md",
-            "code_path": "analysis/exploratory-language/run.py",
+            "code_path": code_path,
             "dataset_slugs": ["dataset-language"],
         }
 
@@ -165,6 +172,22 @@ class AcademicLanguageFreezeTests(unittest.TestCase):
         result = record_analysis(self.root, bundle)
         self.assertEqual(result["status"], "planned")
 
+        with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
+            analysis_id = int(
+                connection.execute(
+                    "SELECT id FROM analysis_runs WHERE slug = 'exploratory-language'"
+                ).fetchone()[0]
+            )
+            now = "2026-09-04T00:00:00+00:00"
+            connection.execute(
+                """
+                INSERT INTO analysis_attempts(
+                    analysis_id, attempt_key, status, git_commit, reason, decision_reason,
+                    started_at, completed_at, created_at, updated_at
+                ) VALUES (?, 'A001', 'selected', 'test-commit', '测试执行', '唯一有效执行', ?, ?, ?, ?)
+                """,
+                (analysis_id, now, now, now, now),
+            )
         completed = dict(bundle)
         completed["status"] = "completed"
         result = record_analysis(self.root, completed)
@@ -178,7 +201,7 @@ class AcademicLanguageFreezeTests(unittest.TestCase):
             "# 探索性分析计划\n\n当前探索性分析用于评估候选模式。\n",
             encoding="utf-8",
         )
-        (analysis_dir / "run.py").write_text("print('ok')\n", encoding="utf-8")
+        code_path = self._write_analysis_code("direct-completion")
 
         with self.assertRaisesRegex(ResearchDbError, "第一次登记必须使用 status=planned"):
             record_analysis(
@@ -193,7 +216,7 @@ class AcademicLanguageFreezeTests(unittest.TestCase):
                     "unit_of_inference": "sample",
                     "primary_analysis": "描述性探索",
                     "analysis_path": "analysis/direct-completion/README.md",
-                    "code_path": "analysis/direct-completion/run.py",
+                    "code_path": code_path,
                     "dataset_slugs": ["dataset-language"],
                 },
             )
@@ -210,7 +233,7 @@ class AcademicLanguageFreezeTests(unittest.TestCase):
             "# 分析计划\n\n当前确认性分析使用固定规则评估主要差异。\n",
             encoding="utf-8",
         )
-        (analysis_dir / "run.py").write_text("print('ok')\n", encoding="utf-8")
+        code_path = self._write_analysis_code("dataset-provenance")
 
         with self.assertRaisesRegex(ResearchDbError, "data/README.md"):
             record_analysis(
@@ -225,7 +248,7 @@ class AcademicLanguageFreezeTests(unittest.TestCase):
                     "unit_of_inference": "sample",
                     "primary_analysis": "固定规则",
                     "analysis_path": "analysis/dataset-provenance/README.md",
-                    "code_path": "analysis/dataset-provenance/run.py",
+                    "code_path": code_path,
                     "freeze_commit": "freeze-placeholder",
                     "dataset_slugs": ["dataset-language"],
                 },
@@ -290,7 +313,7 @@ class AcademicLanguageFreezeTests(unittest.TestCase):
             "# 分析计划\n\n当前确认性分析使用固定规则评估主要差异。\n",
             encoding="utf-8",
         )
-        (analysis_dir / "run.py").write_text("print('ok')\n", encoding="utf-8")
+        code_path = self._write_analysis_code("study-provenance")
 
         with self.assertRaisesRegex(ResearchDbError, "study/EXECUTION_REPORT.md"):
             record_analysis(
@@ -305,7 +328,7 @@ class AcademicLanguageFreezeTests(unittest.TestCase):
                     "unit_of_inference": "sample",
                     "primary_analysis": "固定规则",
                     "analysis_path": "analysis/study-provenance/README.md",
-                    "code_path": "analysis/study-provenance/run.py",
+                    "code_path": code_path,
                     "freeze_commit": "freeze-placeholder",
                     "dataset_slugs": ["dataset-language"],
                 },
@@ -320,8 +343,7 @@ class AcademicLanguageFreezeTests(unittest.TestCase):
             "# 分析计划\n\n当前 exploratory analysis 使用 randomization 检验主要差异。\n",
             encoding="utf-8",
         )
-        code = analysis_dir / "run.py"
-        code.write_text("print('ok')\n", encoding="utf-8")
+        code_path = self._write_analysis_code("language-freeze")
         bundle = {
             "slug": "language-freeze",
             "title": "冻结前语言测试",
@@ -332,7 +354,7 @@ class AcademicLanguageFreezeTests(unittest.TestCase):
             "unit_of_inference": "sample",
             "primary_analysis": "固定的重抽样检验",
             "analysis_path": "analysis/language-freeze/README.md",
-            "code_path": "analysis/language-freeze/run.py",
+            "code_path": code_path,
             "freeze_commit": "freeze-placeholder",
             "dataset_slugs": ["dataset-language"],
         }
