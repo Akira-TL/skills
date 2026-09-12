@@ -110,7 +110,36 @@ Analysis A/tmp/foo.csv → Analysis B
 
 这条边界用于阻断隐式 provenance 链和“删掉 A 就无法复现 B”的污染。
 
-## 7. Attempt 状态
+## 7. 可量化目标下的受控迭代
+
+当同一 Analysis 的改进目标可以用**稳定、可重复测量的机械指标**表达时，可以把一组 Attempt 组织成受控迭代。适用例子包括：运行时间、内存、预测误差、交叉验证评分、测试失败数、覆盖率、收敛诊断或其他项目已经定义且与科研目标一致的量化指标。
+
+这种模式只用于**执行或实现优化**，不能把“某个数字更好”自动等同于 scientific validity。开始迭代前先在 Analysis plan / config 中固定：
+
+```text
+baseline
+metric
+优化方向（higher / lower）
+target（若存在明确完成阈值）
+verification command / procedure
+guard（必须保持成立的科学或工程约束）
+```
+
+要求：
+
+1. baseline 与 guard 必须在第一次改动前真实运行；
+2. metric 自身若噪声过大、不可重复或容易被实现副作用污染，先修测量方法，不把随机波动解释成进步；
+3. 每个 Attempt 只包含一个可解释的主要变化；若同时改动多个独立因素导致无法归因，应拆成多个 Attempt；
+4. Attempt 的结果必须同时报告 metric 与 guard，不能只保存“最好的一次”；
+5. metric 改善但违反统计前提、数据边界、leakage 规则、科学约束或 guard 时，该 Attempt 不得 selected；
+6. metric 未改善但形成了有效执行时保留为 `abandoned` 并写明原因；违反方法、数据或实现前提时使用 `invalid`；
+7. 达到 target 只表示这轮机械优化目标完成，不自动升级 scientific Claim，也不跳过后续 diagnostics / sensitivity / Interpretation。
+
+Akira 不允许第三方优化 controller 接管科研 branch 的 Git 生命周期。每个进入科研 provenance 的 Attempt 仍由 Akira 正常提交并记录；失败路线通过新的状态/提交保留审计历史，不对已登记 commit 做 reset / amend / rebase，也不以自动 `git revert` 代替科研决策。
+
+受控迭代适合真正有可比较 metric 的问题；开放式探索、方法选择、机制判断或“哪种结果更显著”不能为了自动循环而强行压成一个分数。
+
+## 8. Attempt 状态
 
 Attempt workflow state：
 

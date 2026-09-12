@@ -45,6 +45,8 @@ Notebook / interactive session 可以用于探索，但进入 scientific evidenc
 
 Sensitivity 的目的用于判断结论对合理分析选择是否稳定，不用于寻找显著结果。Preferred analysis 的选择依据是 scientific alignment、推断单位、measurement/data model、diagnostics、leakage/overfitting、robustness 与 interpretability，而不是 `P` value 或图形吸引力。
 
+当同一 Analysis 的实现/执行优化存在稳定、可重复的机械指标时，可以按 [`references/ATTEMPTS.md`](references/ATTEMPTS.md) 使用受控迭代：结果前固定 baseline、metric、方向、target 和 guard，每个 Attempt 只做一个可解释的主要变化，并同时保留改善与未改善/失效路线的原因。该模式不能用单一分数替代 scientific validity，也不能让第三方 controller 接管科研 branch 的 Git commit/revert 生命周期。
+
 ## 5. Python 计算与 R 绘图的默认边界
 
 默认科研计算语言是 Python：数据读取、QC、整理、统计推断、模型、敏感性分析和正式结果表由 Python 完成。项目级共享 Python 代码采用 `pyproject.toml + src/<project-package>/`，具体 Analysis entrypoint 放 `scripts/analyses/`，使用 package absolute import，不使用 `sys.path` hack 或跨 Analysis import。
