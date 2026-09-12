@@ -20,4 +20,6 @@
 
 Reviewer response / revision 另走意见—动作—证据闭环：先保存 editor / reviewer 原始材料，复合 comment 拆成可独立验收的子要求，不能只处理其中最显眼的一项；每条要求先固定实际验收标准，先检查 revised manuscript、analysis、experiment、figure 等真实 artifact 是否满足，再读取 response letter 判断它是否准确描述修改。Blind review 下 reviewer-facing 回复彼此隔离，不把另一位 reviewer 的 comment、编号或 recommendation 暴露出去。作者“说已经做了”与可检查 artifact “证明已经做了”必须分开；需要新实验或 Analysis 时返回对应科研流程，不在 Communication 中虚构结果。Clean manuscript、marked manuscript 和 response letter 同时交付时视为联动 package，任何稿件编辑都会使旧 quotation、page/section locator 和 package consistency 检查失效，因此最后一次修改后必须重新核验。
 
+投稿阶段的 Data / Code Availability 与 Source Data 也必须从真实 canonical Dataset / Analysis artifact 出发：先盘点 generated、reused public、third-party、restricted data 和 central code，再核验 repository、persistent identifier、version、licence / restriction 与 Figure / Table source-data mapping。临时分享链接不能冒充长期 identifier，“available upon reasonable request”也不能作为默认逃生句；受限数据应说明真实原因、负责 access decision 的主体和申请条件。Communication 不编造 accession、DOI、embargo、ethics permission 或 reviewer access。
+
 连接词用于表达已经存在的推理关系，不替代推理本身；专业术语保持一致，不为了避免重复而随意使用同义词替换。dictionary / thesaurus 可以用于核验普通词汇和固定搭配，但不能自动改写专业概念或升级科学结论。

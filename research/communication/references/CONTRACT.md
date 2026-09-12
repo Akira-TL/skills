@@ -76,7 +76,7 @@ Conclusions 使用 [`interpretation`](../../interpretation/SKILL.md) 得出的�
 - 实际 statistical unit / model / multiplicity handling；
 - protocol amendment；
 - exploratory / post hoc change；
-- data / code availability 和访问限制。
+- data / code availability 和访问限制；正式 Data Availability / Code Availability / Source Data 交付按 [`submission/DATA-AVAILABILITY.md`](submission/DATA-AVAILABILITY.md) 从真实 Dataset / Analysis provenance 映射，不以模板句替代实际 repository / access 状态。
 
 若实际执行与 frozen design 不同，写清 amendment；不要把 post hoc 分析描述成预先计划。
 
@@ -159,6 +159,7 @@ Communication artifact 完成前先确认已经按 [`WRITING-ROUTER.md`](WRITING
 17. 若存在 reviewer / editor comments，每一个可识别的独立要求都有 disposition；复合 comment 没有静默漏项，每一个声称“已完成”的修改都有 revised manuscript、analysis output、figure/table、citation 或其他 inspectable artifact 支撑，response letter 没有把尚未完成的实验/分析写成既成事实；
 18. revision package 同时包含 clean manuscript、marked manuscript 与 response letter 时，三者在最后一次编辑后重新核验一致性，reply 中的逐字引用和 page / section / Figure / Table locator 与最终稿对应，未凭旧版本或记忆制造位置；
 19. 正式 publication figure 已按 [`FIGURE-WORKFLOW.md`](FIGURE-WORKFLOW.md) 检查 Figure-level Claim、panel 证据作用、结论边界、统计/单位一致性、source-data provenance 与最终尺寸下的逐 panel 可读性；
-20. Proposal 在适用时已明确区分 evidence-backed fact、Hypothesis、planned action、expected result 与 unresolved / unsupported claim，且 Research Question → Objective → Design → measurement / Analysis → decision criterion 的未来研究链条与 canonical state 对齐。
+20. Proposal 在适用时已明确区分 evidence-backed fact、Hypothesis、planned action、expected result 与 unresolved / unsupported claim，且 Research Question → Objective → Design → measurement / Analysis → decision criterion 的未来研究链条与 canonical state 对齐；
+21. 需要 Data / Code Availability 或 Source Data 时，声明与真实 repository / accession / version / restriction 一致，generated / reused / third-party / restricted data 分开，central Figure / Table 能定位到相应 source data，未编造尚不存在的 DOI、licence、embargo 或 reviewer access。
 
 发现写作需要新的科学判断时，回到 Interpretation / Evidence Synthesis，而不是在 Communication 层临时创造结论。
