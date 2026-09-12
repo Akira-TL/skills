@@ -20,7 +20,7 @@ disable-model-invocation: true
 
 ## 2. 先确定科研问题、分支与适用规范
 
-Research Question、Active Uncertainty、分支和跨对象关系由 [`research-tree`](../research-tree/SKILL.md) 管理。多个独立问题同时存在时，明确 primary active branch；其他分支保持 open / blocked / resolved 状态，不压回一个线性版本序列。
+Research Question、Active Uncertainty、分支和跨对象关系由 [`research-tree`](../research-tree/SKILL.md) 管理。用户只有模糊 Idea、宽泛主题或现象兴趣而尚未形成可判别问题时，先由 `research-tree` 按其 Idea Framing 协议收敛科学对象、关键未知和现实可得的判别性 evidence，不直接从一句主题自动生成正式 Research Question。多个独立问题同时存在时，明确 primary active branch；其他分支保持 open / blocked / resolved 状态，不压回一个线性版本序列。
 
 当研究类型、研究实施、metadata、provenance、统计方法或报告要求会影响当前动作时，调用 [`research-standards`](../research-standards/SKILL.md) 从当前权威来源核验适用规范。Akira 只负责采用和编排已有规范，不把内部 workflow 当作新的科研方法论；reporting guideline、design guidance、metadata standard、provenance standard、方法学依据和软件文档必须按各自职责使用。
 

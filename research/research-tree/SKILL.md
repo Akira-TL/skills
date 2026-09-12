@@ -11,7 +11,7 @@ description: 维护科研项目的 Research Question、Active Uncertainty、研�
 
 进入项目时恢复 Root Objective、当前 Research Question / Active Uncertainty、active path、open / blocked / resolved branches，以及与当前分支直接相关的科学关系。没有树时，只从现有 `RESEARCH.md` 和 canonical research artifacts 建立最小结构，不机械把历史文件全部转成节点。
 
-Research Question 与 Active Uncertainty 的写法按需读取 [`references/ACTIVE-UNCERTAINTY.md`](references/ACTIVE-UNCERTAINTY.md)；对象与关系模型见 [`references/MODEL.md`](references/MODEL.md)。
+Research Question 与 Active Uncertainty 的写法按需读取 [`references/ACTIVE-UNCERTAINTY.md`](references/ACTIVE-UNCERTAINTY.md)；对象与关系模型见 [`references/MODEL.md`](references/MODEL.md)。若用户只有宽泛主题、现象描述或模糊 Idea，尚不足以形成可判别问题，先按 [`references/IDEA-FRAMING.md`](references/IDEA-FRAMING.md) 用最少的 decision-relevant 追问与必要 Literature Discovery 收敛问题；不要直接把宽泛主题润色成 Research Question，也不要用大问卷替代科研判断。
 
 完成标准：能明确回答当前问题是什么、它从哪里产生、哪些已有证据或研究对象与它直接相关、哪些其他分支仍开放。
 
