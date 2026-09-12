@@ -54,7 +54,7 @@ Active Uncertainty
 
 搜索停止依据是相对当前 Active Uncertainty 的边际知识增益：连续检索与引用追踪不再产生新的重要方法、观察、解释、矛盾、边界条件、研究设计或基础工作时，可以认为 discovery 达到当前目的的 saturation；不以固定论文数量作为停止条件。
 
-对需要持续数周、数月或更久跟踪的开放问题，可按 [`references/LITERATURE-MONITORING.md`](references/LITERATURE-MONITORING.md) 建立长期文献监测（Living Literature Monitoring）。每次周期执行仍落成真实 Search Run、Candidate / Paper 去重和 Evidence Gate，不维护第二套“雷达事实库”；普通新增默认静默进入队列，只有新 contradiction、boundary、method、replication、guideline 或其他会改变科研判断的变化才主动通知用户。当前 harness 没有可靠 scheduler 时，不声称后台持续监测，也不反复尝试创建不存在的自动化。
+对需要持续数周、数月或更久跟踪的开放问题，可按 [`references/LITERATURE-MONITORING.md`](references/LITERATURE-MONITORING.md) 建立长期文献监测（Living Literature Monitoring）。每次周期执行仍落成真实 Search Run、Candidate / Paper 去重和 Evidence Gate，不维护第二套“雷达事实库”；普通新增默认静默进入队列，只有新 contradiction、boundary、method、replication、guideline 或其他会改变科研判断的变化才主动通知用户。当前 harness 没有可靠 scheduler 时，不声称后台持续监测，也不反复尝试创建不存在的自动化。若用户使用 Zotero 并明确要求导出 Agent 推荐阅读，按 [`references/ZOTERO-EXPORT.md`](references/ZOTERO-EXPORT.md) 把 `core/high + relevant` 文献送入固定 `Akira Recommended Reading` collection；Zotero 只承担人类阅读/管理出口，不接管 Akira reading state 或科研 provenance。
 
 在正式声称实践性概念饱和（practical conceptual saturation）前必须运行 `research-db discovery-status`。`core + relevant` 和 `high + relevant` Candidate 都必须已经 `acquired` 或经过完整获取流程后明确 `unavailable`；高优先级论文不能再用 `defer_reason` 绕过全文获取与审阅。`relevance_status=pending` 不能遗留；稳定 DOI/PMID 重复必须先合并。对于包含至少 2 个相关 Candidate、且实际执行了主题检索或相关工作扩展（related-work）的文献发现（Discovery），Candidate 队列闭合本身不等于饱和：必须至少记录一次真实的后向或前向引用追踪（backward/forward citation chasing），并且检索轨迹至少覆盖两个发现策略家族（discovery family）。仅对用户给定的已知论文做定向获取（exact work）不属于饱和声明，不强制补造主题检索。引用追踪即使没有新增 Candidate，也要作为 `result_count=0` 的真实检索运行（Search Run）保存本轮获得的信息与下一步决定。工具返回 `ready_for_saturation=false` 时不得仅凭主观判断宣布饱和。
 
