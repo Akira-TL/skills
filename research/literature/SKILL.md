@@ -186,6 +186,8 @@ Evidence Map 不再人工维护为大量 Markdown，而是由 SQLite 中的 Obse
 - Critical Audit 必须影响 evidence strength；
 - `P > 0.05` 不自动等于 contradiction，除非 design、power 与区间足以支持 absence；
 - 对矛盾主动寻找 population、exposure duration、diet、platform、preservation、analysis pipeline、definition 等 heterogeneity / boundary condition；
+- 跨学科、跨传统或跨 measurement literature 在合并前先核对 construct / operational definition、unit of inference、measurement target、causal level 与关键假设是否可比；同名术语不自动视为同一科学对象，不同术语也不自动视为不同对象；
+- 若两个 framework 的核心 construct、measurement 或 inference target 当前无法建立可辩护映射，则并列保留各自问题、证据和 boundary，明确 `not directly comparable / unresolved mapping`，不为了形成一个统一故事强行平均、翻译成同一个概念或制造假 consensus / 假 contradiction；
 - Research Gap 优先来自 unresolved contradiction、untested alternative、missing control、missing population / temporal scale、measurement limitation 或 unvalidated mechanism，而不是简单“研究较少”。
 
 证据视图由脚本检索和展开关系，主模型负责科学解释；脚本不得用硬编码评分替代 evidence-to-claim 判断。
