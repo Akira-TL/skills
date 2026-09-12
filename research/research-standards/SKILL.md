@@ -22,7 +22,7 @@ description: 识别并核验科研项目当前适用的既有规范、指南与�
 3. 学科协会、监管机构或资助机构的正式指导；
 4. 只有前述来源无法回答实现细节时，才使用软件官方文档或其他次级材料。
 
-规范名称、版本、适用范围或当前状态不确定时必须实际查证。常用规范家族与职责边界见 [`references/SOURCES.md`](references/SOURCES.md)。
+规范名称、版本、适用范围或当前状态不确定时必须实际查证。常用规范家族与职责边界见 [`references/SOURCES.md`](references/SOURCES.md)。涉及伦理审查、人类受试者、个人/敏感数据、临床研究、动物研究、许可、跨境数据/材料或其他 institution / jurisdiction-specific requirement 时，同时读取 [`references/REGULATED-RESEARCH-AUTHORITY.md`](references/REGULATED-RESEARCH-AUTHORITY.md)：把“找到规则”和“规则是否适用于当前项目”分开，`unknown` 不得降格为 `not applicable`，也不得从用户 locale、语言、affiliation 或 manuscript wording 推断 jurisdiction、approval、waiver 或 consent。
 
 ## 3. 区分规范的职责
 
@@ -51,7 +51,7 @@ official_source
 why_applicable
 ```
 
-研究推进后若 study design、assay、data modality 或传播目标改变，重新核验对应规范；不把旧规范静默沿用到新分支。
+研究推进后若 study design、assay、data modality 或传播目标改变，重新核验对应规范；不把旧规范静默沿用到新分支。涉及 regulated research 时还要记录 applicability basis / state 与 formal decision maker；多个 jurisdiction / institution / funder authority 并行时分别保留，冲突或 precedence 不清则保持 unresolved，不由 Agent 平均、静默覆盖或自行选择最宽松/最严格规则。
 
 ## 5. 路由
 

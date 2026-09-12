@@ -17,6 +17,10 @@
 
 报告规范只约束报告完整性与透明度；若其官方 scope 没有同时规定研究设计或方法学，不把它扩张为方法学标准。
 
+## Regulated research / ethics / institutional authority
+
+涉及 human participants、personal / sensitive data、clinical research、animals、permits、regulated materials 或跨境数据/材料时，优先从当前有权 regulator、institutional IRB / REC / animal-care / data-protection office、正式 institution policy 与 funder requirement 核验。具体 applicability 和 authority 冲突按 [`REGULATED-RESEARCH-AUTHORITY.md`](REGULATED-RESEARCH-AUTHORITY.md) 处理；本索引不复制各司法辖区法规，也不从研究者所在地或对话语言自动选择 jurisdiction。
+
 ## Metadata and study/assay description
 
 - ISA（Investigation–Study–Assay）：生命科学 Investigation / Study / Assay、sample-to-data 与相关 metadata 描述。
