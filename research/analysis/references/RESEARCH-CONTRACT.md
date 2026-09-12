@@ -61,6 +61,8 @@ Primary Analysis 先执行 Design 预先定义的 contrast。任何重要偏离�
 
 `P` value 可以存在，但不能替代 effect magnitude 与 precision。`P > 0.05` 只说明当前检验没有提供足够证据反对相应 null model；只有区间/precision 足以排除事先定义的 meaningful effect 时，才可用于支持“在该范围内效应很小/不存在”。
 
+**一个 subgroup / condition 中显著、另一个中不显著，不等于两个效应彼此显著不同。** 若科研 Claim 是“效应随 group、condition、time 或 treatment level 改变”，应直接估计对应 effect contrast、interaction 或其他与该异质性问题一致的比较，并报告其 uncertainty。不能通过比较两个独立 `P` 值是否分别跨过显著性阈值来建立 interaction / differential effect。
+
 ## 5. Diagnostics 与 sensitivity
 
 Primary result 进入解释前应检查会改变结论的主要 model / data failure mode，例如：
