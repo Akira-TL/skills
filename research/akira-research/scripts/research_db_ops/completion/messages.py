@@ -46,6 +46,28 @@ def append_literature_errors(errors: list[str], blockers: list[dict[str, Any]]) 
                 "主题型 Literature Discovery 已有多篇完成审阅的论文，但 canonical relation graph "
                 "缺少跨论文 scientific relation；SHARES_*/CITES 不能替代 Evidence Synthesis 关系。"
             )
+        elif reason == "human_literature_unexpected_top_level":
+            errors.append(
+                f"literature/ 是固定的人类阅读区，不允许临时新增顶层目录或文件：{blocker.get('path')}。"
+                "只使用 literature/to-read/、literature/read/、literature/collections/ 与 literature/README.md。"
+            )
+        elif reason == "human_literature_non_readable_file":
+            errors.append(
+                f"人类文献阅读区出现非 Markdown/PDF 文件：{blocker.get('path')}。"
+                "XML/HTML、表格、JSON 与其他机器 artifact 应保存在 .research/artifacts/papers/<paper-id>/。"
+            )
+        elif reason == "human_literature_nested_directory":
+            errors.append(
+                f"人类文献阅读区应保持平铺的“题名 - 第一作者 - 年份”文件：{blocker.get('path')}。"
+            )
+        elif reason == "human_literature_pdf_without_note":
+            errors.append(
+                f"人类阅读区中的 PDF 缺少同名 Markdown 阅读入口：{blocker.get('path')}。"
+            )
+        elif reason == "human_literature_unregistered_legacy_file":
+            errors.append(
+                f"legacy literature/papers/ 中存在未登记到 research.sqlite 的游离文件：{blocker.get('path')}。"
+            )
         elif reason == "database_missing":
             errors.append("research.sqlite 不存在；不能完成 Literature completion gate。")
 

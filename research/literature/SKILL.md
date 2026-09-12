@@ -45,6 +45,8 @@ Active Uncertainty
 → conceptual saturation
 ```
 
+检索源按学科、问题类型与需要的证据类型选择，不把 Google Scholar 或任何单一入口当作默认全集。生物医学问题优先使用 PubMed / NCBI、Europe PMC 等领域数据库；需要引文网络时使用 Web of Science（WoS）、Scopus 等；综合发现可结合 Google Scholar、OpenAlex、Crossref；预印本、临床注册、数据/代码仓库等按问题需要进入独立 Search Run。不同来源发现同一 scholarly work 时继续按 DOI / PMID 等稳定身份合并，不把来源数量当作独立证据数量。
+
 搜索停止依据是相对当前 Active Uncertainty 的边际知识增益：连续检索与引用追踪不再产生新的重要方法、观察、解释、矛盾、边界条件、研究设计或基础工作时，可以认为 discovery 达到当前目的的 saturation；不以固定论文数量作为停止条件。
 
 在正式声称实践性概念饱和（practical conceptual saturation）前必须运行 `research-db discovery-status`。`core + relevant` 和 `high + relevant` Candidate 都必须已经 `acquired` 或经过完整获取流程后明确 `unavailable`；高优先级论文不能再用 `defer_reason` 绕过全文获取与审阅。`relevance_status=pending` 不能遗留；稳定 DOI/PMID 重复必须先合并。对于包含至少 2 个相关 Candidate、且实际执行了主题检索或相关工作扩展（related-work）的文献发现（Discovery），Candidate 队列闭合本身不等于饱和：必须至少记录一次真实的后向或前向引用追踪（backward/forward citation chasing），并且检索轨迹至少覆盖两个发现策略家族（discovery family）。仅对用户给定的已知论文做定向获取（exact work）不属于饱和声明，不强制补造主题检索。引用追踪即使没有新增 Candidate，也要作为 `result_count=0` 的真实检索运行（Search Run）保存本轮获得的信息与下一步决定。工具返回 `ready_for_saturation=false` 时不得仅凭主观判断宣布饱和。
@@ -61,7 +63,7 @@ Active Uncertainty
 - 调整全文阅读优先级；
 - 在写作阶段补充一个只需要摘要级背景的引用。
 
-研究启动、问题发现、方法学习与证据综合阶段，不以“摘要看起来足够”作为结束条件。Candidate 的 `relevance_status`、`acquisition_status` 与 `reading_priority` 分开维护：相关性决定是否属于问题空间，获取状态说明全文是否已拿到，优先级只决定阅读顺序；`excluded` 必须留下明确 exclusion reason。相关 Candidate 默认进入 `queued` 全文获取队列，成功 `ingest-paper` 后自动回链正式 Paper。
+研究启动、问题发现、方法学习与证据综合阶段，不以“摘要看起来足够”作为结束条件。Candidate 的 `relevance_status`、`acquisition_status` 与 `reading_priority` 分开维护：相关性决定是否属于问题空间，获取状态说明全文是否已拿到，优先级只决定阅读顺序；`excluded` 必须留下明确 exclusion reason。相关 Candidate 默认进入 `queued` 全文获取队列，成功 `ingest-paper` 后自动回链正式 Paper。如何用标题/摘要/方法信号判断阅读价值、如何处理“摘要难懂但高度相关”的论文，以及 `to-read → read` 的人类阅读视图，统一按 [`READING-PROTOCOL.md`](READING-PROTOCOL.md) 执行。
 
 `unavailable` 不是自由文本结论。每次正文获取尝试必须用 `research-db record-access-attempt` 持久化获取路径类别、资源类别、来源地址、实际结果和获取时间。对 `outcome=acquired` 还必须保存可审计的**获取依据（access basis）**，说明该全文属于出版社开放版本、公共/机构知识库、作者公开稿、预印本、用户认证访问或用户提供文件中的哪一种。一个互联网上可下载且身份匹配的 PDF 本身不足以证明它是可作为规范科研来源自动获取的全文；来源授权或开放依据无法核验时，不得用 `acquired` 闭合 Candidate，应继续正式开放路径或进入用户协同。检索运行（Search Run）不允许直接创建 `unavailable` Candidate；必须先进入待获取状态，实际调用 `literature-access`，记录失败/受限路径后再更新 Candidate。有 DOI 时至少检查出版社路径（publisher route）；同时至少有一个独立开放解析路径（open index / repository / preprint）。单一 PDF 的 403 或访问挑战不能闭合全文获取：必须继续检查出版社论文页面/网页全文以及解析器暴露的 PMCID、机构知识库或其他全文位置。
 
@@ -71,7 +73,7 @@ Acquisition Attempt 是不可覆盖的历史记录，但历史判断可以被**�
 
 ## 3. 全文获取与阅读深度
 
-已知论文交给 `literature-access` 获取正文；浏览器只在需要登录、动态页面或真实资源请求解析时参与。正文、supplement、代码和数据仓库仍是独立 artifact，SQLite 记录论文身份、路径、版本、来源与获取时间。论文首次进入项目时使用 `research-db ingest-paper`；若 Paper 已经存在、随后才取得 Supplementary Information、Source Data、代码/数据附件或新的正文表示，必须使用 `research-db add-paper-artifacts` 把来源文件复制进该 Paper 的 canonical 目录并登记 `artifacts` / `change_log`，不得重新 `ingest-paper`、直接写 SQL 或只手工放文件。若追加动作重新打开了既有阅读状态，继续完成对应的增量 Reconstruction 与 Critical Audit，直到当前 artifact 集合重新满足阅读门禁。
+已知论文交给 `literature-access` 获取正文；浏览器只在需要登录、动态页面或真实资源请求解析时参与。正文、supplement、代码和数据仓库仍是独立 artifact，SQLite 记录论文身份、路径、版本、来源与获取时间。论文首次进入项目时使用 `research-db ingest-paper`，机器 canonical artifact 统一进入 `.research/artifacts/papers/<paper-id>/`；XML/HTML 等机器表示只保留在这里。若 Paper 已经存在、随后才取得 Supplementary Information、Source Data、代码/数据附件或新的正文表示，必须使用 `research-db add-paper-artifacts` 追加并登记 `artifacts` / `change_log`，不得重新 `ingest-paper`、直接写 SQL 或只手工放文件。人类 `literature/` 阅读区的目录、文件类型、命名与阅读顺序统一按 [`READING-PROTOCOL.md`](READING-PROTOCOL.md) 执行。若追加动作重新打开了既有阅读状态，继续完成对应的增量 Reconstruction 与 Critical Audit，直到当前 artifact 集合重新满足阅读门禁。
 
 相关论文至少执行 `FULL_SCAN`：整篇正文过一遍并识别 research problem、design、methods、experiments、major observations、claims、limitations 与 leads。`reading_priority=core` 且已成功获取的论文必须执行 `DEEP_EXTRACTION`；其他方法学上决定当前 Active Uncertainty 的论文即使未标 core，也应提升到 `DEEP_EXTRACTION`。深读继续覆盖 exact protocol、关键参数、supplement、统计细节、figure/table-level result、代码/数据仓库与关键引用链。`validate --completion` 会机械拒绝 `core + acquired` 仍停留在 `FULL_SCAN` 的状态。
 
@@ -148,29 +150,11 @@ concern
 
 只有完成 Reconstruction 与 Critical Audit，论文才可标记为 `critically_reviewed` 并进入后续跨论文综合。
 
-## 5. 人类 sidecar
+## 5. 人类阅读输出
 
-每篇下载论文旁边保留一份短小的人类必读 sidecar，例如 `README.md`。它是精简视图，不是数据库 dump。目标是在 1–3 分钟内让用户恢复“为什么保存这篇、数据真正显示什么、作者怎么解释、哪里有问题、我们能学什么”。
+人类阅读输出统一按 [`READING-PROTOCOL.md`](READING-PROTOCOL.md) 生成。`literature/` 是人类阅读区，不是 raw artifact 仓库：待读论文进入 `literature/to-read/`，完成 Reconstruction + Critical Audit 后进入 `literature/read/`；两处只保留同名 Markdown/PDF 视图，文件基础名采用“论文题名 - 第一作者 - 年份”。主题“必读”集合使用 `literature/collections/*.md` 作为索引，不另建 `*_must_read/` 目录复制论文。
 
-中文科研项目推荐使用中文结构：
-
-```text
-来源
-为什么重要
-研究做了什么
-数据直接显示什么
-作者主张什么
-我们的证据评估
-可复用内容
-主要问题与不确定性
-结论边界
-```
-
-书目信息中的论文原始英文题名可以保留；科学叙述本身不得为了省事整段改用英文。重要术语首次出现按“中文标准术语（English standard term）”建立对应关系，之后优先使用中文标准术语或领域标准缩写。
-
-`Bottom Line` 必须把“论文直接支持什么”和“尚未建立什么”分开，不用“强烈支持某因果结论”概括一个主要由观察性人群数据加跨物种动物实验组成的证据链。
-
-数据库保存尽可能完整的结构化 extraction；sidecar 只保留高价值 synthesis。
+最终 Markdown 以“三句话总结 → 论文逻辑 → 方法拆解 → 实验逻辑 → 数据直接显示 → 作者解释 → 我们的证据评估 → 可复用内容 → 科研启发 → 结论边界”为主线，并作为 `papers.sidecar_path` 关联。书目信息中的论文原始英文题名可以保留；科学叙述继续遵守学术语言规则。数据库保存完整结构化 extraction，sidecar 只保存高价值、可快速恢复理解的人类 synthesis。
 
 ## 6. 科研结论的 Evidence Gate
 

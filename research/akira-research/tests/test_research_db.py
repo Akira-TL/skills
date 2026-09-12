@@ -285,7 +285,7 @@ class ResearchDbTests(unittest.TestCase):
                     paper_id, kind, path, content_type, retrieved_at, created_at
                 ) VALUES (?, 'main_text', ?, 'application/pdf', ?, ?)
                 """,
-                ("P000001", "literature/papers/P000001/paper.pdf", now, now),
+                ("P000001", ".research/artifacts/papers/P000001/paper.pdf", now, now),
             )
 
         result = validate(self.root)
@@ -319,7 +319,7 @@ class ResearchDbTests(unittest.TestCase):
     def test_validate_rejects_extensionless_main_text_artifact(self) -> None:
         init_database(self.root)
         now = datetime.now(timezone.utc).isoformat()
-        paper_dir = self.root / "literature" / "papers" / "P000001"
+        paper_dir = self.root / ".research" / "artifacts" / "papers" / "P000001"
         paper_dir.mkdir(parents=True)
         (paper_dir / "paper").write_text("<html></html>", encoding="utf-8")
         with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
@@ -334,7 +334,7 @@ class ResearchDbTests(unittest.TestCase):
                     paper_id, kind, path, content_type, retrieved_at, created_at
                 ) VALUES (?, 'main_text', ?, 'text/html', ?, ?)
                 """,
-                ("P000001", "literature/papers/P000001/paper", now, now),
+                ("P000001", ".research/artifacts/papers/P000001/paper", now, now),
             )
 
         result = validate(self.root)

@@ -617,7 +617,7 @@ Agent 根据用户问题生成关键词、同义词或结构过滤条件；SQLit
 research-db paper-context P000001 --for-sidecar
 ```
 
-它返回 identity、high-value methods、major observations、main claims、critical/major issues、reusable knowledge 与 innovation candidates。Agent据此结合全文理解更新论文旁边的 `README.md`；sidecar 目标是短小的人类 synthesis，而不是模板化 dump。
+它返回 identity、high-value methods、major observations、main claims、critical/major issues、reusable knowledge 与 innovation candidates。Agent据此结合全文理解更新 `literature/read/<题名> - <第一作者> - <年份>.md`；该文件通过 `papers.sidecar_path` 关联，目标是短小且可快速恢复论文理解的人类 synthesis，而不是模板化 dump。机器 canonical artifact 继续留在 `.research/artifacts/papers/<paper-id>/`。
 
 ## 9. Validate
 

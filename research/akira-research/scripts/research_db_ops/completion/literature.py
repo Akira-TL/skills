@@ -11,6 +11,10 @@ from research_db_ops.acquisition import (
 )
 from research_db_ops.candidates import discovery_readiness
 
+HUMAN_LITERATURE_DIRS = {"to-read", "read", "collections"}
+HUMAN_READING_SUFFIXES = {".md", ".pdf"}
+
+
 SCIENTIFIC_RELATION_PREDICATES = {
     "DIRECTLY_SUPPORTS",
     "INDIRECTLY_SUPPORTS",
@@ -21,6 +25,115 @@ SCIENTIFIC_RELATION_PREDICATES = {
     "CHALLENGES",
     "WEAKENS",
 }
+
+
+def _legacy_registered_literature_paths(project_root: Path) -> set[str]:
+    db_path = database_path(project_root)
+    if not db_path.exists():
+        return set()
+    registered: set[str] = set()
+    with connect(db_path) as connection:
+        for row in connection.execute("SELECT path FROM artifacts ORDER BY id"):
+            path = Path(str(row["path"]))
+            if path.is_absolute():
+                try:
+                    path = path.resolve().relative_to(project_root.resolve())
+                except ValueError:
+                    continue
+            value = path.as_posix()
+            if value.startswith("literature/papers/"):
+                registered.add(value)
+        for row in connection.execute(
+            "SELECT sidecar_path FROM papers WHERE sidecar_path IS NOT NULL AND trim(sidecar_path) <> ''"
+        ):
+            path = Path(str(row["sidecar_path"]))
+            if path.is_absolute():
+                try:
+                    path = path.resolve().relative_to(project_root.resolve())
+                except ValueError:
+                    continue
+            value = path.as_posix()
+            if value.startswith("literature/papers/"):
+                registered.add(value)
+    return registered
+
+
+def literature_human_view_readiness(project_root: Path) -> dict[str, Any]:
+    root = project_root / "literature"
+    if not root.exists():
+        return {"ready": True, "blockers": [], "legacy_paths": []}
+
+    blockers: list[dict[str, Any]] = []
+    legacy_paths: list[str] = []
+    legacy_registered = _legacy_registered_literature_paths(project_root)
+
+    for child in sorted(root.iterdir(), key=lambda path: path.name.casefold()):
+        relative = child.relative_to(project_root).as_posix()
+        if child.name == "README.md" and child.is_file():
+            continue
+        if child.name == "papers" and child.is_dir():
+            for legacy_file in sorted(path for path in child.rglob("*") if path.is_file()):
+                legacy_relative = legacy_file.relative_to(project_root).as_posix()
+                if legacy_relative in legacy_registered:
+                    legacy_paths.append(legacy_relative)
+                else:
+                    blockers.append(
+                        {
+                            "reason": "human_literature_unregistered_legacy_file",
+                            "path": legacy_relative,
+                        }
+                    )
+            continue
+        if child.name not in HUMAN_LITERATURE_DIRS or not child.is_dir():
+            blockers.append(
+                {
+                    "reason": "human_literature_unexpected_top_level",
+                    "path": relative,
+                }
+            )
+            continue
+
+        allowed_suffixes = {".md"} if child.name == "collections" else HUMAN_READING_SUFFIXES
+        stems_with_notes: set[str] = set()
+        pdf_paths: list[Path] = []
+        for entry in sorted(child.iterdir(), key=lambda path: path.name.casefold()):
+            entry_relative = entry.relative_to(project_root).as_posix()
+            if entry.is_dir():
+                blockers.append(
+                    {
+                        "reason": "human_literature_nested_directory",
+                        "path": entry_relative,
+                    }
+                )
+                continue
+            if not entry.is_file() or entry.suffix.casefold() not in allowed_suffixes:
+                blockers.append(
+                    {
+                        "reason": "human_literature_non_readable_file",
+                        "path": entry_relative,
+                    }
+                )
+                continue
+            if entry.suffix.casefold() == ".md":
+                stems_with_notes.add(entry.stem)
+            elif entry.suffix.casefold() == ".pdf":
+                pdf_paths.append(entry)
+
+        if child.name in {"to-read", "read"}:
+            for pdf_path in pdf_paths:
+                if pdf_path.stem not in stems_with_notes:
+                    blockers.append(
+                        {
+                            "reason": "human_literature_pdf_without_note",
+                            "path": pdf_path.relative_to(project_root).as_posix(),
+                        }
+                    )
+
+    return {
+        "ready": not blockers,
+        "blockers": blockers,
+        "legacy_paths": sorted(legacy_paths),
+    }
 
 
 def _entity_paper_id(connection, entity_type: str, entity_id: str) -> str | None:
@@ -39,7 +152,8 @@ def _entity_paper_id(connection, entity_type: str, entity_id: str) -> str | None
 def literature_completion_readiness(
     project_root: Path, discovery: dict[str, Any] | None = None
 ) -> dict[str, Any]:
-    blockers: list[dict[str, Any]] = []
+    human_view = literature_human_view_readiness(project_root)
+    blockers: list[dict[str, Any]] = list(human_view["blockers"])
     core_acquired_count = 0
     relevant_acquired_count = 0
     critically_reviewed_count = 0
@@ -53,6 +167,7 @@ def literature_completion_readiness(
             "relevant_acquired_count": 0,
             "critically_reviewed_count": 0,
             "cross_paper_scientific_relation_count": 0,
+            "human_view": human_view,
         }
 
     with connect(db_path) as connection:
@@ -168,4 +283,5 @@ def literature_completion_readiness(
         "critically_reviewed_count": critically_reviewed_count,
         "cross_paper_scientific_relation_count": len(cross_paper_scientific_relations),
         "cross_paper_scientific_relation_ids": cross_paper_scientific_relations,
+        "human_view": human_view,
     }

@@ -350,7 +350,7 @@ class ResearchDbReadingTests(unittest.TestCase):
         self.assertEqual(result["depth"], "deep_extraction")
 
     def test_deep_extraction_rejects_none_found_when_main_text_exposes_public_data(self) -> None:
-        xml_path = self.root / "literature" / "papers" / "P000001" / "data-availability.xml"
+        xml_path = self.root / ".research" / "artifacts" / "papers" / "P000001" / "data-availability.xml"
         xml_path.write_text(
             "<article><sec><title>Availability of data and materials</title>"
             "<p>The data are publicly available at "
@@ -587,7 +587,8 @@ class ResearchDbReadingTests(unittest.TestCase):
     def test_critical_audit_links_issue_and_sidecar(self) -> None:
         reading = ingest_reading(self.root, self.reconstruction_bundle())
         claim_id = reading["refs"]["claim:claim-1"]
-        sidecar = self.root / "literature" / "papers" / "P000001" / "README.md"
+        sidecar = self.root / "literature" / "read" / "Reading Test Paper - A. Author - 2026.md"
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
         sidecar.write_text("# Reading Test Paper\n\nCritical synthesis.\n", encoding="utf-8")
 
         result = ingest_critical(
@@ -597,7 +598,7 @@ class ResearchDbReadingTests(unittest.TestCase):
                 "depth": "full_scan",
                 "artifacts_checked": [{"artifact_kind": "main_text"}],
                 "sections_checked": ["Methods", "Results", "Discussion"],
-                "sidecar_path": "literature/papers/P000001/README.md",
+                "sidecar_path": "literature/read/Reading Test Paper - A. Author - 2026.md",
                 "issues": [
                     {
                         "ref": "issue-1",
@@ -630,7 +631,7 @@ class ResearchDbReadingTests(unittest.TestCase):
         self.assertEqual(result["critical_status"], "critically_reviewed")
         self.assertEqual(result["reading_status"], "extracted")
         self.assertEqual(result["counts"], {"issues": 1, "relations": 1})
-        self.assertEqual(result["sidecar_path"], "literature/papers/P000001/README.md")
+        self.assertEqual(result["sidecar_path"], "literature/read/Reading Test Paper - A. Author - 2026.md")
 
         with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             paper = connection.execute(
@@ -648,7 +649,7 @@ class ResearchDbReadingTests(unittest.TestCase):
                 "full_scan",
                 "extracted",
                 "critically_reviewed",
-                "literature/papers/P000001/README.md",
+                "literature/read/Reading Test Paper - A. Author - 2026.md",
             ),
         )
         self.assertEqual(issue, ("scope_limitation", "demonstrated", "claim", claim_id))
