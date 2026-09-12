@@ -165,7 +165,31 @@ Comment
 
 只有真实完成的修改才能使用 completed tense。仍待用户、analysis 或 experiment 的项目必须保留显式 placeholder / open status。
 
-## 8. Revision package 是联动产物
+## 8. 局部 revision 优先局部修改，不无故全稿重写
+
+当 reviewer / editor / user 要求只涉及明确 section、paragraph、Figure、Table 或 Claim surface 时，revision 默认以**当前正式 baseline + 最窄必要修改范围**执行：
+
+```text
+明确 concern / target
+→ 定位当前 baseline 中相关段落 / artifact
+→ 只修改解决该 concern 所需的范围
+→ 用 Git diff / file diff 审查实际变化
+→ 检查是否产生 collateral Claim / number / citation / scope drift
+```
+
+这样做的目标不是追求“改得越少越好”，而是避免一次小 revision 触发整篇生成式重写，使没有被要求修改的 Methods、数字、limitation、citation 或 Claim 强度发生无意漂移。
+
+具体规则：
+
+- 与当前 concern 无关且本来正确的段落，默认保持原文；
+- 若一个局部修改会影响 Abstract、Conclusion、Figure legend、Methods 或其他联动表述，显式把这些位置加入 revision scope，而不是静默连带改写；
+- 每轮 revision 保留明确 baseline，优先使用 Git diff 核对 touched paths / sections；
+- 不要求为普通 Markdown revision 引入 block marker、专用 patch schema 或第二套版本系统，Git 已经负责正文版本 provenance；
+- 若问题本质上要求调整全文逻辑、重排 major sections、改变核心 Claim 或重新组织整篇 manuscript，允许结构性重写，但要明确这是 **scope escalation**，不能继续声称“只是局部修订”。
+
+一旦发生结构性重写或触及大量 Claim surface，局部 unchanged-assumption 不再成立：对整篇重新执行 [`audit/INTEGRITY-AUDIT.md`](audit/INTEGRITY-AUDIT.md)、[`audit/CITATION-AUDIT.md`](audit/CITATION-AUDIT.md)、Figure / Data Availability 等适用检查，而不是只检查最初 reviewer 点名的段落。
+
+## 9. Revision package 是联动产物
 
 当交付物同时包含 clean manuscript、marked / tracked-change manuscript 和 response letter 时，把三者视为一个联动 package。任何 manuscript 编辑都可能使另外两份文件失效，因此：
 
@@ -179,7 +203,7 @@ Comment
 
 因此最后一次 manuscript 改动之后，必须重新做 package consistency，而不是沿用前一版已通过的检查结果。
 
-## 9. 最终修订检查
+## 10. 最终修订检查
 
 所有 reviewer comment 处理完成后：
 
