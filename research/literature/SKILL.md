@@ -21,7 +21,7 @@ description: 围绕科研项目的 Active Uncertainty 执行文献发现、全�
 
 闭环中的状态只按两类对外返回：
 
-- `COMPLETED`：全文 acquisition / reading / Critical Audit / synthesis / canonical 写回 / Git 收口均满足本轮适用门禁，已经实际运行 `research-db validate --completion`，且输出中的 `discovery.ready_for_saturation=true`、`literature.ready=true`、适用的 `academic_language` / `project_state` 与 Git provenance 均已闭合；若全局 `completion=false` 仅由与本轮 Literature 无关的既存 Design / Analysis / Communication 等工作流 blocker 导致，不把它误判为 Literature 未完成，但必须如实保留该项目级欠账；
+- `COMPLETED`：全文 acquisition / reading / Critical Audit / synthesis / canonical 写回 / Git 收口均满足本轮**当前模式适用的门禁**，并实际运行 `research-db validate --completion` 检查共享科研对象、artifact 与 Git provenance。`DISCOVERY` 还要求输出中的 `discovery.ready_for_saturation=true`、`literature.ready=true` 及适用的 `academic_language` / `project_state` 已闭合；`SYSTEMATIC` 则按 [`references/SYSTEMATIC-REVIEW.md`](references/SYSTEMATIC-REVIEW.md) 的 protocol-bound search / screening / extraction / appraisal / synthesis 条件闭合，不能拿 Discovery 的 conceptual saturation 代替系统检索完整性，也不能把与 frozen protocol 无关的 Discovery 饱和要求当成 SYSTEMATIC 完成条件。若全局 `completion=false` 仅由与本轮 Literature 无关的既存 Design / Analysis / Communication 等工作流 blocker 导致，不把它误判为 Literature 未完成，但必须如实保留该项目级欠账；
 - `BLOCKED`：存在当前 Agent 无法自行解除且必须等待用户或外部条件的真实 blocker。此时保存已完成 provenance，在 `RESEARCH.md` 的 `Active Work` 写明 blocker 与解除条件，再向用户请求最小必要协同。
 
 普通的 `pending`、`queued`、`not ready`、未完成深读、未完成 relation 或 working tree 尚未收口都不是第三种返回状态。不得以“本轮尚未完成”为最终答复替代继续执行。
@@ -30,7 +30,7 @@ description: 围绕科研项目的 Active Uncertainty 执行文献发现、全�
 
 默认模式为 `DISCOVERY`：目标是高召回地理解领域、发现术语、方法、矛盾、边界条件与关键工作。检索式允许迭代；每次检索作为独立 Search Run 写入数据库，保留 purpose、source、query、filters、parent run、reason、result count、what we learned 与 next decision，并显式记录 `discovery_method`：`seed_search | query_expansion | backward_citation | forward_citation | related_work | method_search | update_search | exact_work | other`。`exact_work` 只表示已知论文的定向检索，不计作独立的 discovery strategy。
 
-只有用户明确需要 systematic review、meta-analysis、scoping review 或可发表的正式系统检索时才进入 `SYSTEMATIC`；该模式的完整 protocol 另行设计，不用 discovery 规则冒充系统综述。
+只有用户明确需要系统综述（Systematic Review）、荟萃分析（Meta-analysis）、范围综述（Scoping Review）或可发表的正式系统检索时才进入 `SYSTEMATIC`；完整方法学按 [`references/SYSTEMATIC-REVIEW.md`](references/SYSTEMATIC-REVIEW.md) 执行，不用 Discovery 的 iterative search / conceptual saturation 规则冒充系统综述。SYSTEMATIC 先由 `design` 冻结 Review protocol，再由本 Skill 执行 protocol-bound search、deduplication、screening、全文获取和 study-level extraction；需要正式结构化 / 定量综合时把 extraction 提升为 canonical Dataset，Meta-analysis 交给 `analysis`，最终 evidence boundary 交给 `interpretation`。
 
 Discovery 采用循环：
 
@@ -187,6 +187,6 @@ Evidence Map 不再人工维护为大量 Markdown，而是由 SQLite 中的 Obse
 
 Literature Research 完成后，必须把真正改变项目判断的新 evidence、最重要的 `unresolved`、仍存的竞争解释与最有判别力的下一条证据写入同一个项目的 canonical sources；值得持续追踪的新猜想同时保留正确 proposal provenance。`RESEARCH.md` 只接收仍然影响当前路线的高层变化，不能变成文献日志。
 
-Literature completion 只表示本轮文献发现、获取、阅读、批判和综合已经闭合；它不意味着整个科研 Objective 已经解决，也不构成机械进入 `HYPOTHESIS` 或 `DESIGN` 的理由。准备结束完整 Literature Research 前，最后一次检查 `discovery-status`、适用的 acquisition / reading / Critical Audit / cross-paper relation 要求、canonical state、Git 状态与 `validate --completion` 的 Literature-specific readiness；其中任何本工作流未闭合项若不是前述真实外部 blocker，就继续执行而不是返回阶段总结。不要要求与本轮 Literature 无关的其他科研工作流同时完成。
+Literature completion 只表示本轮文献发现、获取、阅读、批判和综合已经闭合；它不意味着整个科研 Objective 已经解决，也不构成机械进入 `HYPOTHESIS` 或 `DESIGN` 的理由。准备结束完整 Literature Research 前，按当前模式做最后检查：`DISCOVERY` 检查 `discovery-status`、适用的 acquisition / reading / Critical Audit / cross-paper relation、canonical state、Git 状态与 `validate --completion` 的共享 readiness；`SYSTEMATIC` 则检查 frozen protocol、全部 protocol-bound Search Runs、deduplication、screening / full-text exclusion、extraction、适用 appraisal、Data / Analysis / Interpretation 交接和 final search 状态，再运行共享 `validate --completion`。其中任何本工作流未闭合项若不是前述真实外部 blocker，就继续执行而不是返回阶段总结。不要要求与本轮 Literature 无关的其他科研工作流同时完成。
 
 只有达到 `COMPLETED` 后才把控制权交回 `akira-research`，由更新后的 Scientific State 重新选择下一动作：现有项目数据已经能取得判别性证据时应进入 `ANALYSIS`；需要把竞争解释转成不同预测时进入 `HYPOTHESIS`；确实需要新的 sampling、measurement 或 intervention 时才进入 `DESIGN`。若状态为 `BLOCKED`，控制权停在当前 Literature work，并把解除 blocker 作为项目下一条真实 `Active Work`。Literature Skill 不另行维护一套项目路线或最终科学结论。

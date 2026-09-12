@@ -33,7 +33,7 @@
 
 若传播目标明确声明为系统综述（Systematic Review）、范围综述（Scoping Review）、荟萃分析（Meta-analysis），或者研究目的本身要求可复现检索、正式纳入排除标准、筛选流程、质量/偏倚评价、数据提取或定量证据综合，则**不能直接按普通综述开始写作**。
 
-这些类型的检索、筛选、数据提取、质量评价和综合本身属于科研方法。若相应 canonical research workflow 尚未完成，应退出 Communication，返回 `akira-research`，按当前权威方法学与 reporting guideline 建立并完成相应 Design / Literature / Data / Analysis / Interpretation provenance，形成稳定 source commit 后再进入 Communication。不得用普通叙述性综述的写作方式冒充正式系统综述、范围综述或荟萃分析的方法学过程。
+这些类型的检索、筛选、数据提取、质量评价和综合本身属于科研方法。若相应 canonical research workflow 尚未完成，应退出 Communication，返回 `akira-research`：先由 `design` 冻结 Review protocol，再按 [`literature` 的 SYSTEMATIC workflow](../../literature/references/SYSTEMATIC-REVIEW.md) 完成 protocol-bound search、deduplication、screening、全文 eligibility、extraction 与适用的 study-level appraisal；需要结构化 / 定量综合时把 extraction 提升为 canonical Dataset，并由 `analysis` 执行 Meta-analysis 或其他正式统计综合，最后由 `interpretation` 形成 evidence boundary。形成稳定 source commit 后再进入 Communication。不得用普通叙述性综述的写作方式冒充正式系统综述、范围综述或荟萃分析的方法学过程。
 
 完成上游研究后，Communication 只负责把已经完成的方法、结果和综合准确写成论文。
 
