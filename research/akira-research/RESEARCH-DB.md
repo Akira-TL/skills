@@ -8,9 +8,9 @@
 
 - `RESEARCH.md`：当前研究状态与路线的 canonical source。
 - `.research/research.sqlite`：详细结构化科研知识的 canonical source，并进入 Git 保存版本快照。
-- PDF、supplement、代码、数据等原始 artifact：保持为独立文件；数据库只记录路径、版本、来源、来源 URL 与获取时间，不保存 blob。论文身份优先由 DOI / PMID / PMCID 等稳定标识确认，不为日常文献入库计算内容 hash。
+- PDF、XML/HTML 正文表示、supplement、代码、数据等论文原始 artifact：统一保存在隐藏的 `.research/artifacts/papers/<paper-id>/` 机器归档区；数据库只记录路径、版本、来源、来源 URL 与获取时间，不保存 blob。论文身份优先由 DOI / PMID / PMCID 等稳定标识确认，不为日常文献入库计算内容 hash。
 
-每篇已下载论文旁边保留精简的人类 sidecar；sidecar 是给用户阅读的 synthesis，不复制数据库的完整 extraction，也不作为详细知识的 canonical source。
+`literature/` 保留给人类阅读视图，不再承担论文原始 artifact 归档。每篇已完成阅读的论文保留精简的人类 sidecar；sidecar 是给用户阅读的 synthesis，不复制数据库的完整 extraction，也不作为详细知识的 canonical source。
 
 PDF 的长期 artifact storage / Git 策略仍是独立设计问题；本契约只要求数据库能够通过 Paper identity + path + provenance 回到对应文件。
 
@@ -454,7 +454,7 @@ uv run scripts/research_db.py ingest-paper
 
 输入 JSON 至少包含 `title`、稳定论文身份和一个 `kind=main_text` 的真实 artifact。论文身份按 DOI → PMID → 显式 `canonical_identity` 的顺序确定：存在 DOI 时 canonical identity 必须是 `doi:<normalized-doi>`，否则存在 PMID 时为 `pmid:<pmid>`；显式 `canonical_identity` 只用于两者都不存在但调用方已经完成 identity resolution 的情况，`"doi"` 这类 identity type 标签不是论文身份。`artifacts[].path` 相对路径按科研项目根目录解析；文件必须真实存在。
 
-写入前完成 artifact 存在性与论文身份检查；正式写入使用单一事务，自动分配 `P000001` 形式的 Paper ID，并把来源文件复制到 `literature/papers/<paper-id>/` 的 canonical artifact 目录。主文使用 `paper.<ext>`，补充材料按 `kind` 生成稳定文件名；来源 staging 文件没有后缀时根据 `content_type` 推断 canonical 扩展名，无法推断时拒绝写入，不生成无扩展名的 canonical 主文。原来源文件保持不变。数据库登记最终路径、版本、来源 URL 与 `retrieved_at`，缺少获取时间时由 ingest 记录当前时间。DOI 会规范化后去重；发现已存在身份、目标 Paper 目录冲突或任一 artifact 无效时整次数据库写入失败，并清理本次新建的 canonical artifact 目录。
+写入前完成 artifact 存在性与论文身份检查；正式写入使用单一事务，自动分配 `P000001` 形式的 Paper ID，并把来源文件复制到 `.research/artifacts/papers/<paper-id>/` 的 canonical 机器归档目录。主文使用 `paper.<ext>`，补充材料按 `kind` 生成稳定文件名；XML/HTML 等机器可读正文表示允许保存在这里，但不得因此暴露到人类 `literature/` 阅读区。来源 staging 文件没有后缀时根据 `content_type` 推断 canonical 扩展名，无法推断时拒绝写入，不生成无扩展名的 canonical 主文。原来源文件保持不变。数据库登记最终路径、版本、来源 URL 与 `retrieved_at`，缺少获取时间时由 ingest 记录当前时间。DOI 会规范化后去重；发现已存在身份、目标 Paper 目录冲突或任一 artifact 无效时整次数据库写入失败，并清理本次新建的 canonical artifact 目录。
 
 ### Existing Paper artifact bundle
 
@@ -464,7 +464,7 @@ uv run scripts/research_db.py ingest-paper
 uv run scripts/research_db.py add-paper-artifacts
 ```
 
-默认读取 `.research/bundles/paper-artifacts.json`。输入至少包含既有 `paper_id` 和非空 `artifacts[]`；artifact 字段与 `ingest-paper` 相同，但不要求再次提供 `main_text`。命令先验证全部来源文件，再在一个数据库事务内把它们复制到既有 `literature/papers/<paper-id>/`、登记 `artifacts` 与 `change_log`。稳定文件名已经占用时按 `-02`、`-03` 继续编号，不覆盖既有 canonical 文件；数据库已有路径即使对应文件异常缺失，也保留其文件名占用，不能借追加操作复用旧路径。任何复制或数据库写入失败都会回滚数据库并只清理本次新增文件，不删除 Paper 原有目录内容。
+默认读取 `.research/bundles/paper-artifacts.json`。输入至少包含既有 `paper_id` 和非空 `artifacts[]`；artifact 字段与 `ingest-paper` 相同，但不要求再次提供 `main_text`。命令先验证全部来源文件，再在一个数据库事务内把它们复制到既有 `.research/artifacts/papers/<paper-id>/`、登记 `artifacts` 与 `change_log`。稳定文件名已经占用时按 `-02`、`-03` 继续编号，不覆盖既有 canonical 文件；数据库已有路径即使对应文件异常缺失，也保留其文件名占用，不能借追加操作复用旧路径。任何复制或数据库写入失败都会回滚数据库并只清理本次新增文件，不删除 Paper 原有目录内容。
 
 如果 Paper 在追加 artifact 前已经完成 Reconstruction 或 Critical Audit，新增来源意味着此前的“已完整阅读/已批判审阅”状态不再代表当前 artifact 集合。`add-paper-artifacts` 因此保留历史 `reading_runs` 和已有知识单元，但把当前 `reading_status` 重新设为 `unread`、`critical_status` 重新设为 `not_reviewed`，并记录 `REOPEN` change log。后续允许一次针对晚到 artifact 的增量 Reconstruction：它必须检查自上一 Reconstruction 后登记的全部新 artifact；此前已经达到 `deep_extraction` 的 Paper 不能在增量复审时降级为 `full_scan`。若晚到附件没有产生新的 Method / Observation / Claim 等知识单元，增量 Reconstruction 可以只记录检查范围与完整 `extraction_checks`，不强制伪造知识单元。历史 deep-extraction run 只对其 `completed_at` 当时已经登记的 supplement artifact 负责，不用“未来附件”追溯判旧 run 失败。完成新的 Reconstruction 后，允许再执行一次增量 Critical Audit；它必须晚于上一次 Critical Audit，并检查上一次审计后登记的新 artifact，之后才恢复 `reading_status=extracted` 与 `critical_status=critically_reviewed`。
 

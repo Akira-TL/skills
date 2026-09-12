@@ -55,10 +55,10 @@ class ResearchDbIngestPaperTests(unittest.TestCase):
 
         self.assertEqual(result["paper_id"], "P000001")
         self.assertEqual(result["doi"], "10.1234/test.paper")
-        self.assertEqual(result["paper_dir"], "literature/papers/P000001")
+        self.assertEqual(result["paper_dir"], ".research/artifacts/papers/P000001")
         self.assertNotIn("sha256", result["artifacts"][0])
 
-        canonical_pdf = self.root / "literature" / "papers" / "P000001" / "paper.pdf"
+        canonical_pdf = self.root / ".research" / "artifacts" / "papers" / "P000001" / "paper.pdf"
         self.assertEqual(canonical_pdf.read_bytes(), self.pdf_bytes)
         self.assertTrue(self.pdf_path.exists(), "ingest should copy, not move, the source artifact")
 
@@ -76,7 +76,7 @@ class ResearchDbIngestPaperTests(unittest.TestCase):
             ("P000001", "10.1234/test.paper", "doi:10.1234/test.paper", "acquired"),
         )
         self.assertEqual(artifact[0], "P000001")
-        self.assertEqual(artifact[1], "literature/papers/P000001/paper.pdf")
+        self.assertEqual(artifact[1], ".research/artifacts/papers/P000001/paper.pdf")
         self.assertEqual(artifact[2], "application/pdf")
         self.assertEqual(artifact[3], "publisher")
         self.assertEqual(artifact[4], "https://example.test/paper.pdf")
@@ -95,9 +95,9 @@ class ResearchDbIngestPaperTests(unittest.TestCase):
 
         self.assertEqual(
             result["artifacts"][0]["path"],
-            "literature/papers/P000001/paper.html",
+            ".research/artifacts/papers/P000001/paper.html",
         )
-        canonical_html = self.root / "literature" / "papers" / "P000001" / "paper.html"
+        canonical_html = self.root / ".research" / "artifacts" / "papers" / "P000001" / "paper.html"
         self.assertEqual(canonical_html.read_bytes(), html_bytes)
         self.assertTrue(html_path.exists(), "ingest should copy, not move, the source artifact")
 
@@ -133,8 +133,8 @@ class ResearchDbIngestPaperTests(unittest.TestCase):
         self.assertEqual(
             paths,
             [
-                "literature/papers/P000001/paper.pdf",
-                "literature/papers/P000001/supplementary-tables.xlsx",
+                ".research/artifacts/papers/P000001/paper.pdf",
+                ".research/artifacts/papers/P000001/supplementary-tables.xlsx",
             ],
         )
 
@@ -162,7 +162,7 @@ class ResearchDbIngestPaperTests(unittest.TestCase):
         self.assertEqual(result["paper_id"], "P000001")
         self.assertEqual(
             result["artifacts"][0]["path"],
-            "literature/papers/P000001/supplementary-tables.xlsx",
+            ".research/artifacts/papers/P000001/supplementary-tables.xlsx",
         )
         canonical = self.root / result["artifacts"][0]["path"]
         self.assertEqual(canonical.read_bytes(), b"late xlsx placeholder")
@@ -200,9 +200,9 @@ class ResearchDbIngestPaperTests(unittest.TestCase):
 
         self.assertEqual(
             result["artifacts"][0]["path"],
-            "literature/papers/P000001/supplementary-tables-02.xlsx",
+            ".research/artifacts/papers/P000001/supplementary-tables-02.xlsx",
         )
-        paper_dir = self.root / "literature" / "papers" / "P000001"
+        paper_dir = self.root / ".research" / "artifacts" / "papers" / "P000001"
         self.assertEqual((paper_dir / "supplementary-tables.xlsx").read_bytes(), b"first")
         self.assertEqual((paper_dir / "supplementary-tables-02.xlsx").read_bytes(), b"second")
 
@@ -220,7 +220,7 @@ class ResearchDbIngestPaperTests(unittest.TestCase):
                 },
             )
 
-        self.assertFalse((self.root / "literature/papers/P999999").exists())
+        self.assertFalse((self.root / ".research/artifacts/papers/P999999").exists())
         with closing(sqlite3.connect(database_path(self.root))) as connection, connection:
             self.assertEqual(connection.execute("SELECT COUNT(*) FROM artifacts").fetchone()[0], 1)
 
@@ -237,7 +237,7 @@ class ResearchDbIngestPaperTests(unittest.TestCase):
 
         self.assertEqual(first["paper_id"], "P000001")
         self.assertEqual(second_result["paper_id"], "P000002")
-        self.assertTrue((self.root / "literature/papers/P000002/paper.pdf").exists())
+        self.assertTrue((self.root / ".research/artifacts/papers/P000002/paper.pdf").exists())
 
     def test_duplicate_doi_is_rejected_without_partial_write_or_directory(self) -> None:
         ingest_paper(self.root, self.bundle())
@@ -252,7 +252,7 @@ class ResearchDbIngestPaperTests(unittest.TestCase):
             artifact_count = connection.execute("SELECT COUNT(*) FROM artifacts").fetchone()[0]
             log_count = connection.execute("SELECT COUNT(*) FROM change_log").fetchone()[0]
         self.assertEqual((paper_count, artifact_count, log_count), (1, 1, 2))
-        self.assertFalse((self.root / "literature/papers/P000002").exists())
+        self.assertFalse((self.root / ".research/artifacts/papers/P000002").exists())
 
     def test_missing_artifact_is_rejected_before_database_write(self) -> None:
         bundle = self.bundle()
@@ -265,7 +265,7 @@ class ResearchDbIngestPaperTests(unittest.TestCase):
             paper_count = connection.execute("SELECT COUNT(*) FROM papers").fetchone()[0]
             artifact_count = connection.execute("SELECT COUNT(*) FROM artifacts").fetchone()[0]
         self.assertEqual((paper_count, artifact_count), (0, 0))
-        self.assertFalse((self.root / "literature/papers/P000001").exists())
+        self.assertFalse((self.root / ".research/artifacts/papers/P000001").exists())
 
     def test_identity_is_required_when_doi_and_pmid_are_absent(self) -> None:
         bundle = self.bundle()

@@ -12,6 +12,8 @@ from typing import Any, TypedDict
 from research_db_support.normalization import clean_optional_text, normalize_doi, normalize_identifier
 from research_db_support.storage import ResearchDbError, connect, database_path
 
+PAPER_ARTIFACT_ROOT = Path(".research") / "artifacts" / "papers"
+
 
 class ArtifactSpec(TypedDict, total=False):
     kind: str
@@ -140,7 +142,7 @@ def _artifact_basename(kind: str, source_path: Path, content_type: str | None) -
 def _materialize_artifacts(
     project_root: Path, paper_id: str, artifacts: list[PreparedArtifact]
 ) -> tuple[Path, list[dict[str, Any]]]:
-    paper_dir = project_root / "literature" / "papers" / paper_id
+    paper_dir = project_root / PAPER_ARTIFACT_ROOT / paper_id
     if paper_dir.exists():
         raise ResearchDbError(f"Paper artifact 目录已存在，拒绝覆盖：{paper_dir}")
     paper_dir.mkdir(parents=True)
@@ -183,7 +185,7 @@ def _materialize_additional_artifacts(
     *,
     existing_paths: list[str],
 ) -> tuple[Path, list[dict[str, Any]], list[Path], bool]:
-    paper_dir = project_root / "literature" / "papers" / paper_id
+    paper_dir = project_root / PAPER_ARTIFACT_ROOT / paper_id
     created_dir = not paper_dir.exists()
     if paper_dir.exists() and not paper_dir.is_dir():
         raise ResearchDbError(f"Paper artifact canonical path 不是目录：{paper_dir}")
