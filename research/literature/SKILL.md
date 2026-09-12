@@ -154,7 +154,7 @@ concern
 
 人类阅读输出统一按 [`READING-PROTOCOL.md`](READING-PROTOCOL.md) 生成。`literature/` 是人类阅读区，不是 raw artifact 仓库：论文的人类 Markdown 与可选 PDF 稳定放在 `literature/papers/` 根层，文件基础名采用“论文题名 - 第一作者 - 年份”；阅读优先级、Agent 阅读状态和用户本人是否确认当前版本都由数据库/Git provenance 表达，不再使用 `to-read/read` 目录移动。主题/状态集合使用 `literature/collections/*.md` 作为索引，不另建 `*_must_read/` 目录复制论文。
 
-最终 Markdown 以“三句话总结 → 论文逻辑 → 方法拆解 → 实验逻辑 → 数据直接显示 → 作者解释 → 我们的证据评估 → 关键图表与定位 → 可复用内容 → 科研启发 → 结论边界”为主线，并作为 `papers.sidecar_path` 关联。sidecar 不做逐段摘要，只保留能快速恢复理解和支持下一次科研决策的高价值 synthesis。顶部和结尾各保留一个标准“我已阅读并确认当前版本”复选框；两者是同一用户确认状态的入口，使用 `research-db sync-user-reading` 同步。文末另有 `akira:user-notes` 用户专属区块：Agent 只初始化边界，之后逐字保留，不修改、整理或总结其中内容；该区块不参与阅读确认 content OID，因此用户自己补写笔记不会使确认失效。Agent 更新自己的阅读正文时不得把旧 `[x]` 当成用户对新版本的确认；同步器发现 Agent 正文版本变化会使旧确认失效并清空复选框。用户确认与 Agent Reconstruction/Critical Audit 分开，不作为 Literature completion 条件。书目信息中的论文原始英文题名可以保留；科学叙述继续遵守学术语言规则。数据库保存完整结构化 extraction，sidecar 只保存高价值、可快速恢复理解的人类 synthesis。
+新生成或由 Agent 实质重写的人类 Markdown 使用 [`READING-PROTOCOL.md`](READING-PROTOCOL.md) 定义的 `akira:literature-note:v1` 固定格式：唯一一级标题为原始论文题名，随后是固定书目信息表；正文固定使用“三句话总结 → 为什么值得读 → 论文逻辑 → 方法拆解 → 实验逻辑 → 数据直接显示 → 作者解释 → 我们的证据评估 → 关键图表与定位 → 可复用内容 → 科研启发 → 结论边界 → 我的笔记”的 `##` 二级标题顺序，`###` 及更深层标题按论文类型自由展开。sidecar 不做逐段摘要，只保留能快速恢复理解和支持下一次科研决策的高价值综合。顶部和结尾各保留一个标准“我已阅读并确认当前版本”复选框；两者是同一用户确认状态的入口，使用 `research-db sync-user-reading` 同步。文末 `akira:user-notes` 是用户专属区块：Agent 只初始化边界，之后逐字保留，不修改、整理或总结其中内容；该区块不参与阅读确认 content OID，因此用户自己补写笔记不会使确认失效。Agent 更新自己的阅读正文时不得把旧 `[x]` 当成用户对新版本的确认；同步器发现 Agent 正文版本变化会使旧确认失效并清空复选框。用户确认与 Agent Reconstruction/Critical Audit 分开，不作为 Literature completion 条件。数据库保存完整结构化 extraction，sidecar 只保存高价值、可快速恢复理解的人类综合。
 
 ## 6. 科研结论的 Evidence Gate
 

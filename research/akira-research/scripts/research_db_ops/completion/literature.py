@@ -10,6 +10,7 @@ from research_db_ops.acquisition import (
     acquired_paper_main_text_access_blockers,
 )
 from research_db_ops.candidates import discovery_readiness
+from research_db_ops.completion.human_literature import validate_human_literature_note
 from research_db_ops.user_reading import parse_confirmation_controls
 from research_db_support.storage import ResearchDbError
 
@@ -117,12 +118,24 @@ def literature_human_view_readiness(project_root: Path) -> dict[str, Any]:
                 continue
             if entry.suffix.casefold() == ".md":
                 stems_with_notes.add(entry.stem)
+                note_text = entry.read_text(encoding="utf-8")
                 try:
-                    parse_confirmation_controls(entry.read_text(encoding="utf-8"))
+                    parse_confirmation_controls(note_text)
                 except ResearchDbError as exc:
                     blockers.append(
                         {
                             "reason": "human_literature_confirmation_controls_missing",
+                            "path": entry_relative,
+                            "detail": str(exc),
+                        }
+                    )
+                    continue
+                try:
+                    validate_human_literature_note(note_text)
+                except ResearchDbError as exc:
+                    blockers.append(
+                        {
+                            "reason": "human_literature_note_structure_invalid",
                             "path": entry_relative,
                             "detail": str(exc),
                         }
