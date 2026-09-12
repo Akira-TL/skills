@@ -6,6 +6,8 @@
 
 进入长篇写作后，第一步不是直接起草正文，而是先判定整篇传播产物到底是在**报告已经完成的研究、综合既有文献，还是提出未来研究计划**。若主要贡献来自本项目新产生的 Study / Data / Analysis / Observation，则按原始研究论文流程；若主要贡献来自既有文献的组织、比较、批判和综合，则按普通叙述性综述流程；若核心任务是说明未来准备回答什么、怎样回答、如何判断成败以及为什么可行，则按 Proposal 流程。原始研究论文中的 literature review 不会因此变成综述；普通综述有表格、概念图或 bibliometric summary 也不会因此自动变成原始研究论文；Proposal 中有 preliminary data 也不会因此自动变成 Results manuscript。
 
+文稿类型确定后再叠加第二维：**目标学科共同体与目标期刊 / 会议（Venue）**。Document Type 决定科学写作流程，discipline / venue 只决定同一份 evidence 在该共同体中需要重点说明什么、采用什么 reporting / rhetorical / artifact convention。目标 Venue 已知时，从当前官方 Author Instructions 与适用 reporting guideline 核验规则；尚未确定时不凭模型经验写死字数、section 名、图数或附件要求。自然科学/生物医学、计算机/AI、人文社科与跨学科研究可以有不同审查重点，但这些 overlay 不能反过来升级 evidence、改变已冻结 estimand 或把一种文稿类型改造成另一种。
+
 原始研究论文及同类 research thesis / report 先完整盘点写作材料，再采用“主要结论 → Results → Discussion → 反推 Introduction → Methods → Abstract / Title → Supplement / Appendix”的起草顺序，而不是从前言一路顺写。写 Results prose 前先用小标题、Figure / Table、关键 Observation、本节最窄结论和下一步关系搭骨架；Introduction 中提出的主要问题、研究不足和 contribution 必须在后续 Results / Discussion 中形成闭环。材料要求尽可能完整：主要结果、负结果、非显著结果、探索性结果、敏感性分析、QC、deviation、替代解释、局限、支持与冲突文献等都先进入材料盘点，再决定进入 Main text、Supplement、Appendix 或只保留为 canonical support。Main text 只保留建立主要发现所必需的最短充分证据链以及会改变结论的关键边界；不改变中心解释的 secondary metric、额外 robustness 和 provenance 细节可以进入 Supplement / Methods，但不能用这一分配隐藏 conclusion-changing evidence。
 
 普通叙述性综述不套用 Results / Discussion 流程。它先固定 Review Question / Scope，再盘点基础工作、代表性研究、近期研究、不同理论/方法路线、支持与冲突 evidence、边界条件和 unresolved uncertainty；随后按主题或问题建立分类框架，做跨论文比较与综合，形成理论/概念框架，再从综合结果推出真实 gap、future direction 与综述自己的贡献。综述正文以问题和主题为基本单位，默认禁止按“作者 A 发现……作者 B 发现……”逐篇罗列；重要综述可以用于建立领域地图，但关键科学判断尽量回到原始论文核验。

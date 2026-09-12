@@ -73,7 +73,11 @@ Proposal 写作不授权 Communication 临时创造 Design。若 Research Questi
 
 若从用户目标、项目状态、publication target 和现有 canonical evidence 无法可靠判断文稿类型，而且不同类型会实质改变检索、结构或方法要求，则在开始长篇 prose 前先澄清传播目标。不得因为 `RESEARCH-ARTICLE-WORKFLOW.md` 已存在，就把所有 manuscript 默认写成原始研究论文。
 
-## 4. 共同底线
+## 4. 文稿类型确定后，再处理学科与 Venue
+
+本文件只解决“这是什么文稿”。完成类型路由后，再按 [`context/DISCIPLINE-VENUE.md`](context/DISCIPLINE-VENUE.md) 判断目标 discipline / audience / venue 的表达与审查惯例，并让 `research-standards` 核验当前官方要求。不要把“原始研究 vs 综述 vs Proposal”和“生物医学 vs ML vs 人文社科”“期刊 A vs 会议 B”混成同一维度。
+
+## 5. 共同底线
 
 不论选择哪条写作流程，都继续遵守：
 

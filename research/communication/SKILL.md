@@ -7,11 +7,13 @@ description: 把已经建立的 scientific state、方法、证据边界与 prov
 
 `communication` 负责科学表达，不负责在草稿里创造新的科研事实或科学设计。进入本 Skill 前，与当前传播类型有关的 canonical state 必须已经稳定：原始研究论文需要 Observation / Claim / Design / Study / Analysis 边界；综述需要可核验 Literature evidence 与 synthesis boundary；Proposal 则至少需要当前 Research Question、已有 evidence、关键 Hypothesis / Design 与现实约束在项目中有明确来源。
 
-## 1. 先判定传播类型，再确认适用规范
+## 1. 先判定传播类型，再叠加学科 / Venue 约束
 
 明确产物类型、受众与用途后，**正式起草长篇 prose 前先按 [`references/WRITING-ROUTER.md`](references/WRITING-ROUTER.md) 判定整篇文稿的主要科学贡献属于原始研究论文、普通文献综述，还是系统综述 / 范围综述 / 荟萃分析（Meta-analysis）等正式证据综合研究（evidence synthesis research）**。不得因为当前正在写 Introduction、文献回顾段落或某个分析章节，就混用整篇文稿的写作流程。
 
-随后调用 `research-standards` 核验当前 study design / publication target 对应的 reporting guideline；报告规范用于检查透明度和完整性，不替代 Design、Analysis 或 Interpretation。若目标属于系统综述、范围综述或荟萃分析，而正式检索、筛选、质量评价、数据提取或综合 provenance 尚未完成，退出 Communication 返回 `akira-research` 补齐科研流程，不能用普通综述写作替代方法学过程。
+Document Type 确定后，再按 [`references/context/DISCIPLINE-VENUE.md`](references/context/DISCIPLINE-VENUE.md) 判断目标学科共同体与 publication venue 的表达、审查和提交惯例。文稿类型决定科学写作流程；discipline / venue 只能改变同一 evidence 的呈现重点，不能反过来改变 canonical scientific state。目标 Venue 已知时调用 `research-standards` 核验当前官方 Author Instructions / reporting guideline / artifact policy；未知时不凭经验写死具体字数、章节名或附件要求。
+
+若目标属于系统综述、范围综述或荟萃分析，而正式检索、筛选、质量评价、数据提取或综合 provenance 尚未完成，退出 Communication 返回 `akira-research` 补齐科研流程，不能用普通综述写作替代方法学过程。
 
 ## 2. 从 canonical source 写作
 
