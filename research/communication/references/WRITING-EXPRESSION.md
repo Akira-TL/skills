@@ -205,7 +205,23 @@ overall
 
 中文中的“因此”“从而”“导致”“证明”等同样受 evidence boundary 约束。
 
-## 7. 段落衔接自审
+## 7. 反向提纲与段落单一信息
+
+当一节文字“每句话都没错，但读起来仍然散”时，优先做反向提纲（reverse outlining），不要先继续加连接词。
+
+对当前 section：
+
+1. 写下这一节唯一的 section thesis / 核心任务；
+2. 只抄出每个段落的 topic sentence；
+3. 为每段写一句“它提供的 evidence / explanation 是什么”；
+4. 检查 `evidence → paragraph message → section thesis` 是否连续成立；
+5. 任何无法清楚映射到 section thesis 的段落，移动、拆分、降到 Supplement / 其他 section，或删除重复内容。
+
+一个段落默认只承担一个主要信息或推理任务。若同一段同时在定义概念、报告结果、提出机制、讨论 limitation，通常应拆开。关键定义应在术语被反复使用之前出现；不要要求读者依赖后文才能理解前文名词。
+
+反向提纲完成后再决定哪里真的需要 `however`、`therefore`、`for example` 等显式连接。若交换两个段落的位置几乎不影响逻辑，应重新检查它们是否只是并列堆积，而没有形成推进关系。
+
+## 8. 段落衔接自审
 
 完成一段或一节后，不只检查语法，而要检查：
 

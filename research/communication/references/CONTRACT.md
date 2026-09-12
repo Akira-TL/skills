@@ -13,7 +13,7 @@ Communication 的任务是把已经建立的研究状态、证据边界、方法
 - collaborator / reviewer response；
 - 项目阶段总结。
 
-Interpretation 结束后没有传播需求时继续科研循环，不机械进入 Communication。长篇 manuscript / thesis / report 在起草正文前还必须按 [`WRITING-ROUTER.md`](WRITING-ROUTER.md) 判定整篇产物类型；原始研究、普通综述与正式系统综述 / 范围综述 / 荟萃分析研究不得混用写作流程。
+Interpretation 结束后没有传播需求时继续科研循环，不机械进入 Communication。长篇 manuscript / thesis / report 在起草正文前还必须按 [`WRITING-ROUTER.md`](WRITING-ROUTER.md) 判定整篇产物类型；原始研究、普通综述与正式系统综述 / 范围综述 / 荟萃分析研究不得混用写作流程。已有 reviewer / editor comment 的修订任务同时读取 [`REVISION-WORKFLOW.md`](REVISION-WORKFLOW.md)，不能把 response letter 当成实际完成证据。
 
 ## 2. Canonical source 优先
 
@@ -132,7 +132,7 @@ Communication Product 是工程审计对象，不是新的学术概念或科研�
 
 ## 11. 完成条件
 
-Communication artifact 完成前先确认已经按 [`WRITING-ROUTER.md`](WRITING-ROUTER.md) 选择正确 workflow。原始研究论文同时完成 [`RESEARCH-ARTICLE-WORKFLOW.md`](RESEARCH-ARTICLE-WORKFLOW.md)；普通叙述性综述同时完成 [`REVIEW-WORKFLOW.md`](REVIEW-WORKFLOW.md)；系统综述、范围综述或荟萃分析只有在对应正式科研方法流程已经完成并形成稳定 source commit 后，才能在 Communication 宣告成稿。
+Communication artifact 完成前先确认已经按 [`WRITING-ROUTER.md`](WRITING-ROUTER.md) 选择正确 workflow。原始研究论文同时完成 [`RESEARCH-ARTICLE-WORKFLOW.md`](RESEARCH-ARTICLE-WORKFLOW.md)；普通叙述性综述同时完成 [`REVIEW-WORKFLOW.md`](REVIEW-WORKFLOW.md)；系统综述、范围综述或荟萃分析只有在对应正式科研方法流程已经完成并形成稳定 source commit 后，才能在 Communication 宣告成稿。长篇科研稿在进入 reviewer-style review 前完成一次 [`INTEGRITY-AUDIT.md`](INTEGRITY-AUDIT.md) 初稿审计；经过实质 revision 后，在最终交付前再完成最终审计。Reviewer response / revision package 同时完成 [`REVISION-WORKFLOW.md`](REVISION-WORKFLOW.md) 的意见—动作—证据闭环。
 
 共同检查：
 
@@ -150,6 +150,8 @@ Communication artifact 完成前先确认已经按 [`WRITING-ROUTER.md`](WRITING
 12. 原始研究论文的 Introduction、Results、Discussion 与 Conclusion 已形成首尾闭环，Results 小节之间存在真实科学推进而非平铺罗列；
 13. 普通综述已经明确 Review Question / Scope，并完成代表性路线、支持/冲突 evidence、边界条件和重要材料的盘点；
 14. 普通综述正文以主题/问题和跨论文综合组织，不是按作者逐篇摘要；理论/概念框架、gap 与 future direction 均能回到前文 evidence；
-15. 段落连接词与结论强度已经按 [`WRITING-EXPRESSION.md`](WRITING-EXPRESSION.md) 核对，未用修辞连接词掩盖跳跃推断、因果升级或概念漂移。
+15. 段落连接词、反向提纲与结论强度已经按 [`WRITING-EXPRESSION.md`](WRITING-EXPRESSION.md) 核对，未用修辞连接词掩盖跳跃推断、因果升级或概念漂移；
+16. 初稿 / 最终稿在适用时已按 [`INTEGRITY-AUDIT.md`](INTEGRITY-AUDIT.md) 核验高风险 Claim、citation support、数字/统计、scope 与 revision drift；无法访问或无法核验的关键 evidence 仍保持显式 unresolved，未被伪造为 PASS；
+17. 若存在 reviewer / editor comments，每一个声称“已完成”的修改都有 revised manuscript、analysis output、figure/table、citation 或其他 inspectable artifact 支撑，response letter 没有把尚未完成的实验/分析写成既成事实。
 
 发现写作需要新的科学判断时，回到 Interpretation / Evidence Synthesis，而不是在 Communication 层临时创造结论。

@@ -205,3 +205,5 @@ Introduction 最后写，是为了让它准确建立正文实际处理的范围�
 ## 11. 写作中发现材料缺口时返回 Literature
 
 如果写某一主题时发现：前驱工作、后续工作、关键原始论文、冲突 evidence 或方法来源不足，不在 Communication 中凭模型常识补齐。返回 `literature` 完成检索、获取、Reconstruction / Critical Audit 和必要 relation，再回到本流程更新材料清单和 synthesis。
+
+普通综述完成初稿后、进入 reviewer-style review 前执行 [`INTEGRITY-AUDIT.md`](INTEGRITY-AUDIT.md) 初稿审计，重点核验 citation identity、claim-to-source support、scope 与 novelty wording；实质 revision 后在最终交付前再执行最终审计。若修订来自 reviewer / editor comment，同时使用 [`REVISION-WORKFLOW.md`](REVISION-WORKFLOW.md)。
