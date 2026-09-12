@@ -15,7 +15,7 @@ description: 把已经建立的 scientific state、方法、证据边界与 prov
 
 只从当前 `RESEARCH.md`、`research.sqlite`、Design / Study / Data / Analysis artifacts、原始论文及已完成 Interpretation 取事实。写作中发现新的科学解释或关键事实缺口时返回 `interpretation` 或其他对应 Skill，先更新 canonical state，再继续传播。
 
-完整 Claim traceability、Results / Discussion / Methods、figure / table、citation 与 communication provenance 规则见 [`references/CONTRACT.md`](references/CONTRACT.md)。
+完整 Claim traceability、Results / Discussion / Methods、figure / table、citation 与 communication provenance 规则见 [`references/CONTRACT.md`](references/CONTRACT.md)。对于 manuscript、thesis、长篇 research report，正式起草正文前还必须按 [`references/MANUSCRIPT-WORKFLOW.md`](references/MANUSCRIPT-WORKFLOW.md) 先完整盘点写作材料，再采用“主要结论 → Results → Discussion → 反推 Introduction → Methods → Abstract / Title → Supplement / Appendix”的默认写作顺序，并在完整 prose 前用小标题与 Figure / Table 搭出 Results 骨架。段落衔接、英文逻辑连接词、结论强度和术语一致性按 [`references/WRITING-EXPRESSION.md`](references/WRITING-EXPRESSION.md) 自审。
 
 ## 3. Figure / table 边界
 

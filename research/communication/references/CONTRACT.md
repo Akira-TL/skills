@@ -132,7 +132,7 @@ Communication Product 是工程审计对象，不是新的学术概念或科研�
 
 ## 11. 完成条件
 
-Communication artifact 完成前检查：
+Communication artifact 完成前检查；若产物是 manuscript、thesis 或长篇 research report，还要同时完成 [`MANUSCRIPT-WORKFLOW.md`](MANUSCRIPT-WORKFLOW.md) 的材料盘点、默认写作顺序、首尾闭环与大逻辑/小逻辑审查：
 
 1. 每个关键科研 Claim 可追溯；
 2. Results 与实际 analysis outputs 一致；
@@ -143,6 +143,9 @@ Communication artifact 完成前检查：
 7. figure / table 可回到生成流程；
 8. citations 身份与支持范围已核验；
 9. 传播产物已经登记 `source_commit` 与实际 artifact provenance，且传播阶段没有在 source freeze 后静默改变科学 canonical evidence；
-10. 中文稿件的标准术语与首次中英文表达已自审，标题/摘要没有因压缩语言而丢失关键条件性。
+10. 中文稿件的标准术语与首次中英文表达已自审，标题/摘要没有因压缩语言而丢失关键条件性；
+11. 长篇论文中，与核心 Research Question 有实质关系的重要材料已经完成去向盘点，不能解释为“因为不适合故事所以不写”；
+12. Introduction 提出的主要问题、Results 的回答、Discussion 的解释和 Conclusion 之间已经形成首尾闭环，Results 小节之间存在真实科学推进而非平铺罗列；
+13. 段落连接词与结论强度已经按 [`WRITING-EXPRESSION.md`](WRITING-EXPRESSION.md) 核对，未用修辞连接词掩盖跳跃推断、因果升级或概念漂移。
 
 发现写作需要新的科学判断时，回到 Interpretation / Evidence Synthesis，而不是在 Communication 层临时创造结论。
