@@ -13,7 +13,7 @@ Communication 的任务是把已经建立的研究状态、证据边界、方法
 - collaborator / reviewer response；
 - 项目阶段总结。
 
-Interpretation 结束后没有传播需求时继续科研循环，不机械进入 Communication。
+Interpretation 结束后没有传播需求时继续科研循环，不机械进入 Communication。长篇 manuscript / thesis / report 在起草正文前还必须按 [`WRITING-ROUTER.md`](WRITING-ROUTER.md) 判定整篇产物类型；原始研究、普通综述与正式系统综述 / 范围综述 / 荟萃分析研究不得混用写作流程。
 
 ## 2. Canonical source 优先
 
@@ -40,7 +40,7 @@ Communication artifact 是派生输出，不形成新的科研事实源。正式
 
 ## 4. 结果写作边界
 
-Results 优先报告：
+对原始研究论文及其他包含本项目 Results 的传播产物，Results 优先报告：
 
 - population / sample / independent `n`；
 - effect / estimate；
@@ -54,7 +54,7 @@ Results 优先报告：
 
 ## 5. Discussion / Conclusions gate
 
-Discussion 可以提出解释，但必须区分：
+传播产物存在 Discussion / Conclusion 或承担等价解释功能的章节时，可以提出解释，但必须区分：
 
 - directly supported conclusion；
 - indirectly supported explanation；
@@ -69,7 +69,7 @@ Conclusions 使用 [`interpretation`](../../interpretation/SKILL.md) 得出的�
 
 ## 6. Methods 与 reproducibility
 
-Methods 必须与实际 Design、Data 和 Analysis 对齐，而不是事后理想化：
+原始研究论文或其他具有正式研究方法过程的传播产物，其 Methods 必须与实际 Design、Data 和 Analysis / evidence-synthesis process 对齐，而不是事后理想化：
 
 - 实际 sample / exclusion / missingness；
 - 实际 software / parameter / reference version；
@@ -132,20 +132,24 @@ Communication Product 是工程审计对象，不是新的学术概念或科研�
 
 ## 11. 完成条件
 
-Communication artifact 完成前检查；若产物是 manuscript、thesis 或长篇 research report，还要同时完成 [`MANUSCRIPT-WORKFLOW.md`](MANUSCRIPT-WORKFLOW.md) 的材料盘点、默认写作顺序、首尾闭环与大逻辑/小逻辑审查：
+Communication artifact 完成前先确认已经按 [`WRITING-ROUTER.md`](WRITING-ROUTER.md) 选择正确 workflow。原始研究论文同时完成 [`RESEARCH-ARTICLE-WORKFLOW.md`](RESEARCH-ARTICLE-WORKFLOW.md)；普通叙述性综述同时完成 [`REVIEW-WORKFLOW.md`](REVIEW-WORKFLOW.md)；系统综述、范围综述或荟萃分析只有在对应正式科研方法流程已经完成并形成稳定 source commit 后，才能在 Communication 宣告成稿。
+
+共同检查：
 
 1. 每个关键科研 Claim 可追溯；
-2. Results 与实际 analysis outputs 一致；
-3. Methods 与实际执行一致；
+2. 若存在本项目 Results，其表述与实际 analysis outputs 一致；
+3. 若存在正式 Methods，其表述与实际执行或 evidence-synthesis process 一致；
 4. confirmatory / exploratory / post hoc 边界没有被抹平；
 5. contradiction、negative result 和主要 limitation 没有因叙事需要被隐藏；
 6. title / abstract / conclusion 没有比正文 evidence boundary 更强；
-7. figure / table 可回到生成流程；
+7. figure / table 可回到生成流程或对应 Paper / evidence relation；
 8. citations 身份与支持范围已核验；
 9. 传播产物已经登记 `source_commit` 与实际 artifact provenance，且传播阶段没有在 source freeze 后静默改变科学 canonical evidence；
 10. 中文稿件的标准术语与首次中英文表达已自审，标题/摘要没有因压缩语言而丢失关键条件性；
-11. 长篇论文中，与核心 Research Question 有实质关系的重要材料已经完成去向盘点，不能解释为“因为不适合故事所以不写”；
-12. Introduction 提出的主要问题、Results 的回答、Discussion 的解释和 Conclusion 之间已经形成首尾闭环，Results 小节之间存在真实科学推进而非平铺罗列；
-13. 段落连接词与结论强度已经按 [`WRITING-EXPRESSION.md`](WRITING-EXPRESSION.md) 核对，未用修辞连接词掩盖跳跃推断、因果升级或概念漂移。
+11. 原始研究论文中，与核心 Research Question 有实质关系的重要材料已经完成去向盘点，不能解释为“因为不适合故事所以不写”；
+12. 原始研究论文的 Introduction、Results、Discussion 与 Conclusion 已形成首尾闭环，Results 小节之间存在真实科学推进而非平铺罗列；
+13. 普通综述已经明确 Review Question / Scope，并完成代表性路线、支持/冲突 evidence、边界条件和重要材料的盘点；
+14. 普通综述正文以主题/问题和跨论文综合组织，不是按作者逐篇摘要；理论/概念框架、gap 与 future direction 均能回到前文 evidence；
+15. 段落连接词与结论强度已经按 [`WRITING-EXPRESSION.md`](WRITING-EXPRESSION.md) 核对，未用修辞连接词掩盖跳跃推断、因果升级或概念漂移。
 
 发现写作需要新的科学判断时，回到 Interpretation / Evidence Synthesis，而不是在 Communication 层临时创造结论。

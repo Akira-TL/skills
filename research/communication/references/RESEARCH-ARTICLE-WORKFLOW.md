@@ -1,6 +1,6 @@
-# 科研论文写作流程
+# 原始研究论文写作流程
 
-本文件约束 manuscript、thesis、长篇 research report 等需要完整科学叙事的传播产物。它规定的是**写作顺序、材料组织和逻辑审查**，不创造新的科研事实。所有主要结论仍必须来自已经稳定的 Analysis / Interpretation 与 canonical evidence；写作阶段只能组织和表达已有科学状态。
+本文件只约束**以本项目新产生的 Study / Data / Analysis / Observation / Interpretation 为主要科学贡献**的原始研究论文，以及同类 research thesis / research report。它规定的是写作顺序、材料组织和逻辑审查，不创造新的科研事实。所有主要结论仍必须来自已经稳定的 Analysis / Interpretation 与 canonical evidence；写作阶段只能组织和表达已有科学状态。文献综述不得套用本流程，进入 Communication 后应先按 [`WRITING-ROUTER.md`](WRITING-ROUTER.md) 判定文稿类型。
 
 ## 1. 先完整盘点写作材料
 
@@ -23,7 +23,7 @@
 
 **材料必须尽可能完整，论文正文则可以有主次。** 不得因为某项结果不利于预期故事、难以解释或不够“漂亮”而从写作材料视野中消失。
 
-对长篇 manuscript / thesis，默认维护一个 Communication 阶段的 `MATERIALS.md` 或等价清单。它是从 canonical evidence 派生的写作导航，不是新的科学事实源。每一项重要材料至少标明：
+对原始研究论文及同类长篇 research thesis / report，默认维护一个 Communication 阶段的 `MATERIALS.md` 或等价清单。它是从 canonical evidence 派生的写作导航，不是新的科学事实源。每一项重要材料至少标明：
 
 - 来源 artifact / Analysis / Paper；
 - 它回答什么；
@@ -169,7 +169,7 @@ Figure 顺序必须有科学理由，而不是按分析完成时间、文件名�
 
 ## 6. Introduction—Results—Discussion—Conclusion 首尾闭环
 
-长篇 manuscript / thesis 在成稿前建立一个简短对应表，至少检查：
+原始研究论文及同类长篇 research thesis / report 在成稿前建立一个简短对应表，至少检查：
 
 | Introduction 中的问题 / 不足 | 本研究如何处理 | Results | Discussion | 主要结论 |
 | --- | --- | --- | --- | --- |
