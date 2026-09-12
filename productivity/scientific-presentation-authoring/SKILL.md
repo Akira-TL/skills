@@ -48,6 +48,8 @@ description: 用于创建、改写或审阅科研与学术类 PPT 的结构、�
 
 只有完成这一层整理后，才确定页数和顺序。不要以原始文件页码为页面规划依据，也不要为了保留旧 PPT 而强行让旧页一一对应新页。
 
+若主要输入是一篇论文、预印本、Systematic Review / Meta-analysis 或 Akira Literature Research 的结构化阅读结果，进一步读取 [`references/PAPER-TO-PRESENTATION.md`](references/PAPER-TO-PRESENTATION.md)：先恢复论文的 scientific argument，再按 discovery / mechanism、methods / algorithm、resource / dataset、clinical / population、materials / engineering 或 review / evidence-synthesis 类型选择证据叙事；Figure 按 central evidence、control / robustness、boundary 等论证作用选择，而不是机械按论文 Figure 编号搬运。
+
 ## 四、参考 PPT 的使用方法
 
 参考 PPT 是设计语言和写作习惯的样本，不是页面素材库。
@@ -339,6 +341,8 @@ Humanizer 只能改善表达，不改变研究事实、数值、统计结果、�
 9. **模板污染**：是否带入参考稿的校徽、示例文字、示例图片或无关结构；
 10. **Humanizer**：中文文字是否经过 humanizer-zh 检查；
 11. **进度真实性**：完成、进行中、计划是否互不冲突；
-12. **可读性**：图中文字和正文在投影场景下是否足够大。
+12. **可读性**：图中文字和正文在投影场景下是否足够大；
+13. **论文来源可追溯性**：若是论文 / 文献汇报，关键结果页是否能回到原 Figure / Table / Supplement 或已核验阅读记录，作者解释与我们的 Critical Audit 是否明确分开；
+14. **实际文件 QA**：若已经生成 PPTX，除内容终检外还要检查 text overflow、shape overlap、Figure crop、panel label / axis / legend 完整性和渲染后的页面效果，不能只以文件能打开为完成标准。
 
 只有当以上项目全部通过，才把页面文字或 PPT 视为可交付版本。
