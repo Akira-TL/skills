@@ -126,13 +126,41 @@ Legend 至少应让读者无需猜测就知道：
 
 自动化 collision、alignment、font-size 或 export check 可以作为机械 QA，但不能替代逐 panel 科学审查。具体尺寸、字体、格式、颜色模式和投稿阶段要求应通过 `research-standards` 查询**当前目标期刊**的正式规则，不把某个 Nature journal 的固定数值推广成 Akira 通用标准。
 
-## 9. 绘图实现继承 Analysis 的语言边界
+## 9. 原始科研图像完整性与展示处理分开
+
+显微图、摄影、gel / blot、医学影像、遥感图、仪器图像及其他 image-based evidence 不能只按“版式素材”处理。正式 Figure 必须能区分：
+
+```text
+raw / acquisition image
+→ scientific preprocessing / measurement（若有）
+→ display processing
+→ crop / panel assembly
+→ final publication figure
+```
+
+通用底线：
+
+- 保留原始图像或能够回到原始 acquisition artifact 的稳定 provenance；
+- 不使用 clone / healing / generative fill / object removal 等方式新增、删除、复制或移动会影响科学判断的图像结构；
+- brightness / contrast / background 等展示处理不得把真实 signal、background、artifact 或 control 差异选择性隐藏；用于直接比较的图像应采用可比较的处理规则，确需不同处理时明确说明理由；
+- nonlinear transform、gamma、pseudo-color、channel-specific adjustment 等若会影响视觉解释，必须在 Methods / legend 或对应 provenance 中说明；
+- crop 只能改变展示范围，不能通过选择性 framing 隐藏会改变结论的邻近结构、失败样本或比较条件；
+- 来自不同时间、视野、gel lane、实验批次或 acquisition 的片段若组合到同一 panel，必须有明确边界和来源，不能视觉伪装成连续原始图像；
+- lane / band / field / object 的重排若领域和目标 venue 允许，必须显式标识并保留原始顺序 / full-source image 的可追溯性；
+- microscopy / spatial image 的 scale bar 和 calibration 必须来自真实 acquisition metadata / measurement，不从截图尺寸目测推算；
+- image-derived quantitative result 应回到未被 presentation-only edit 改写的 measurement / Analysis 流程，不从最终排版图反向量取作为正式数据。
+
+如果 image processing 本身是研究方法的一部分，而不是单纯 display adjustment，它属于 Study / Data / Analysis provenance，并按实际算法、参数、software、version 和 validation 记录；Communication 不能把科学图像处理降格成 Photoshop 式排版步骤。
+
+具体领域对 original image、uncropped gel/blot、raw microscopy、DICOM、image metadata、forensic screening 或 Supplement 的要求差异很大，按 `research-standards` 核验当前领域和目标 venue 正式规则，不把任一家期刊的附件清单升级为 Akira 通用标准。
+
+## 10. 绘图实现继承 Analysis 的语言边界
 
 Akira 默认科研计算仍由 Python 完成，R 默认消费冻结后的 plotting table 完成 publication visualization。Figure 组合和传播设计属于 Communication，但不重新在绘图脚本中做 sample filtering、normalization、model fitting、effect estimation、显著性检验或 multiplicity correction。
 
 若成熟关键可视化实现主要存在于 Python、目标工具链明确要求 Python，或用户明确指定其他实现，可以按 `analysis` 的既有例外规则执行；不要为了套用第三方 Figure Skill 再引入第二套 Python/R backend 选择协议。
 
-## 10. Figure 完成检查
+## 11. Figure 完成检查
 
 交付前至少确认：
 
@@ -142,6 +170,7 @@ Akira 默认科研计算仍由 Python 完成，R 默认消费冻结后的 plotti
 4. conclusion-changing negative evidence / boundary 没有被隐藏；
 5. Figure / legend / main text 的 `n`、统计量、单位与 uncertainty 一致；
 6. 每个 quantitative panel 能回到 canonical Analysis output；
-7. image processing 有必要 provenance；
-8. 最终实际尺寸逐 panel QA 已完成；
-9. target journal 的当前 Figure / legend / source-data 规范已核验。
+7. image processing 有必要 provenance；image-based evidence 未通过选择性删除 / clone / healing / generative fill、未标边界拼接、不当 contrast / crop 等方式改变科学含义；
+8. raw / acquisition image 到 display / crop / assembly 的 provenance 在适用时可回溯；
+9. 最终实际尺寸逐 panel QA 已完成；
+10. target journal 的当前 Figure / legend / image-integrity / source-data 规范已核验。
