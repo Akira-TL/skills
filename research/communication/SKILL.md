@@ -28,7 +28,8 @@ description: 把已经建立的 scientific state、方法、证据边界与 prov
 - publication figure / multi-panel figure / Figure revision → [`references/FIGURE-WORKFLOW.md`](references/FIGURE-WORKFLOW.md)，先固定 Figure-level scientific question、最窄 Claim 与 panel 的证据作用，再做版式和渲染，并在最终实际尺寸逐 panel QA；
 - 正式 manuscript / review / revision 的 citation 核验 → [`references/audit/CITATION-AUDIT.md`](references/audit/CITATION-AUDIT.md)，分别检查文献身份、Claim–source 支持关系和目标 venue 格式；DOI 能解析、metadata 正确或 bibliography 编译成功都不能替代 source 是否真正支持当前 Claim 的核验；
 - Data Availability / Code Availability / Source Data / repository 交付 → [`references/submission/DATA-AVAILABILITY.md`](references/submission/DATA-AVAILABILITY.md)，从实际 canonical Dataset 与 Analysis artifact 盘点 generated / reused / restricted / third-party data，核验 persistent identifier、访问条件和 Figure / Table source-data mapping，不编造 accession、licence、embargo 或 reviewer access；
-- 正式投稿 package → [`references/submission/SUBMISSION-PACKAGE.md`](references/submission/SUBMISSION-PACKAGE.md)，先按目标 venue 当前规则建立 deliverable matrix，再核验 manuscript、anonymous/title-page/cover-letter、declarations、figures、supplements、data/code 与 reviewer suggestions 的事实和跨文件一致性；作者、funding、COI、ethics、registration、permission 等行政/合规事实缺失时明确请求 author input，不由 Agent 推断补齐。
+- 正式投稿 package → [`references/submission/SUBMISSION-PACKAGE.md`](references/submission/SUBMISSION-PACKAGE.md)，先按目标 venue 当前规则建立 deliverable matrix，再核验 manuscript、anonymous/title-page/cover-letter、declarations、figures、supplements、data/code 与 reviewer suggestions 的事实和跨文件一致性；作者、funding、COI、ethics、registration、permission 等行政/合规事实缺失时明确请求 author input，不由 Agent 推断补齐；
+- manuscript / Supplement / response / report 等已经生成正式 PDF、DOCX 或其他页面型交付物时 → [`references/submission/RENDERED-OUTPUT-QA.md`](references/submission/RENDERED-OUTPUT-QA.md)，以实际 rendered artifact 而不是 source file 作为最终排版验收对象，执行 build/log → render → page inspection → correction → re-render 闭环。
 
 ## 3. Figure / table 边界
 

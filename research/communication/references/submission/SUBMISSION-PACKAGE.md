@@ -214,7 +214,7 @@ AI / LLM、language-editing service、automated screening、statistical software
 10. cover letter 的 Claim、novelty 和 venue fit 与 manuscript 一致；
 11. reporting checklist 没有声明稿件不存在的方法或信息；
 12. suggested reviewers 的 identity / expertise 已核验，作者已确认必要 conflict；
-13. manuscript source / rendered PDF / supplement 在当前 engine 下无 unresolved citation / reference / missing asset；
+13. manuscript source / rendered PDF / supplement 已按 [`RENDERED-OUTPUT-QA.md`](RENDERED-OUTPUT-QA.md) 在当前目标格式执行 build / render / page-level 检查，无 unresolved citation / reference / missing asset、blocking clipping / overlap / unreadable evidence；
 14. 所有 placeholder / `AUTHOR_INPUT_NEEDED` 在提交版中已解决，或 package 明确不能提交。
 
 ## 14. Readiness
