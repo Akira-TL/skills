@@ -14,7 +14,7 @@
 
 无论选择哪条流程，最终都要检查材料有没有被选择性遗漏、全文大逻辑和段落小逻辑是否成立、citation 是否真实支持对应句子，以及结论强度是否匹配 evidence。段落/section 结构不清时使用反向提纲（reverse outlining）：从 section thesis 反查每个段落的 topic sentence 和 evidence，避免靠连接词把无关段落强行粘在一起。Publication figure 也按科学论证组织：先明确 Figure-level scientific question 和最窄 Claim，再给每个 panel 分配不同证据作用；Main Figure 保留决定性 evidence、必要 control 和会改变解释的 boundary，secondary metric / robustness 等可以进入 Supplement。最终图必须在实际输出尺寸逐 panel 检查 `n`、uncertainty、单位、scale、颜色编码、图注、source-data provenance 和可读性，不能只看绘图源码或缩略图。`communication` 还维护受控的科研写作逻辑表达参考，覆盖递进、转折、对照、因果、解释、举例、让步、综合和结论强度。
 
-长篇 draft 在进入 reviewer-style review 前执行初稿完整性审计；经过实质 revision 后、最终交付前再执行一次最终审计。审计重点是高风险 Claim 与 source 是否匹配、引用是否真正支持正文、数字/统计是否与 canonical output 一致、scope/limitation 是否漂移，以及修订有没有把 association、mechanism 或 novelty 无依据写强。无法访问或无法核验的 evidence 保持显式 unresolved，不能为了通过门禁制造 PASS。
+长篇 draft 在进入 reviewer-style review 前执行初稿完整性审计；经过实质 revision 后、最终交付前再执行一次最终审计。审计重点是高风险 Claim 与 source 是否匹配、数字/统计是否与 canonical output 一致、scope/limitation 是否漂移，以及修订有没有把 association、mechanism 或 novelty 无依据写强。Citation 另外明确拆成三层：文献身份是否正确、source 是否真的支持当前 Claim、格式是否符合目标 venue；DOI 能解析、metadata 正确或 bibliography 编译成功都不能代替 Claim–source 核验。复合长句应先拆成可核验 Claim 单元，最终稿还要检查 in-text citation 与 reference list 双向对应。无法访问或无法核验的 evidence 保持显式 unresolved，不能为了通过门禁制造 PASS。
 
 Reviewer response / revision 另走意见—动作—证据闭环：每条 reviewer comment 先固定实际验收标准，先检查 revised manuscript、analysis、experiment、figure 等真实 artifact 是否满足，再读取 response letter 判断它是否准确描述修改。作者“说已经做了”与可检查 artifact “证明已经做了”必须分开；需要新实验或 Analysis 时返回对应科研流程，不在 Communication 中虚构结果。
 

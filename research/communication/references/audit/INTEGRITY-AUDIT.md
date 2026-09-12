@@ -24,7 +24,7 @@
 
 ## 2. Claim—source 核验
 
-先从当前稿件提取需要实质证据支持的 Claim，至少优先覆盖：
+Citation 的 reference identity、Claim–source support 与 citation style 统一按 [`CITATION-AUDIT.md`](CITATION-AUDIT.md) 分层检查；本节重点负责 integrity 层的高风险 Claim 覆盖。先从当前稿件提取需要实质证据支持的 Claim，至少优先覆盖：
 
 - Title / Abstract / Conclusion 中的 headline Claim；
 - 所有定量 Claim：样本量、比例、effect estimate、confidence interval、`P` 值、threshold、性能数值等；
@@ -41,7 +41,7 @@
 4. source 真正支持的是 direct support、indirect support、qualification 还是只“主题相关”？
 5. 当前正文是否比 source 的 scope、causal level 或 certainty 更强？
 
-citation 存在、DOI 正确，只能证明文献身份，不证明该文献支持当前句子。
+citation 存在、DOI 正确，只能证明文献身份，不证明该文献支持当前句子。最终稿还必须做 in-text citation ↔ reference-list 双向核对，并确认 revision 没有改变 citation 的语法作用范围、编号或 Claim attribution。
 
 初稿审计至少完整覆盖所有上述高风险 Claim，并抽查其余实质 Claim；最终审计应尽量覆盖当前稿件中已登记 / 已识别的全部实质 Claim。这里的“全部”只指当前审计识别出的 Claim 集合；模型语义提取不能机械证明自己没有漏掉未识别 Claim，因此最终报告不得宣称“全文所有语义 Claim 已被确定性穷尽”。
 

@@ -22,9 +22,10 @@ description: 把已经建立的 scientific state、方法、证据边界与 prov
 - 原始研究论文及同类 research thesis / report → [`references/RESEARCH-ARTICLE-WORKFLOW.md`](references/RESEARCH-ARTICLE-WORKFLOW.md)：完整盘点写作材料后，采用“主要结论 → Results → Discussion → 反推 Introduction → Methods → Abstract / Title → Supplement / Appendix”的默认写作顺序，并在完整 prose 前用小标题与 Figure / Table 搭出 Results 骨架；
 - 普通叙述性文献综述 → [`references/REVIEW-WORKFLOW.md`](references/REVIEW-WORKFLOW.md)：先固定 Review Question / Scope，再完整盘点文献材料、建立主题分类、做跨论文综合、形成理论/概念框架并推出真实 gap；不得套用原始研究论文的 Results / Discussion 流程；
 - 所有写作类型的段落衔接、反向提纲（reverse outlining）、英文逻辑连接词、结论强度和术语一致性 → [`references/WRITING-EXPRESSION.md`](references/WRITING-EXPRESSION.md)；
-- 完成长篇 draft 后、进入 reviewer-style review 前，以及 revision 后最终交付前 → [`references/INTEGRITY-AUDIT.md`](references/INTEGRITY-AUDIT.md)，核验 Claim↔source、数字/统计、scope、citation 与 revision drift；
+- 完成长篇 draft 后、进入 reviewer-style review 前，以及 revision 后最终交付前 → [`references/audit/INTEGRITY-AUDIT.md`](references/audit/INTEGRITY-AUDIT.md)，核验 Claim↔source、数字/统计、scope、citation 与 revision drift；
 - reviewer response、major/minor revision、学位评审修改 → [`references/REVISION-WORKFLOW.md`](references/REVISION-WORKFLOW.md)，每条意见先固定验收标准，先核验实际 revised manuscript / artifact，再读取 response letter 判断其是否准确描述真实修改；
-- publication figure / multi-panel figure / Figure revision → [`references/FIGURE-WORKFLOW.md`](references/FIGURE-WORKFLOW.md)，先固定 Figure-level scientific question、最窄 Claim 与 panel 的证据作用，再做版式和渲染，并在最终实际尺寸逐 panel QA。
+- publication figure / multi-panel figure / Figure revision → [`references/FIGURE-WORKFLOW.md`](references/FIGURE-WORKFLOW.md)，先固定 Figure-level scientific question、最窄 Claim 与 panel 的证据作用，再做版式和渲染，并在最终实际尺寸逐 panel QA；
+- 正式 manuscript / review / revision 的 citation 核验 → [`references/audit/CITATION-AUDIT.md`](references/audit/CITATION-AUDIT.md)，分别检查文献身份、Claim–source 支持关系和目标 venue 格式；DOI 能解析、metadata 正确或 bibliography 编译成功都不能替代 source 是否真正支持当前 Claim 的核验。
 
 ## 3. Figure / table 边界
 

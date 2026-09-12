@@ -162,7 +162,7 @@ Comment
 1. 按最初验收标准重新检查每条 concern；
 2. 验证 response letter 对“已完成”的每个陈述都能找到实际 artifact；
 3. 检查 manuscript、Supplement、Figure legend 和 response letter 是否彼此一致；
-4. 运行 [`INTEGRITY-AUDIT.md`](INTEGRITY-AUDIT.md) 的最终审计，特别检查 Claim strength、数字、scope、limitation 和 citation drift；
+4. 运行 [`audit/INTEGRITY-AUDIT.md`](audit/INTEGRITY-AUDIT.md) 的最终审计，特别检查 Claim strength、数字、scope、limitation 和 citation drift；
 5. 若 reviewer revision 导致 canonical scientific state 发生变化，更新 source commit / communication provenance，不能继续声称稿件基于旧 freeze。
 
 最终目标不是“每个 reviewer 都被说服”，而是每条重要 concern 都有一个真实、可核验、科学上诚实的 disposition。

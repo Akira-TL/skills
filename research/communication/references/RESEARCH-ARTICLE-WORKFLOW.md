@@ -215,4 +215,4 @@ Abstract 和 Title 最后写，因为它们必须压缩已经完成的整篇论�
 
 Supplement / Appendix 在正文主线稳定后统一整理，承接重要但不宜打断主叙事的材料；Supplement 不是隐藏不利证据的地方，而是完整报告科研材料的一部分。
 
-完成初稿后、进入 reviewer-style review 前执行 [`INTEGRITY-AUDIT.md`](INTEGRITY-AUDIT.md) 初稿审计；任何实质 revision 后在最终交付前再执行最终审计。若修订来自 reviewer / editor comment，同时按 [`REVISION-WORKFLOW.md`](REVISION-WORKFLOW.md) 保持意见—动作—证据闭环。
+完成初稿后、进入 reviewer-style review 前执行 [`audit/INTEGRITY-AUDIT.md`](audit/INTEGRITY-AUDIT.md) 初稿审计；任何实质 revision 后在最终交付前再执行最终审计。若修订来自 reviewer / editor comment，同时按 [`REVISION-WORKFLOW.md`](REVISION-WORKFLOW.md) 保持意见—动作—证据闭环。

@@ -96,9 +96,9 @@ Conclusions 使用 [`interpretation`](../../interpretation/SKILL.md) 得出的�
 
 ## 8. Literature citation discipline
 
-优先引用实际提供该事实/证据的原始论文。需要引用 review 时，明确它承担综述背景而不是原始 evidence。
+正式 citation audit 按 [`audit/CITATION-AUDIT.md`](audit/CITATION-AUDIT.md) 分开核验三件事：**reference identity、Claim–source support、citation style**。DOI 能解析、title/author metadata 正确或 citation format 合规，只能证明其中一层，不能互相替代。
 
-引用前至少核对 title / DOI / identity 与实际内容；数据库 sidecar、Agent synthesis 或搜索 snippet 不是可发表 citation source。
+优先引用实际提供该事实/证据的原始论文。需要引用 review 时，明确它承担综述背景而不是原始 evidence。引用前至少核对 title / DOI / identity 与实际内容；数据库 sidecar、Agent synthesis、搜索 snippet 或“标题看起来相关”都不是可发表 Claim support。长句包含多个独立事实时先拆成可核验 Claim 单元，再确认各 citation 的语法作用范围与支持范围。
 
 ## 9. Audience adaptation
 
@@ -136,7 +136,7 @@ Communication Product 是工程审计对象，不是新的学术概念或科研�
 
 ## 11. 完成条件
 
-Communication artifact 完成前先确认已经按 [`WRITING-ROUTER.md`](WRITING-ROUTER.md) 选择正确 workflow。原始研究论文同时完成 [`RESEARCH-ARTICLE-WORKFLOW.md`](RESEARCH-ARTICLE-WORKFLOW.md)；普通叙述性综述同时完成 [`REVIEW-WORKFLOW.md`](REVIEW-WORKFLOW.md)；系统综述、范围综述或荟萃分析只有在对应正式科研方法流程已经完成并形成稳定 source commit 后，才能在 Communication 宣告成稿。长篇科研稿在进入 reviewer-style review 前完成一次 [`INTEGRITY-AUDIT.md`](INTEGRITY-AUDIT.md) 初稿审计；经过实质 revision 后，在最终交付前再完成最终审计。Reviewer response / revision package 同时完成 [`REVISION-WORKFLOW.md`](REVISION-WORKFLOW.md) 的意见—动作—证据闭环。
+Communication artifact 完成前先确认已经按 [`WRITING-ROUTER.md`](WRITING-ROUTER.md) 选择正确 workflow。原始研究论文同时完成 [`RESEARCH-ARTICLE-WORKFLOW.md`](RESEARCH-ARTICLE-WORKFLOW.md)；普通叙述性综述同时完成 [`REVIEW-WORKFLOW.md`](REVIEW-WORKFLOW.md)；系统综述、范围综述或荟萃分析只有在对应正式科研方法流程已经完成并形成稳定 source commit 后，才能在 Communication 宣告成稿。长篇科研稿在进入 reviewer-style review 前完成一次 [`audit/INTEGRITY-AUDIT.md`](audit/INTEGRITY-AUDIT.md) 初稿审计；经过实质 revision 后，在最终交付前再完成最终审计。Reviewer response / revision package 同时完成 [`REVISION-WORKFLOW.md`](REVISION-WORKFLOW.md) 的意见—动作—证据闭环。
 
 共同检查：
 
@@ -147,7 +147,7 @@ Communication artifact 完成前先确认已经按 [`WRITING-ROUTER.md`](WRITING
 5. contradiction、negative result 和主要 limitation 没有因叙事需要被隐藏；
 6. title / abstract / conclusion 没有比正文 evidence boundary 更强；
 7. figure / table 可回到生成流程或对应 Paper / evidence relation；
-8. citations 身份与支持范围已核验；
+8. citations 已按 [`audit/CITATION-AUDIT.md`](audit/CITATION-AUDIT.md) 分别核验 identity、Claim support 与目标 citation style，in-text citation 与 reference list 无未解释 orphan；
 9. 传播产物已经登记 `source_commit` 与实际 artifact provenance，且传播阶段没有在 source freeze 后静默改变科学 canonical evidence；
 10. 中文稿件的标准术语与首次中英文表达已自审，标题/摘要没有因压缩语言而丢失关键条件性；
 11. 原始研究论文中，与核心 Research Question 有实质关系的重要材料已经完成去向盘点，不能解释为“因为不适合故事所以不写”；
@@ -155,7 +155,7 @@ Communication artifact 完成前先确认已经按 [`WRITING-ROUTER.md`](WRITING
 13. 普通综述已经明确 Review Question / Scope，并完成代表性路线、支持/冲突 evidence、边界条件和重要材料的盘点；
 14. 普通综述正文以主题/问题和跨论文综合组织，不是按作者逐篇摘要；理论/概念框架、gap 与 future direction 均能回到前文 evidence；
 15. 段落连接词、反向提纲与结论强度已经按 [`WRITING-EXPRESSION.md`](WRITING-EXPRESSION.md) 核对，未用修辞连接词掩盖跳跃推断、因果升级或概念漂移；
-16. 初稿 / 最终稿在适用时已按 [`INTEGRITY-AUDIT.md`](INTEGRITY-AUDIT.md) 核验高风险 Claim、citation support、数字/统计、scope 与 revision drift；无法访问或无法核验的关键 evidence 仍保持显式 unresolved，未被伪造为 PASS；
+16. 初稿 / 最终稿在适用时已按 [`audit/INTEGRITY-AUDIT.md`](audit/INTEGRITY-AUDIT.md) 核验高风险 Claim、citation support、数字/统计、scope 与 revision drift；无法访问或无法核验的关键 evidence 仍保持显式 unresolved，未被伪造为 PASS；
 17. 若存在 reviewer / editor comments，每一个声称“已完成”的修改都有 revised manuscript、analysis output、figure/table、citation 或其他 inspectable artifact 支撑，response letter 没有把尚未完成的实验/分析写成既成事实；
 18. 正式 publication figure 已按 [`FIGURE-WORKFLOW.md`](FIGURE-WORKFLOW.md) 检查 Figure-level Claim、panel 证据作用、结论边界、统计/单位一致性、source-data provenance 与最终尺寸下的逐 panel 可读性。
 
