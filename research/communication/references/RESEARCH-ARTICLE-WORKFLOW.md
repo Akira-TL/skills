@@ -153,6 +153,42 @@ Introduction 中提出的每一个主要 research gap、研究目标或 contribu
 
 若答案只是“没有写，因为不适合故事”，则写作尚未完成。
 
+### 4.1 主文保留最短充分证据链
+
+材料完整不意味着 Main text 必须完整复述全部分析。完成材料盘点后，再按它们对主要结论的实际作用决定放置位置。至少区分：
+
+- 直接建立主要发现的核心结果；
+- 读者接受主要结论所必需的 control / comparison / validation；
+- 会改变方向、大小、scope 或可信度的 qualification / boundary；
+- 不改变结论的 robustness / alternative specification / secondary metric；
+- 主要承担复现、QC、实现或 provenance 的细节；
+- 与当前核心结论关系较弱、但仍值得保留的探索性结果。
+
+Main text 默认保留前三类中的必要部分；不改变中心解释的 robustness、扩展诊断和 provenance 细节可以进入 Supplement / Methods / source-data artifact。若某项所谓“robustness”实际使效应消失、反向、显著改变大小或暴露重要 subgroup / failure boundary，它已经改变中心解释，不能再以“稳健性分析”名义埋到 Supplement。
+
+可以维护一个简短分配表：
+
+| 材料 | 对主要结论的作用 | 是否改变中心解释 | 去向 | 理由 |
+| --- | --- | --- | --- | --- |
+|  |  |  | Main / Supplement / Methods / canonical support |  |
+
+然后把 Main text Results 压缩成**最短但充分的证据链**：读者能够理解主要 Observation、看到决定性 comparison / evidence、判断主要 uncertainty，并知道会改变结论的边界。不要把分析完成的时间顺序写成论文顺序。
+
+### 4.2 防止 revision 让主文不断膨胀
+
+每次准备向已有段落追加 reviewer-driven 或自审产生的新句子时，先问它承担什么新功能，再检查段落中是否已有句子承担同一功能。默认优先：
+
+```text
+替换已有表述
+→ 合并重复信息
+→ 压缩后加入必要新证据
+→ 只有确实新增独立信息时才直接追加
+```
+
+如果一段文字主要是在向 reviewer 解释“为什么某个 objection 不推翻结论”，但读者理解主要发现并不需要这段防御性说明，完整论证可以放 response letter 或 Supplement；若该 objection 暴露的是会改变中心推断的真实边界，则必须在主文保留相应 qualification。
+
+成稿时再检查主要 Claim 在标题、小标题、Figure legend、Results、Discussion 和 Conclusion 中的重复。一个 Claim 可以分别承担“引出、展示证据、解释、综合”等不同作用，但同一句完整结论不应在多个位置无信息增益地反复改写。
+
 ## 5. Figure / Table 优先搭骨架
 
 长篇论文在写完整 Results prose 前，先按主要结论排列核心 Figure / Table。推荐对每个主要图表记录：

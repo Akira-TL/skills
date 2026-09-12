@@ -2,9 +2,13 @@
 
 本文件用于 reviewer response、major/minor revision、学位评审修改和其他“已有稿件 + 外部意见 + 修订稿”的场景。目标是把每条意见落实到真实 manuscript / analysis / experiment / citation artifact，而不是只写一封听起来合理的回复信。
 
-## 1. 先建立意见—动作—证据对应关系
+## 1. 先完整拆解意见，再建立意见—动作—证据对应关系
 
-对每一条 reviewer / editor comment，先保存其原意和上下文，再明确：
+先保存 editor decision letter、reviewer 原始评论与 reviewer identity，不能只保存 Agent 的摘要。若一条 comment 同时包含多个独立要求，例如“补一个分析，并解释为什么使用该模型，同时增加一篇相关文献”，先拆成多个可独立验收的子任务；后续每个子任务分别记录动作和证据。不得因为 Agent 只抓住其中最显眼的一项就让其余要求静默消失。
+
+Decision type（例如 Major Revision、Minor Revision、revise-and-resubmit）优先从真实 editor decision letter 读取；若材料中没有明确决定，不根据评论数量、语气或难度自行猜测期刊决定。
+
+对每一个 reviewer / editor 要求，先保存其原意和上下文，再明确：
 
 - comment / concern 是什么；
 - 它要求解决的科学或表达问题是什么；
@@ -124,7 +128,7 @@ Reviewer: 需要证明结果不依赖某个阈值。
 
 不要用“reviewer did not understand”作为回复理由。
 
-## 6. Reviewer 之间冲突时不静默调和
+## 6. Reviewer 之间冲突时不静默调和，并保持 reviewer-facing 隔离
 
 若 Reviewer A 与 Reviewer B 要求相反修改，例如一个要求扩大 Discussion、另一个要求大幅压缩，或者对同一 scientific Claim 要求相反强度：
 
@@ -134,7 +138,13 @@ Reviewer: 需要证明结果不依赖某个阈值。
 - 若仍然冲突，把可选方案和后果交给用户 / corresponding author 决定；
 - 不允许 Agent 在没有说明的情况下选择其中一方并让另一条意见“消失”。
 
-## 7. Response letter 的写法
+内部 master tracker 可以记录“R1 与 R2 对同一问题有冲突 / 重复”。但在 blind peer review 场景中，每一份 reviewer-facing response 必须独立成文：不要向 Reviewer 2 暴露 Reviewer 1 的 comment、编号、recommendation 或作者给 Reviewer 1 的回复，也不要写“as noted in our response to Reviewer 1”。同一个 manuscript action 同时解决多位 reviewer 的 concern 时，对每位 reviewer 分别给出完整、自足的解释。
+
+## 7. Response letter 与 manuscript 修改必须控制信息增量
+
+Reviewer comment 要完整回答，但 manuscript 主文只加入**读者真正需要的最短修改**。每次准备因为 reviewer comment 在主文追加一段时，先检查能否替换、合并或压缩现有文字；不要把 response letter 中用于辩护的整套论证原样塞进正文，造成每轮 revision 都只增长不收缩。
+
+如果 reviewer 指出的内容其实已经存在于稿件，不要回复“we already stated this”或暗示 reviewer 没有认真阅读。把它视为可见性 / 清晰度信号：直接回答 concern，并视需要改进 wording、placement、cross-reference、legend 或 signposting。
 
 对每条 comment 推荐采用：
 
@@ -155,14 +165,30 @@ Comment
 
 只有真实完成的修改才能使用 completed tense。仍待用户、analysis 或 experiment 的项目必须保留显式 placeholder / open status。
 
-## 8. 最终修订检查
+## 8. Revision package 是联动产物
+
+当交付物同时包含 clean manuscript、marked / tracked-change manuscript 和 response letter 时，把三者视为一个联动 package。任何 manuscript 编辑都可能使另外两份文件失效，因此：
+
+- response letter 中逐字引用的 revised text 必须与最终 manuscript 实际文字一致；
+- 删除或再次改写一段文字后，检查 reply 是否仍声称该文字存在；
+- page / section / figure / table locator 在重新排版后要重新核验，优先使用稳定 section / figure locator；
+- 不得根据旧版本凭记忆填写 page / line number，更不得发明 line number；
+- marked version 必须以真实提交前版本为 baseline，不能把原来就存在的文字标成“本轮新增”；
+- clean / marked 两个版本除 revision marking 外应表达同一最终内容；
+- 新增或删除 citation 后重新核对 bibliography 与 response letter 中相应陈述。
+
+因此最后一次 manuscript 改动之后，必须重新做 package consistency，而不是沿用前一版已通过的检查结果。
+
+## 9. 最终修订检查
 
 所有 reviewer comment 处理完成后：
 
-1. 按最初验收标准重新检查每条 concern；
-2. 验证 response letter 对“已完成”的每个陈述都能找到实际 artifact；
-3. 检查 manuscript、Supplement、Figure legend 和 response letter 是否彼此一致；
-4. 运行 [`audit/INTEGRITY-AUDIT.md`](audit/INTEGRITY-AUDIT.md) 的最终审计，特别检查 Claim strength、数字、scope、limitation 和 citation drift；
-5. 若 reviewer revision 导致 canonical scientific state 发生变化，更新 source commit / communication provenance，不能继续声称稿件基于旧 freeze。
+1. 回到原始 editor / reviewer material，确认每个可识别要求都已经进入 tracker；复合 comment 的每个独立要求都有 disposition，没有静默漏项；
+2. 按最初验收标准重新检查每条 concern；
+3. 验证 response letter 对“已完成”的每个陈述都能找到实际 artifact；
+4. 检查 clean / marked manuscript、Supplement、Figure legend 和 response letter 是否彼此一致；
+5. 最后一次编辑后重新核验 reply 中的逐字 quotation 与 page / section / Figure / Table locator；
+6. 运行 [`audit/INTEGRITY-AUDIT.md`](audit/INTEGRITY-AUDIT.md) 的最终审计，特别检查 Claim strength、数字、scope、limitation 和 citation drift；
+7. 若 reviewer revision 导致 canonical scientific state 发生变化，更新 source commit / communication provenance，不能继续声称稿件基于旧 freeze。
 
 最终目标不是“每个 reviewer 都被说服”，而是每条重要 concern 都有一个真实、可核验、科学上诚实的 disposition。

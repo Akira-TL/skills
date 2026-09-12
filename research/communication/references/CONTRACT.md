@@ -156,7 +156,8 @@ Communication artifact 完成前先确认已经按 [`WRITING-ROUTER.md`](WRITING
 14. 普通综述正文以主题/问题和跨论文综合组织，不是按作者逐篇摘要；理论/概念框架、gap 与 future direction 均能回到前文 evidence；
 15. 段落连接词、反向提纲与结论强度已经按 [`WRITING-EXPRESSION.md`](WRITING-EXPRESSION.md) 核对，未用修辞连接词掩盖跳跃推断、因果升级或概念漂移；
 16. 初稿 / 最终稿在适用时已按 [`audit/INTEGRITY-AUDIT.md`](audit/INTEGRITY-AUDIT.md) 核验高风险 Claim、citation support、数字/统计、scope 与 revision drift；无法访问或无法核验的关键 evidence 仍保持显式 unresolved，未被伪造为 PASS；
-17. 若存在 reviewer / editor comments，每一个声称“已完成”的修改都有 revised manuscript、analysis output、figure/table、citation 或其他 inspectable artifact 支撑，response letter 没有把尚未完成的实验/分析写成既成事实；
-18. 正式 publication figure 已按 [`FIGURE-WORKFLOW.md`](FIGURE-WORKFLOW.md) 检查 Figure-level Claim、panel 证据作用、结论边界、统计/单位一致性、source-data provenance 与最终尺寸下的逐 panel 可读性。
+17. 若存在 reviewer / editor comments，每一个可识别的独立要求都有 disposition；复合 comment 没有静默漏项，每一个声称“已完成”的修改都有 revised manuscript、analysis output、figure/table、citation 或其他 inspectable artifact 支撑，response letter 没有把尚未完成的实验/分析写成既成事实；
+18. revision package 同时包含 clean manuscript、marked manuscript 与 response letter 时，三者在最后一次编辑后重新核验一致性，reply 中的逐字引用和 page / section / Figure / Table locator 与最终稿对应，未凭旧版本或记忆制造位置；
+19. 正式 publication figure 已按 [`FIGURE-WORKFLOW.md`](FIGURE-WORKFLOW.md) 检查 Figure-level Claim、panel 证据作用、结论边界、统计/单位一致性、source-data provenance 与最终尺寸下的逐 panel 可读性。
 
 发现写作需要新的科学判断时，回到 Interpretation / Evidence Synthesis，而不是在 Communication 层临时创造结论。

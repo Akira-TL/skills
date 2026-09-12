@@ -6,7 +6,7 @@
 
 进入长篇写作后，第一步不是直接起草正文，而是先判定**整篇传播产物的主要科学贡献来自哪里**。若主要贡献来自本项目新产生的 Study / Data / Analysis / Observation，则按原始研究论文流程；若主要贡献来自既有文献的组织、比较、批判和综合，则按普通叙述性综述流程。原始研究论文中的 literature review 不会因此变成综述；普通综述有表格、概念图或 bibliometric summary 也不会因此自动变成原始研究论文。
 
-原始研究论文及同类 research thesis / report 先完整盘点写作材料，再采用“主要结论 → Results → Discussion → 反推 Introduction → Methods → Abstract / Title → Supplement / Appendix”的起草顺序，而不是从前言一路顺写。写 Results prose 前先用小标题、Figure / Table、关键 Observation、本节最窄结论和下一步关系搭骨架；Introduction 中提出的主要问题、研究不足和 contribution 必须在后续 Results / Discussion 中形成闭环。材料要求尽可能完整：主要结果、负结果、非显著结果、探索性结果、敏感性分析、QC、deviation、替代解释、局限、支持与冲突文献等都先进入材料盘点，再决定进入 Main text、Supplement、Appendix 或只保留为 canonical support。
+原始研究论文及同类 research thesis / report 先完整盘点写作材料，再采用“主要结论 → Results → Discussion → 反推 Introduction → Methods → Abstract / Title → Supplement / Appendix”的起草顺序，而不是从前言一路顺写。写 Results prose 前先用小标题、Figure / Table、关键 Observation、本节最窄结论和下一步关系搭骨架；Introduction 中提出的主要问题、研究不足和 contribution 必须在后续 Results / Discussion 中形成闭环。材料要求尽可能完整：主要结果、负结果、非显著结果、探索性结果、敏感性分析、QC、deviation、替代解释、局限、支持与冲突文献等都先进入材料盘点，再决定进入 Main text、Supplement、Appendix 或只保留为 canonical support。Main text 只保留建立主要发现所必需的最短充分证据链以及会改变结论的关键边界；不改变中心解释的 secondary metric、额外 robustness 和 provenance 细节可以进入 Supplement / Methods，但不能用这一分配隐藏 conclusion-changing evidence。
 
 普通叙述性综述不套用 Results / Discussion 流程。它先固定 Review Question / Scope，再盘点基础工作、代表性研究、近期研究、不同理论/方法路线、支持与冲突 evidence、边界条件和 unresolved uncertainty；随后按主题或问题建立分类框架，做跨论文比较与综合，形成理论/概念框架，再从综合结果推出真实 gap、future direction 与综述自己的贡献。综述正文以问题和主题为基本单位，默认禁止按“作者 A 发现……作者 B 发现……”逐篇罗列；重要综述可以用于建立领域地图，但关键科学判断尽量回到原始论文核验。
 
@@ -16,6 +16,6 @@
 
 长篇 draft 在进入 reviewer-style review 前执行初稿完整性审计；经过实质 revision 后、最终交付前再执行一次最终审计。审计重点是高风险 Claim 与 source 是否匹配、数字/统计是否与 canonical output 一致、scope/limitation 是否漂移，以及修订有没有把 association、mechanism 或 novelty 无依据写强。Citation 另外明确拆成三层：文献身份是否正确、source 是否真的支持当前 Claim、格式是否符合目标 venue；DOI 能解析、metadata 正确或 bibliography 编译成功都不能代替 Claim–source 核验。复合长句应先拆成可核验 Claim 单元，最终稿还要检查 in-text citation 与 reference list 双向对应。无法访问或无法核验的 evidence 保持显式 unresolved，不能为了通过门禁制造 PASS。
 
-Reviewer response / revision 另走意见—动作—证据闭环：每条 reviewer comment 先固定实际验收标准，先检查 revised manuscript、analysis、experiment、figure 等真实 artifact 是否满足，再读取 response letter 判断它是否准确描述修改。作者“说已经做了”与可检查 artifact “证明已经做了”必须分开；需要新实验或 Analysis 时返回对应科研流程，不在 Communication 中虚构结果。
+Reviewer response / revision 另走意见—动作—证据闭环：先保存 editor / reviewer 原始材料，复合 comment 拆成可独立验收的子要求，不能只处理其中最显眼的一项；每条要求先固定实际验收标准，先检查 revised manuscript、analysis、experiment、figure 等真实 artifact 是否满足，再读取 response letter 判断它是否准确描述修改。Blind review 下 reviewer-facing 回复彼此隔离，不把另一位 reviewer 的 comment、编号或 recommendation 暴露出去。作者“说已经做了”与可检查 artifact “证明已经做了”必须分开；需要新实验或 Analysis 时返回对应科研流程，不在 Communication 中虚构结果。Clean manuscript、marked manuscript 和 response letter 同时交付时视为联动 package，任何稿件编辑都会使旧 quotation、page/section locator 和 package consistency 检查失效，因此最后一次修改后必须重新核验。
 
 连接词用于表达已经存在的推理关系，不替代推理本身；专业术语保持一致，不为了避免重复而随意使用同义词替换。dictionary / thesaurus 可以用于核验普通词汇和固定搭配，但不能自动改写专业概念或升级科学结论。
