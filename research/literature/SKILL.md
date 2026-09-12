@@ -41,9 +41,14 @@ Active Uncertainty
 → query expansion
 → backward / forward citation chasing
 → related-work search
+→ disconfirming / boundary search（当前已有主要判断时）
 → new search run
 → conceptual saturation
 ```
+
+**不能只搜索支持当前工作假设的证据。** 一旦当前 Active Uncertainty 已经形成主要 Claim、competing explanation、preferred method / mechanism 或明显倾向的研究路线，在宣布 conceptual saturation 前主动设计至少一轮以“什么证据会推翻、削弱或限定当前判断”为目的的检索。可以针对：相反结果、失败复现、negative / null evidence、不同 population / condition、关键 alternative explanation、method failure / known bias、boundary case 或当前路线的直接 critique。该检索仍按实际策略登记为 `query_expansion`、`related_work`、`method_search`、citation chasing 或 `other` 等真实 `discovery_method`，不要为了新规则伪造不存在的枚举。
+
+若反证/边界检索没有新增 Candidate，也保存真实 `result_count=0`、query / filters、`what_we_learned` 与检索边界。**“没有找到反证”只说明当前检索未找到，不等于反证不存在，更不能自动把 Claim 升级为 confirmed。** 若当前任务只是用户指定单篇 exact work、纯术语/方法查找，或尚未形成任何可被反驳的当前判断，不机械补造反证检索。
 
 检索源按学科、问题类型与需要的证据类型选择，不把 Google Scholar 或任何单一入口当作默认全集。生物医学问题优先使用 PubMed / NCBI、Europe PMC 等领域数据库；需要引文网络时使用 Web of Science（WoS）、Scopus 等；综合发现可结合 Google Scholar、OpenAlex、Crossref；预印本、临床注册、数据/代码仓库等按问题需要进入独立 Search Run。不同来源发现同一 scholarly work 时继续按 DOI / PMID 等稳定身份合并，不把来源数量当作独立证据数量。
 
@@ -119,19 +124,21 @@ Observation 与 Claim 强制分离。`Observation.statement` 与 `effect` 只承
 
 第二遍以审稿人/竞争课题组视角主动攻击论文：寻找设计缺陷、证据断裂、替代解释、不可复现点和过度结论，而不是只抄作者的 limitations。
 
+除了常规 design / statistics 检查，还特别警惕几类会制造“看起来有证据”的推理失败：只展示成功对象/成功算法/成功样本而忽略失败或未进入分析者；结果可见后改变 outcome、成功标准、group definition 或解释目标却仍按预设问题叙述；把群体/aggregate 层关系直接下放到 individual 层；缺少合理 base rate / comparator 却把高比例本身写成异常或效果；同一关键词在论证中悄然改变定义，或结论在前提中被循环假定。只有这些风险与当前论文实际结构相关时才记录 Issue，不为凑“逻辑谬误”标签制造批评。
+
 至少检查：
 
 - research question / hypothesis 是否清楚、可证伪，是否存在事后改题或 exploratory→confirmatory 包装；
-- study design 的 confounding、selection bias、batch confounding、pseudoreplication、control、non-independence、reverse causality；
+- study design 的 confounding、selection bias、survivorship / success-only selection、batch confounding、pseudoreplication、control、non-independence、reverse causality；
 - sampling 的独立 biological n、technical replicate、collection、storage、transport、freeze-thaw、contamination 与 metadata；
 - assay / experimental method 的 specificity、sensitivity、control、calibration 与已知 bias；
 - bioinformatics pipeline 的 QC、reference/database version、normalization、filtering、batch correction、参数敏感性、software version、random seed 与 data leakage；
-- statistics 的 model/design 匹配、covariates、multiple testing、effect size、confidence interval、power、missing data、repeated measures、compositionality 与 overfitting；
+- statistics 的 model/design 匹配、covariates、multiple testing、effect size、confidence interval、power、missing data、repeated measures、compositionality 与 overfitting；是否存在结果后改变 outcome / success criterion / subgroup definition 的 moving-target 问题；
 - figures/tables 是否与正文表述一致，是否受 outlier、极小 effect、宽 CI 或可视化误导影响；
-- Observation → Claim 是否出现 association→causation、mechanism leap 或 unsupported narrative；
+- Observation → Claim 是否出现 association→causation、mechanism leap、aggregate→individual 跨推断层级、缺少合理 comparator / base rate 的异常化叙事，或 unsupported narrative；
 - alternative explanations 是否能同样解释结果；
 - reproducibility 是否因参数、代码、数据、版本或 protocol 缺失而受限；
-- Discussion 中哪些 statement 是 supported、plausible、overstated 或 unsupported。
+- Discussion 中哪些 statement 是 supported、plausible、overstated 或 unsupported；关键术语 / category definition 是否在 Methods、Results、Discussion 间发生会改变论证的语义漂移或循环定义。
 
 作者自己声明的 limitation 与 Critical Audit 发现的问题必须分开。
 
