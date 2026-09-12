@@ -31,7 +31,7 @@ deviations from design
 outputs and their locations
 ```
 
-Sample identity 在这里首次产生或确认时保持稳定；后续 `data` 引用这一身份，不另造一套 Sample identity。
+Sample identity 在这里首次产生或确认时保持稳定；后续 `data` 引用这一身份，不另造一套 Sample identity。实验现场若以文字、图片、语音、手写记录、仪器截图或现场 log 提供实施信息，按 [`references/EXPERIMENT-LOG.md`](references/EXPERIMENT-LOG.md) 先保留原始记录和 source pointer，再形成结构化 Study；模糊条件、sample label、时间、参数或异常不得靠上下文猜测补齐。
 
 ## 3. Design 与 execution 分离
 
