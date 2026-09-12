@@ -43,6 +43,8 @@ Research Question、Active Uncertainty、分支和跨对象关系由 [`research-
 
 需要判断 Agent proposal、用户主动判断或用户对科学猜想的决定来源时，读取 [`references/collaboration/RESEARCH-COLLABORATION.md`](references/collaboration/RESEARCH-COLLABORATION.md)。
 
+当当前科研动作已经明确、但缺少某个专业软件 / 数据库 / 领域工具的可靠使用知识，而且现有 Akira / 已安装 Skill 不足时，读取 [`references/external-skills/POLICY.md`](references/external-skills/POLICY.md)。第三方科研 Skill 只补执行知识，不接管 Research Question、Design、Analysis scientific intent、Research Tree、evidence boundary 或 Communication 路由。当前允许按需发现的 K-Dense Scientific Agent Skills 只能在核验具体 Skill 的来源、版本、license、脚本/网络/凭据风险与职责重叠后，向用户请求**当前项目级**安装许可；未获明确同意不得安装，且永远不进入 Akira 全局 `install.sh`。前三个已审计参考源及吸收边界见 [`references/external-skills/AUDIT.md`](references/external-skills/AUDIT.md)。
+
 ## 4. 子 Skill 返回后重新路由
 
 任一子 Skill 完成当前有边界动作后：
