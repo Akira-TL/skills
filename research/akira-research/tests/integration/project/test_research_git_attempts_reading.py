@@ -20,6 +20,7 @@ from research_db_ops.project import (  # noqa: E402
 from research_db_ops.user_reading import (  # noqa: E402
     confirmation_control,
     sync_user_reading,
+    user_notes_block,
     user_reading_status,
 )
 from research_db_support.storage import ResearchDbError, connect, database_path  # noqa: E402
@@ -335,6 +336,10 @@ class ResearchGitAttemptReadingTests(unittest.TestCase):
             "# Paper\n\n"
             + confirmation_control("top", checked=True)
             + "\n\n## 三句话总结\n\n内容。\n\n## 结论边界\n\n边界。\n\n"
+            + "## 我的笔记\n\n"
+            + "> 以下区域仅供用户手工记录；Agent 不修改其中内容。\n\n"
+            + user_notes_block()
+            + "\n\n"
             + confirmation_control("bottom")
             + "\n",
             encoding="utf-8",
@@ -353,13 +358,23 @@ class ResearchGitAttemptReadingTests(unittest.TestCase):
         text = sidecar.read_text(encoding="utf-8")
         self.assertEqual(text.count("- [x] **我已阅读并确认当前版本**"), 2)
 
-        updated = text.replace("内容。", "更新后的内容。")
+        user_annotated = text.replace(
+            "<!-- akira:user-notes:start -->\n\n<!-- /akira:user-notes:end -->",
+            "<!-- akira:user-notes:start -->\n\n这里是我自己的阅读笔记。\n\n<!-- /akira:user-notes:end -->",
+        )
+        sidecar.write_text(user_annotated, encoding="utf-8")
+        annotation_sync = sync_user_reading(self.root, paper_id="P000001")
+        self.assertIsNone(annotation_sync["papers"][0]["action"])
+        self.assertTrue(annotation_sync["papers"][0]["confirmed_current_version"])
+
+        updated = user_annotated.replace("内容。", "更新后的内容。")
         sidecar.write_text(updated, encoding="utf-8")
         invalidated = sync_user_reading(self.root, paper_id="P000001")
         self.assertEqual(invalidated["papers"][0]["action"], "invalidated")
         self.assertFalse(invalidated["papers"][0]["confirmed_current_version"])
         reset_text = sidecar.read_text(encoding="utf-8")
         self.assertEqual(reset_text.count("- [ ] **我已阅读并确认当前版本**"), 2)
+        self.assertIn("这里是我自己的阅读笔记。", reset_text)
 
         user_checked = reset_text.replace(
             "- [ ] **我已阅读并确认当前版本**",
@@ -371,6 +386,30 @@ class ResearchGitAttemptReadingTests(unittest.TestCase):
         self.assertEqual(reconfirmed["papers"][0]["action"], "confirmed")
         status = user_reading_status(self.root, paper_id="P000001")
         self.assertTrue(status["papers"][0]["confirmed_current_version"])
+
+    def test_legacy_sidecar_without_user_notes_remains_compatible(self) -> None:
+        papers = self.root / "literature" / "papers"
+        papers.mkdir(parents=True)
+        sidecar = papers / "Legacy Paper - Li - 2025.md"
+        sidecar.write_text(
+            "# Legacy Paper\n\n"
+            + confirmation_control("top", checked=True)
+            + "\n\n## 三句话总结\n\n旧版笔记。\n\n## 结论边界\n\n边界。\n\n"
+            + confirmation_control("bottom")
+            + "\n",
+            encoding="utf-8",
+        )
+        with connect(database_path(self.root)) as connection:
+            connection.execute(
+                """
+                INSERT INTO papers(id, title, status, sidecar_path, created_at, updated_at)
+                VALUES ('P000002', 'Legacy Paper', 'active', ?, '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00')
+                """,
+                (sidecar.relative_to(self.root).as_posix(),),
+            )
+
+        synced = sync_user_reading(self.root, paper_id="P000002")
+        self.assertTrue(synced["papers"][0]["confirmed_current_version"])
 
 
 if __name__ == "__main__":

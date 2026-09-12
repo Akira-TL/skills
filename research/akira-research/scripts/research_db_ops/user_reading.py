@@ -14,6 +14,8 @@ TOP_START = "<!-- akira:user-read:top -->"
 TOP_END = "<!-- /akira:user-read:top -->"
 BOTTOM_START = "<!-- akira:user-read:bottom -->"
 BOTTOM_END = "<!-- /akira:user-read:bottom -->"
+USER_NOTES_START = "<!-- akira:user-notes:start -->"
+USER_NOTES_END = "<!-- /akira:user-notes:end -->"
 _CONTROL_RE = re.compile(r"^- \[([ xX])\] \*\*我已阅读并确认当前版本\*\*$", re.MULTILINE)
 
 
@@ -59,10 +61,33 @@ def _replace_control(text: str, position: str, *, checked: bool) -> str:
     return text[:start_index] + replacement + text[end_index + len(end):]
 
 
+def user_notes_block() -> str:
+    return f"{USER_NOTES_START}\n\n{USER_NOTES_END}"
+
+
+def _normalize_user_notes(text: str) -> str:
+    start_count = text.count(USER_NOTES_START)
+    end_count = text.count(USER_NOTES_END)
+    if start_count == 0 and end_count == 0:
+        return text
+    if start_count != 1 or end_count != 1:
+        raise ResearchDbError("人类阅读 Markdown 的用户笔记区边界必须成对且只能出现一次。")
+    start_index = text.find(USER_NOTES_START)
+    end_index = text.find(USER_NOTES_END)
+    if end_index <= start_index:
+        raise ResearchDbError("人类阅读 Markdown 的用户笔记区边界顺序无效。")
+    return (
+        text[:start_index]
+        + user_notes_block()
+        + text[end_index + len(USER_NOTES_END):]
+    )
+
+
 def normalized_confirmation_text(text: str) -> str:
     parse_confirmation_controls(text)
     normalized = _replace_control(text, "top", checked=False)
-    return _replace_control(normalized, "bottom", checked=False)
+    normalized = _replace_control(normalized, "bottom", checked=False)
+    return _normalize_user_notes(normalized)
 
 
 def _content_oid(project_root: Path, text: str) -> str:

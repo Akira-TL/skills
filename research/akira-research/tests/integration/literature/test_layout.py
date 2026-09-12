@@ -9,14 +9,16 @@ SCRIPT_DIR = Path(__file__).resolve().parents[3] / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from research_db_ops.completion.literature import literature_human_view_readiness  # noqa: E402
-from research_db_ops.user_reading import confirmation_control  # noqa: E402
+from research_db_ops.user_reading import confirmation_control, user_notes_block  # noqa: E402
 
 
 def note(title: str = "论文") -> str:
     return (
         f"# {title}\n\n"
         + confirmation_control("top")
-        + "\n\n## 三句话总结\n\n内容。\n\n## 结论边界\n\n内容。\n\n"
+        + "\n\n## 三句话总结\n\n内容。\n\n## 结论边界\n\n内容。\n\n## 我的笔记\n\n"
+        + user_notes_block()
+        + "\n\n"
         + confirmation_control("bottom")
         + "\n"
     )
