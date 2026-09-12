@@ -75,16 +75,72 @@ citation 存在、DOI 正确，只能证明文献身份，不证明该文献支�
 
 ## 5. Reviewer-style 风险审查
 
-完成事实与证据完整性检查后，再以目标期刊 / 学位 / 报告的真实评价标准进行 adversarial review。通用审查轴至少包括：
+完成事实与证据完整性检查后，再以目标期刊 / 学位 / 报告的真实评价标准进行 adversarial review。不要直接从“哪里可以挑毛病”开始；先分别回答内部效度、外部效度与科学贡献，再检查表达和 venue fit。
 
-- technical soundness / validity；
-- contribution / originality 是否被现有 evidence 支持；
-- evaluation 是否覆盖关键 baseline、control、sensitivity 和 failure mode；
-- Methods 与复现信息是否充分；
-- Claim 与证据是否匹配；
-- readability：跨本小领域的目标读者是否能理解基本背景、做了什么、结果意味着什么。
+### 5.1 内部效度：当前 evidence 真的支持当前 Claim 吗
+
+至少问：
+
+1. central Claim 是什么；
+2. 决定性 evidence 是什么；
+3. evidence → Claim 中间依赖哪些 identification / statistical / biological / methodological 前提；
+4. 是否存在没有处理的重要 alternative explanation；
+5. 是否有某一项单独 evidence 一旦失效，主要结论就整体失去支撑。
+
+最后一种情况属于**单一关键证据依赖**，不是自动错误，但要提高审查强度：检查该证据的数据质量、方法前提、独立验证和 sensitivity 是否足够。不能因为全文其他部分很多，就稀释这个关键弱点。
+
+### 5.2 外部效度：稿件声称的 scope 是否超过研究实际支持范围
+
+逐项比较：
+
+```text
+sample / population
+setting / system
+geography / time
+measurement / intervention
+observed conditions
+→ manuscript claimed population / application / generalization
+```
+
+若稿件已经谨慎限定 scope，就不能因为样本不覆盖“全世界”而机械批评 external validity；真正的问题是**Claim 的推广范围超过 sampling / design / evidence**。反过来，小而局部的样本也不能在 Abstract / Conclusion 中写成普遍规律。
+
+### 5.3 科学贡献：研究前后究竟增加了什么可辩护知识
+
+审查 contribution 时至少回答：
+
+- 此前可靠 evidence 已经知道什么；
+- 本研究新增什么 observation、discriminator、method capability、boundary、replication 或 synthesis；
+- 新增部分是否在科学上有意义，而不只是 `P < 0.05`；
+- contribution 的大小和 novelty wording 是否与 literature audit 一致。
+
+Replication、negative result、boundary test 和严谨的增量工作都可能有真实贡献；不要把“不是全新范式”机械当成缺陷。
+
+### 5.4 其他通用审查轴
+
+继续检查：
+
+- methodological rigor：Design、execution、Analysis 是否足以支持推断；
+- evidence sufficiency：关键 Claim 是否有合适类型、质量和覆盖范围的 evidence；
+- argument coherence：problem → question → method → result → interpretation 是否闭合；
+- evaluation completeness：关键 baseline、control、sensitivity、failure mode 是否覆盖；
+- reproducibility：Methods 与必要实现信息是否充分；
+- literature integration：是否处理了重要 foundation、alternative 和 contradictory evidence；
+- writing quality：表达是否足以让读者准确理解与核验，而不是把语言润色误当科研质量；
+- readability：目标读者能否理解基本背景、做了什么、结果意味着什么。
 
 scientific importance、broader readership、interdisciplinary reach 等只在目标 venue 确实把它们作为评价标准时提高权重；不能把某一家期刊的编辑偏好升级为 Akira 的普遍科研门禁。
+
+### 5.5 审稿判断不能用简单总分抵消关键失败
+
+不要把这些维度做成通用加权总分。一个会推翻主要结论的 validity failure，不能靠“写作很好”“选题有趣”“图很漂亮”等优点平均掉；同样，若某个维度材料不足，明确 `not assessable / unresolved`，不要为了完整评分猜分数。
+
+Reviewer-style audit 还要避免：
+
+- 方法偏好投射：判断作者的方法能否回答其问题，而不是是否采用 reviewer 自己最喜欢的方法；
+- novelty bias：不因 replication / incremental boundary test 天然降级；
+- prestige bias：不以作者、机构或期刊声望代替 evidence；
+- minor-issue pileup：不要列二十个措辞问题却漏掉一个真正改变结论的核心问题；
+- language bias：区分“表达影响科学含义”与单纯非母语措辞。
 
 若 reviewer-style 审查发现真正需要新增实验、数据或 Analysis，不在 Communication 里伪造完成：返回 `study` / `data` / `analysis` / `literature` 等正确工作流，形成新的 canonical evidence 后再修订稿件。
 
