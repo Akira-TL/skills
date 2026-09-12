@@ -107,6 +107,14 @@ Design 必须主动检查什么会让 target contrast 不能回答原问题：
 
 设计进入数据产生或目标结果可见之前，记录一个 **freeze point**（例如 Git commit），并确保关联的 Hypothesis Set 已在同一或更早提交中冻结。之后影响 estimand、primary outcome、关键 exclusion、group definition 或 primary analysis 的变化作为 amendment 明示原因和发生时点；Git history 保存具体版本。存在尚未解决的设施、伦理、样本来源或精度参数时，Design 可以冻结为“科研设计已完成但不可立即执行”，不得把 unresolved feasibility 改写成 execution-ready。
 
+### 5.1 Akira freeze 不等于外部预注册
+
+项目内的 Git / `research.sqlite` freeze 用于证明 Akira 项目中某个 Design / Analysis plan 在什么版本、什么时间点已经固定；它**不能自动证明**研究已经完成外部预注册（preregistration）、临床试验注册、系统综述 protocol registration、Registered Report Stage 1 接收或任何 institution / registry 的正式登记。
+
+若当前领域、研究类型、funder、institution 或目标 venue 要求 / 鼓励外部 registration，由 `research-standards` 核验当前正式要求和适用性。真正对外声称 `preregistered / registered` 时，必须有对应外部 provenance，例如 registry / journal identity、registration identifier 或稳定记录、登记时间 / version，以及在 material 时可核验的 protocol artifact。**一份尚未提交的 preregistration 模板、内部 Design 文档、Git freeze 或“计划注册”的文字都不是完成注册的证据。**
+
+外部登记后的 deviation / amendment 也不能通过修改本地 Design 让两者看起来一致；分别保留外部登记版本、本地实施 / amendment provenance 和实际时序。Registered Report 还应区分 Stage 1 submission、revision、in-principle acceptance 与 Stage 2 manuscript，不把“写好了 Stage 1 方案”表述成已经获得 in-principle acceptance。
+
 ## 6. 样本量与估计精度
 
 样本量应根据区分竞争解释所需的**估计精度**进行规划，而不是只追求 `P < 0.05`。根据具体问题，可以依据效应量不确定性、置信区间宽度、统计功效、预期事件率、方差、脱落率、聚类/重复测量结构或模拟等进行样本量规划。
