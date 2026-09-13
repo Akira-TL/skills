@@ -14,7 +14,7 @@
 Router 不在本仓库复制 OpenAI Plugins 的完整 Skill 清单，因为 upstream 会持续变化。需要判断当前有哪些可安装能力时，用 Akira 自带安装器只读检查当前 GitHub source；这一步只 clone/fetch 到共享 source cache，不建立 Skill 软链接：
 
 ```bash
-python3 ~/.agents/scripts/skills.py inspect https://github.com/openai/plugins.git
+uv run python ~/.agents/skills/akira/scripts/skills.py inspect https://github.com/openai/plugins.git
 ```
 
 只把与当前任务直接相关的候选 Skill 告诉用户，不把整个 upstream 仓库加入项目。准备安装具体 Skill 前，至少确认：
@@ -28,7 +28,7 @@ python3 ~/.agents/scripts/skills.py inspect https://github.com/openai/plugins.gi
 用户明确同意后，只安装实际需要的 Skill：
 
 ```bash
-python3 ~/.agents/scripts/skills.py install \
+uv run python ~/.agents/skills/akira/scripts/skills.py install \
   https://github.com/openai/plugins.git \
   --skill <skill-name>
 ```

@@ -2,13 +2,13 @@
 
 本文件只定义 **Akira 如何把 Skill 安装到机器级注册表**。安装“什么能力、来自哪个 first-party 产品仓”由 [`CATALOG.md`](CATALOG.md) 决定；外部来源由 [`EXTERNAL-SOURCES.md`](EXTERNAL-SOURCES.md) 决定。
 
-Akira 不依赖第三方 Skill package manager。正式安装入口是 Akira Lattice 自己的：
+安装能力由 `akira` Skill 自己拥有，不由 Akira Lattice 根仓提供，也不依赖第三方 Skill package manager。正式入口是本 Skill 自带脚本：
 
 ```bash
-python3 ~/.agents/scripts/skills.py --help
+uv run python ~/.agents/skills/akira/scripts/skills.py --help
 ```
 
-实现只依赖 Python 标准库与 Git。
+实现只依赖 Python 标准库与 Git。Router 已经可用后，Agent 在确认能力缺口并获得用户授权时主动调用该脚本；`akira` 本体的首次 bootstrap 不由自身安装器处理。
 
 ## 1. 运行时只有 source 与机器级注册表
 
@@ -74,7 +74,7 @@ Lattice 内的 `skills/akira`、`skills/research`、`skills/matt` submodule 只�
 安装单个 Skill：
 
 ```bash
-python3 ~/.agents/scripts/skills.py install \
+uv run python ~/.agents/skills/akira/scripts/skills.py install \
   https://github.com/Akira-TL/skills.git \
   --skill general-word-document-generation
 ```
@@ -82,7 +82,7 @@ python3 ~/.agents/scripts/skills.py install \
 安装一个产品目录中的全部 Skill：
 
 ```bash
-python3 ~/.agents/scripts/skills.py install \
+uv run python ~/.agents/skills/akira/scripts/skills.py install \
   https://github.com/Akira-TL/akira-research-skills.git \
   --all \
   --root skills/research
@@ -105,7 +105,7 @@ python3 ~/.agents/scripts/skills.py install \
 外部或新 source 在安装前先检查：
 
 ```bash
-python3 ~/.agents/scripts/skills.py inspect <github-url>
+uv run python ~/.agents/skills/akira/scripts/skills.py inspect <github-url>
 ```
 
 `inspect` 只 clone/fetch source cache 并扫描 `SKILL.md`，不创建 `~/.agents/skills` 注册项。
@@ -115,13 +115,13 @@ python3 ~/.agents/scripts/skills.py inspect <github-url>
 更新全部机器级受管 Skill 的 source：
 
 ```bash
-python3 ~/.agents/scripts/skills.py update
+uv run python ~/.agents/skills/akira/scripts/skills.py update
 ```
 
 只更新某个 repository：
 
 ```bash
-python3 ~/.agents/scripts/skills.py update \
+uv run python ~/.agents/skills/akira/scripts/skills.py update \
   --source https://github.com/Akira-TL/akira-research-skills.git
 ```
 
@@ -132,13 +132,13 @@ python3 ~/.agents/scripts/skills.py update \
 删除单个机器级注册项：
 
 ```bash
-python3 ~/.agents/scripts/skills.py remove analysis
+uv run python ~/.agents/skills/akira/scripts/skills.py remove analysis
 ```
 
 删除某个 source 登记的全部 Skill：
 
 ```bash
-python3 ~/.agents/scripts/skills.py remove \
+uv run python ~/.agents/skills/akira/scripts/skills.py remove \
   --source https://github.com/Akira-TL/akira-research-skills.git
 ```
 
@@ -151,13 +151,13 @@ python3 ~/.agents/scripts/skills.py remove \
 查看机器级已安装 Skill：
 
 ```bash
-python3 ~/.agents/scripts/skills.py list
+uv run python ~/.agents/skills/akira/scripts/skills.py list
 ```
 
 机械验证 source 与注册表：
 
 ```bash
-python3 ~/.agents/scripts/skills.py doctor
+uv run python ~/.agents/skills/akira/scripts/skills.py doctor
 ```
 
 Doctor 至少验证：

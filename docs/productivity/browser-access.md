@@ -106,7 +106,7 @@ productivity/browser-access/REFERENCE.md
 机器级安装统一从远端 GitHub source 拉取，并注册到 `~/.agents/skills/`：
 
 ```bash
-python3 ~/.agents/scripts/skills.py install \
+uv run python ~/.agents/skills/akira/scripts/skills.py install \
   https://github.com/Akira-TL/skills.git \
   --skill browser-access
 ```

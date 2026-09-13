@@ -22,7 +22,7 @@ GitHub source：`https://github.com/Akira-TL/skills.git`
 
 | Skill | 能力 | 默认状态 | 何时安装 |
 | --- | --- | --- | --- |
-| `akira` | 能力 Router；决定当前项目还缺什么 | 基础能力 | 机器级缺失时安装 |
+| `akira` | 能力 Router；决定当前项目还缺什么 | 基础能力 | Router bootstrap 提供；不由自身安装器首次自举 |
 | `browser-access` | 动态/认证网页访问、浏览器控制、登录态复用 | 基础能力 | 机器级缺失时安装 |
 | `general-word-document-generation` | 正式 Word / DOCX 文档生成与编辑 | 按需 | 当前任务明确需要 DOCX |
 | `scientific-presentation-authoring` | 科研/学术 PPT 内容组织与交付 | 按需 | 当前任务明确需要科研或学术演示文稿 |
@@ -32,7 +32,7 @@ GitHub source：`https://github.com/Akira-TL/skills.git`
 单个通用 Skill 的机器级安装：
 
 ```bash
-python3 ~/.agents/scripts/skills.py install \
+uv run python ~/.agents/skills/akira/scripts/skills.py install \
   https://github.com/Akira-TL/skills.git \
   --skill <skill-name>
 ```
@@ -49,7 +49,7 @@ python3 ~/.agents/scripts/skills.py install \
 安装完整 Research suite：
 
 ```bash
-python3 ~/.agents/scripts/skills.py install \
+uv run python ~/.agents/skills/akira/scripts/skills.py install \
   https://github.com/Akira-TL/akira-research-skills.git \
   --all \
   --root skills/research
@@ -85,7 +85,7 @@ Research suite 当前能力：
 安装：
 
 ```bash
-python3 ~/.agents/scripts/skills.py install \
+uv run python ~/.agents/skills/akira/scripts/skills.py install \
   https://github.com/Akira-TL/matt-skills.git \
   --all \
   --root skills/engineering \

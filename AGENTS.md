@@ -13,7 +13,9 @@
 
 ## 安装边界
 
-本仓存在不等于默认安装本仓全部 Skill。Akira Lattice 只把真实需要的 Skill 安装到 `~/.agents/sources/` 并注册到机器级 `~/.agents/skills/`；这两层是 Akira 管理的唯一 Skill source 与机器级注册层。具体执行器若需要持久暴露某个 Skill，由执行器自己在其 Skill 目录建立指向 `~/.agents/skills/<name>` 的软链接；共享安装器不得写入执行器目录，也不得为执行器维护第二份 source checkout。
+Skill 发现与机器级安装由 `routing/akira/` 自己拥有：Router 决定是否需要新增能力，`routing/akira/scripts/` 机械执行远端 Git checkout、机器级注册、更新、删除与诊断。Lattice 根仓不实现 Skill 生命周期。
+
+本仓存在不等于默认安装本仓全部 Skill。真实需要的 Skill 才进入 `~/.agents/sources/` 并注册到 `~/.agents/skills/`；具体执行器若需要持久暴露某个 Skill，由执行器自己的机制引用机器级注册项。安装脚本只管理 Akira 机器级 source 与注册表。
 
 Router 的受管产品状态只在 `routing/akira/references/CATALOG.md` 维护。未发布、planned 或 unavailable 的仓库不得生成伪造的可执行安装命令。
 

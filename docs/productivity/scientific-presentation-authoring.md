@@ -29,7 +29,7 @@ Skill 会先把研究材料拆成背景、目标、章节、样品设计、方�
 机器级安装只从远端 GitHub source 拉取，并注册到 `~/.agents/skills/`：
 
 ```bash
-python3 ~/.agents/scripts/skills.py install \
+uv run python ~/.agents/skills/akira/scripts/skills.py install \
   https://github.com/Akira-TL/skills.git \
   --skill scientific-presentation-authoring
 ```

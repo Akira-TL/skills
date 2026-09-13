@@ -9,6 +9,8 @@ Akira 的通用 Agent Skills 与能力 Router 仓库。
 ```text
 routing/
 └── akira/                         # 跨仓库能力 Router
+    ├── scripts/                   # Router 自带 Skill 安装/诊断能力
+    └── tests/                     # 安装能力定向测试
 engineering/
 ├── akira-guard/                   # Guard 使用语义与排障
 └── agent-orchestration/           # harness-agnostic 执行适配
@@ -32,23 +34,25 @@ docs/                              # 与稳定 Skill 一一对应的人类文档
 
 ## 安装
 
+Skill 安装能力由 `routing/akira/` 自己维护。`akira` Router 已可用后，Agent 在确认能力缺口并获得用户授权时调用本 Skill 自带脚本；Lattice 根仓不负责 Skill 生命周期。
+
 查看远端仓当前可用 Skill：
 
 ```bash
-python3 ~/.agents/scripts/skills.py inspect https://github.com/Akira-TL/skills.git
+uv run python ~/.agents/skills/akira/scripts/skills.py inspect https://github.com/Akira-TL/skills.git
 ```
 
 机器级注册表只缺单一通用能力时，只安装对应 Skill，例如：
 
 ```bash
-python3 ~/.agents/scripts/skills.py install \
+uv run python ~/.agents/skills/akira/scripts/skills.py install \
   https://github.com/Akira-TL/skills.git \
   --skill browser-access
 ```
 
 专业产品按真实任务安装到机器级 `~/.agents/skills`。软件工程任务由 `akira` Router 推荐 Matt fork；科研任务由 Router 推荐 Research suite。Router 在安装前说明来源、用途与范围并请求用户明确同意。
 
-`~/.agents/sources/` 与 `~/.agents/skills/` 是 Akira 管理的唯一 Skill source 与机器级注册层。具体执行器需要某个已安装 Skill 时，由执行器自己在其 Skill 目录建立指向 `~/.agents/skills/<name>` 的软链接；本仓安装器不写执行器目录，也不为任何执行器维护第二份 source checkout。
+`~/.agents/sources/` 与 `~/.agents/skills/` 是 `akira` Skill 安装器管理的唯一 Skill source 与机器级注册层。具体执行器需要某个已安装 Skill 时，由执行器自己的机制引用 `~/.agents/skills/<name>`；安装器不写执行器目录，也不为执行器维护第二份 source checkout。
 
 ## 检查
 
