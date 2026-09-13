@@ -1,69 +1,59 @@
 # Akira Skills
 
-Akira 自研 Agent Skills 的独立源码仓库。
+Akira 的通用 Agent Skills 与能力 Router 仓库。
 
-本仓库只维护我们自己的可复用 Skill。Akira Lattice 通过 Git submodule 固定本仓库的具体 commit，再由 skills CLI 安装到各 Agent 运行时。Matt Pocock 的 Skills 使用独立的 `Akira-TL/matt-skills` fork，不与本仓库混合。
+本仓库不是所有 Akira 产品能力的集合。高内聚产品族独立维护：科研工作流位于 `akira-research-skills`，软件工程主流程位于 `Akira-TL/matt-skills` fork；本仓库保留跨领域通用能力和 `akira` Router，让项目按真实用途安装最小 Skill 集合。
 
 ## 结构
 
 ```text
-skills/
-├── research/         # 科研总 Router 与专业科研工作流
-├── engineering/      # 工程开发与 Agent 编排
-├── productivity/     # 文档、浏览器等通用生产力能力
-├── in-progress/      # 尚未稳定的 Skill
-├── deprecated/       # 已弃用但保留迁移说明的 Skill
-├── docs/             # 面向使用者的 Skill 文档
-└── AGENTS.md         # 本仓库维护规则
+routing/
+└── akira/                         # 跨仓库能力 Router
+engineering/
+├── akira-guard/                   # Guard 使用语义与排障
+└── agent-orchestration/           # harness-agnostic 执行适配
+productivity/
+├── browser-access/                # 浏览器与人工认证边界
+├── general-word-document-generation/
+└── scientific-presentation-authoring/
+in-progress/                       # 本仓未来仍可使用的实验性通用 Skill
+deprecated/                        # 旧名称迁移说明
+docs/                              # 与稳定 Skill 一一对应的人类文档
 ```
 
-每个正式 Skill 的 runtime source 位于 `<category>/<skill-name>/SKILL.md`。可选的 reference 与 `SKILL.md` 同目录保存，并由正文显式引用。
+## 产品边界
 
-## 当前 Skills
+- **通用 Akira Skills**：本仓库。Router、浏览器、Word、学术 PPT、Guard 与通用 Agent 执行适配。
+- **Matt Engineering**：`Akira-TL/matt-skills`。Matt 工程方法及本 fork 的 `ask-akira`、`parallel-coordinator`、`parallel-execution` 扩展。
+- **Akira Research**：`Akira-TL/akira-research-skills`。Research Tree、Literature、Design、Study、Data、Analysis、Interpretation、Communication 与 `research.sqlite` provenance。
+- **Akira Knowledge**：尚未建立；真正开始知识系统后再单独成仓，不提前维护空实现。
 
-- `research/akira-research`：科研总 Router；围绕 Research Question、证据、Research Tree 与适用规范，自主路由完整科研工作。
-  - `research/research-tree`、`research/research-standards`
-  - `research/literature`、`research/literature-access`
-  - `research/hypothesis`、`research/design`、`research/study`、`research/data`
-  - `research/analysis`、`research/interpretation`、`research/communication`
-- `engineering/agent-orchestration`：在当前 Agent harness 确实提供并行执行原语时，将已定义工作单元映射到这些能力；不绑定具体产品，也不是 Parallel 的必选依赖。
-- `engineering/akira-guard`：Akira Guard 的使用语义、检查分层与故障排查。
-- `productivity/general-word-document-generation`：Word 原生语义的正式 DOCX 生成与修订。
-- `productivity/scientific-presentation-authoring`：科研与学术类 PPT 的结构、页面文案和结果页图文编排。
-- `productivity/browser-access`：按当前 harness 能力发现并复用可控浏览器，支持持久登录态、动态网页、网络资源解析和表单操作。
-
-对应用户文档位于 `docs/<category>/<skill-name>.md`。
+`routing/akira/references/CATALOG.md` 是 Router 使用的受管产品目录。
 
 ## 安装
 
-直接从 GitHub 安装指定 Skill：
-
-```bash
-npx skills add Akira-TL/skills --skill agent-orchestration --agent '*' -g -y
-```
-
-查看仓库可安装的 Skill：
+查看本仓可用的通用 Skills：
 
 ```bash
 npx skills add Akira-TL/skills --list
 ```
 
-在本地 checkout 中开发或验证时，也可以使用当前目录：
+项目只缺单一通用能力时安装具体 Skill，例如：
 
 ```bash
-npx skills add . --list
+npx skills add Akira-TL/skills --skill browser-access --agent '*' -y
 ```
+
+专业产品默认项目级安装。软件工程项目由 `akira` Router 推荐 Matt fork；科研项目由 Router 推荐 Research suite。Router 在安装前说明来源、用途与范围并请求用户明确同意。
+
+Akira Lattice 的全局安装只部署 `akira` Router 与少量跨域基线能力，不默认全局铺开所有通用 Skill、Matt 或 Research。
 
 ## 检查
 
-本仓库不维护第二份 Guard。维护环境统一使用 Akira Lattice 安装到 `~/.agents/scripts/` 的全局入口：
+本仓库不复制 Guard 实现。维护环境使用 Akira Lattice 的统一入口：
 
 ```bash
-uv run ~/.agents/scripts/guard.py check
+uv run ~/.agents/scripts/guard.py skills .
 ```
 
-全局 Guard 根据当前仓库识别并检查 Skill 目录名、frontmatter、重复名称，以及稳定 Skill 与 `docs/<category>/<skill-name>.md` 的一一映射。
-
-## 与 Akira Lattice 的关系
-
-Akira Lattice 不再保存本仓库 Skill 的第二份正文，只通过 `skills/akira` Git submodule 记录本仓库 commit。修改 Skill 时先在本仓库完成并提交，再回到 Lattice 更新 submodule pointer。
+稳定 Skill 修改需同步对应 `docs/<category>/<skill-name>.md`。

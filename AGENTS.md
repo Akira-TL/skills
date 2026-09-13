@@ -1,24 +1,31 @@
 # Repository instructions
 
-本仓库是 Akira 自研 Agent Skills 的独立 canonical source。它只维护我们自己的 Skill，不包含 Matt Pocock 或其他第三方 Skill 的正文。
+本仓库是 Akira 通用 Skills 与跨仓库能力 Router 的 canonical source。它维护跨领域可复用能力，不再承载完整 Research 产品，也不复制 Matt 工程 Skill 正文。
 
 ## 目录与所有权
 
-- 稳定 Skill 放在 `<category>/<skill-name>/`，例如 `engineering/`、`productivity/`。
-- 尚未稳定的 Skill 放在 `in-progress/`；弃用 Skill 放在 `deprecated/`，不得无迁移说明地直接删除已发布名称。
-- 每个 Skill 只有一个 canonical `SKILL.md`；长分支说明可放同目录 sibling reference，并由 `SKILL.md` 显式引用。
-- 面向使用者的说明放在 `docs/<category>/<skill-name>.md`。文档解释用途、边界和安装方式，不复制整个运行时 Prompt。
-- 不把 Matt skills 或其他第三方 Skill 正文复制进本仓库；第三方来源由 Akira Lattice 的独立 submodule 管理。
+- `routing/` 保存跨仓库 Router；当前 `akira` 负责根据项目用途选择最小 Skill / 产品仓。
+- `productivity/` 保存跨领域交付能力，例如浏览器、Word、科研/学术 PPT。
+- `engineering/` 只保存真正跨项目的基础设施能力，例如 Akira Guard 使用语义与 harness-agnostic Agent 编排；Matt 的工程方法、`ask-akira` 与 Parallel 系列属于 `Akira-TL/matt-skills` fork。
+- 完整科研工作流属于独立 `akira-research-skills`；未来 Knowledge 等高内聚产品族也应独立成仓。
+- 尚未稳定的本仓通用 Skill 放在 `in-progress/`；弃用 Skill 放在 `deprecated/`，不得无迁移说明地直接删除已发布名称。
+- 每个稳定 Skill 只有一个 canonical `SKILL.md`；人类文档放在 `docs/<category>/<skill-name>.md`。
+
+## 安装边界
+
+本仓存在不等于默认安装本仓全部 Skill。Akira Lattice 默认只安装 `akira` Router 和明确列入基线的极少数跨域 Skill；其余通用 Skill、Matt、Research 等按真实项目任务由 Router 推荐，并在用户明确同意后项目级安装。
+
+Router 的受管产品状态只在 `routing/akira/references/CATALOG.md` 维护。未发布、planned 或 unavailable 的仓库不得生成伪造的可执行安装命令。
 
 ## Skill 编写
 
 - Skill 目录名与 frontmatter `name` 使用 lowercase kebab-case 且必须一致。
-- 在编写正文前先确定 Skill 是 user-invoked 还是 model-invoked；只保留清晰且可判定的触发条件。
-- 多步骤流程写成可检查的顺序；稳定规则靠近其约束行为，低频或分支材料移入 reference。
-- 同一规则只保留一个 source of truth，清理重复、陈旧内容和无操作意义的泛化建议。
+- 编写正文前先确定 user-invoked 或 model-invoked；只保留清晰可判定的触发条件。
+- 多步骤流程写成可检查顺序；分支或低频材料放 sibling reference，并由 `SKILL.md` 显式引用。
+- 同一规则只保留一个 source of truth；产品仓正文不为了“方便 Router”复制回本仓。
 
 ## 检查与提交
 
-- 本仓库不维护独立 Guard；机械检查与正式 Git 提交统一使用 Akira Lattice 投射到 `~/.agents/scripts/` 的全局入口，例如 `uv run ~/.agents/scripts/guard.py check`。
-- 修改稳定 Skill 时同步修改对应 `docs/` 文档；发布行为变化时记录到仓库变更说明（若当前维护）。
-- Git 原子提交、diff ownership 与提交信息继续遵守加载到 Agent 的全局 Git 规则；不得因为本仓库独立而降低提交标准。
+- 本仓不维护第二份 Guard；机械检查与正式 Git 提交统一使用 Akira Lattice 投射到 `~/.agents/scripts/` 的入口。
+- 稳定 Skill 行为变化同步对应 `docs/`。
+- Git 原子提交、diff ownership 与提交信息继续遵守全局 Git 规则。
