@@ -16,37 +16,25 @@
 
 如果当前能力已经满足任务，不为“以后可能用到”安装更多产品。安装机制的详细语义见 [`INSTALLATION.md`](INSTALLATION.md)；外部第三方能力见 [`EXTERNAL-SOURCES.md`](EXTERNAL-SOURCES.md)。
 
-## ForgeRelay 常驻基线
-
-Akira Lattice 在 ForgeRelay 中只常驻以下两个 Skill：
-
-| Skill | 用途 | GitHub source | 状态 |
-| --- | --- | --- | --- |
-| `akira` | 跨产品能力发现、安装决策与 Router | `https://github.com/Akira-TL/skills.git` | available |
-| `browser-access` | 动态网页、登录态、用户可见浏览器与人工认证边界 | `https://github.com/Akira-TL/skills.git` | available |
-
-根仓 `./install.sh` 从远端 GitHub 安装这两个 Skill。Research、Matt、Word、PPT、Guard Skill、Agent 编排和第三方专业能力都不是常驻基线。
-
 ## Akira 通用 Skills
 
 GitHub source：`https://github.com/Akira-TL/skills.git`
 
 | Skill | 能力 | 默认状态 | 何时安装 |
 | --- | --- | --- | --- |
-| `akira` | 能力 Router；决定当前项目还缺什么 | ForgeRelay 常驻 | 不单独重复安装 |
-| `browser-access` | 动态/认证网页访问、浏览器控制、登录态复用 | ForgeRelay 常驻 | 非默认环境缺少该能力时按需安装 |
+| `akira` | 能力 Router；决定当前项目还缺什么 | 基础能力 | 机器级缺失时安装 |
+| `browser-access` | 动态/认证网页访问、浏览器控制、登录态复用 | 基础能力 | 机器级缺失时安装 |
 | `general-word-document-generation` | 正式 Word / DOCX 文档生成与编辑 | 按需 | 当前任务明确需要 DOCX |
 | `scientific-presentation-authoring` | 科研/学术 PPT 内容组织与交付 | 按需 | 当前任务明确需要科研或学术演示文稿 |
 | `akira-guard` | Akira Guard 的使用语义、排障与边界 | 按需 | 需要理解/诊断 Guard，而不是仅执行已有 Guard 命令 |
 | `agent-orchestration` | 把已定义工作单元映射到当前 harness 的 Agent 执行原语 | 按需 | 任务已经拆好，且当前 harness 提供可用多 Agent / 并行原语 |
 
-单个通用 Skill 的项目级安装：
+单个通用 Skill 的机器级安装：
 
 ```bash
 python3 ~/.agents/scripts/skills.py install \
   https://github.com/Akira-TL/skills.git \
-  --skill <skill-name> \
-  --project .
+  --skill <skill-name>
 ```
 
 这些通用 Skill 不拥有 Research 状态机，也不复制 Matt 工程方法论。
@@ -56,16 +44,15 @@ python3 ~/.agents/scripts/skills.py install \
 - GitHub source：`https://github.com/Akira-TL/akira-research-skills.git`
 - Status：available
 - Primary Router：`akira-research`
-- 安装粒度：持续科研项目安装完整 Research suite，不把 Research Skill 当全局常驻能力。
+- 安装粒度：持续科研项目需要完整 Research suite 时，将整套能力安装到机器级注册表；机器级已有时不重复安装。
 
-项目级安装完整 Research suite：
+安装完整 Research suite：
 
 ```bash
 python3 ~/.agents/scripts/skills.py install \
   https://github.com/Akira-TL/akira-research-skills.git \
   --all \
-  --root skills/research \
-  --project .
+  --root skills/research
 ```
 
 Research suite 当前能力：
@@ -93,9 +80,9 @@ Research suite 当前能力：
 - GitHub source：`https://github.com/Akira-TL/matt-skills.git`
 - Status：available
 - Primary Router：`ask-matt`
-- 安装粒度：持续软件工程项目安装 promoted Matt suite，并附加 Akira fork 的三个工程扩展。
+- 安装粒度：持续软件工程需要时，将 promoted Matt suite 与 Akira fork 的三个工程扩展安装到机器级注册表。
 
-项目级安装：
+安装：
 
 ```bash
 python3 ~/.agents/scripts/skills.py install \
@@ -105,8 +92,7 @@ python3 ~/.agents/scripts/skills.py install \
   --root skills/productivity \
   --skill ask-akira \
   --skill parallel-coordinator \
-  --skill parallel-execution \
-  --project .
+  --skill parallel-execution
 ```
 
 这里 `--root` 只安装 Matt promoted 的 `engineering` / `productivity` 两个产品目录；三个显式 `--skill` 再加入 Akira fork extensions，避免仓库其他 `misc` / 实验性 Skill 因 `--all` 被自动带入。
@@ -133,13 +119,13 @@ Matt fork 提供需求澄清、Spec/Ticket、实现、TDD、代码审查、缺�
 
 | 当前需求 | 选择 | 安装策略 |
 | --- | --- | --- |
-| 动态网页 / 登录态 / 浏览器 | `browser-access` | ForgeRelay 已常驻；其他项目缺少时装单个 Skill |
-| Word / DOCX | `general-word-document-generation` | 项目级装单个 Skill |
-| 科研/学术 PPT | `scientific-presentation-authoring` | 项目级装单个 Skill |
-| Guard 语义/排障 | `akira-guard` | 项目级装单个 Skill |
-| 已拆分工作的 Agent 执行适配 | `agent-orchestration` | 项目级装单个 Skill |
-| 持续科研项目 | Akira Research | 项目级安装完整 Research suite |
-| 持续软件工程项目 | Matt Engineering | 项目级安装 promoted Matt + Akira extensions |
+| 动态网页 / 登录态 / 浏览器 | `browser-access` | 机器级缺失时装单个 Skill |
+| Word / DOCX | `general-word-document-generation` | 机器级缺失时装单个 Skill |
+| 科研/学术 PPT | `scientific-presentation-authoring` | 机器级缺失时装单个 Skill |
+| Guard 语义/排障 | `akira-guard` | 机器级缺失时装单个 Skill |
+| 已拆分工作的 Agent 执行适配 | `agent-orchestration` | 机器级缺失时装单个 Skill |
+| 持续科研项目 | Akira Research | 机器级缺失时安装完整 Research suite |
+| 持续软件工程项目 | Matt Engineering | 机器级缺失时安装 promoted Matt + Akira extensions |
 | Knowledge 产品 | 暂不可用 | 不安装 |
 | first-party 没有的专业能力 | External Sources | 读取 `EXTERNAL-SOURCES.md`，再按最小候选请求用户授权 |
 
@@ -147,9 +133,9 @@ Matt fork 提供需求澄清、Spec/Ticket、实现、TDD、代码审查、缺�
 
 - 新能力安装前必须说明来源、用途、安装对象和范围，并取得用户明确同意。
 - 安装器只接受登记过或用户明确批准的远端 GitHub source；运行时 Skill 不从 Lattice 本地 submodule checkout 安装。
-- Skill 实体只存在于 `~/.agents/sources/<owner>/<repo>/` 的 Git checkout；`.agents/skills/` 与 ForgeRelay 目录只放软链接。
-- 项目级安装默认写入 `<project>/.agents/skills/`；不因为一个项目需要 Research / Matt 就扩张全局 `~/.agents/skills/`。
-- ForgeRelay 常驻基线是例外：根安装器把 `~/.agents/skills/{akira,browser-access}` 链到共享 Git checkout，再把 `~/.forgerelay/skills/{...}` 链到全局 `.agents/skills`。
+- Skill 实体只存在于 `~/.agents/sources/<owner>/<repo>/` 的 Git checkout；`~/.agents/skills/` 只保存机器级软链接注册项。
+- `~/.agents/skills/` 是机器级已安装 Skill 注册表。当前执行器缺少能力时先检查这里；已注册则由执行器按自己的 Skill 机制复用，未注册才从远端 GitHub 安装。
+- Akira 不规定项目级 Skill 目录，也不规定 ForgeRelay、Claude Code、Codex 或其他执行器如何暴露机器级 Skill。
 - 更新只更新 Git source checkout；软链接不需要重新复制或重装。
 - 不因一次 Word、PPT、浏览器或 Guard 任务安装 Research / Matt。
 - 不因科研项目安装 Matt，也不因软件工程项目安装 Research；真实跨域任务除外。

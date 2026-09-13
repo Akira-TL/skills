@@ -22,23 +22,22 @@ python3 ~/.agents/scripts/skills.py inspect https://github.com/openai/plugins.gi
 - 当前候选 Skill 的准确名称和用途；
 - 是否包含脚本、网络访问、账户、凭据、外部 API、云执行或数据上传；
 - 是否会读取当前项目数据，以及数据是否可能离开本机；
-- 当前项目是否已经存在足够能力；
-- 安装范围是否保持为当前项目。
+- 当前会话或机器级注册表是否已经存在足够能力；
+- 安装范围是否只进入机器级 `~/.agents/skills` 注册表。
 
-用户明确同意后，只在当前项目安装实际需要的 Skill：
+用户明确同意后，只安装实际需要的 Skill：
 
 ```bash
 python3 ~/.agents/scripts/skills.py install \
   https://github.com/openai/plugins.git \
-  --skill <skill-name> \
-  --project .
+  --skill <skill-name>
 ```
 
-不得因为 OpenAI 是官方来源就自动安装、全局安装或默认信任其中所有执行动作。
+不得因为 OpenAI 是官方来源就自动安装或默认信任其中所有执行动作；具体执行器如何加载已安装 Skill 由执行器自己负责。
 
 ### 与 Akira Research 的关系
 
-Akira Research 的 `ngs` 仍拥有高通量测序任务的科研语义、数据/分析边界和 provenance；OpenAI Plugins 中的 NGS 相关能力只作为可选执行来源。需要 NGS runner 或 assay-specific guidance 时，先通过当前 OpenAI Plugins 清单定位最窄能力，再按上述审计和用户授权流程项目级安装。Research 不要求 Lattice 预先固定整个 `openai/plugins` 仓库。
+Akira Research 的 `ngs` 仍拥有高通量测序任务的科研语义、数据/分析边界和 provenance；OpenAI Plugins 中的 NGS 相关能力只作为可选执行来源。需要 NGS runner 或 assay-specific guidance 时，先通过当前 OpenAI Plugins 清单定位最窄能力，再按上述审计和用户授权流程安装到机器级注册表。Research 不要求 Lattice 预先固定整个 `openai/plugins` 仓库。
 
 ## 其他外部来源
 

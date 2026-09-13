@@ -43,11 +43,10 @@ python3 ~/.agents/scripts/skills.py inspect https://github.com/Akira-TL/skills.g
 ```bash
 python3 ~/.agents/scripts/skills.py install \
   https://github.com/Akira-TL/skills.git \
-  --skill browser-access \
-  --project .
+  --skill browser-access
 ```
 
-专业产品默认项目级安装。软件工程项目由 `akira` Router 推荐 Matt fork；科研项目由 Router 推荐 Research suite。Router 在安装前说明来源、用途与范围并请求用户明确同意。
+专业产品按真实任务安装到机器级 `~/.agents/skills`。软件工程任务由 `akira` Router 推荐 Matt fork；科研任务由 Router 推荐 Research suite。Router 在安装前说明来源、用途与范围并请求用户明确同意；具体执行器如何加载已安装 Skill 由执行器自己负责。
 
 Akira Lattice 在 ForgeRelay 中只常驻 `akira` Router 与少量跨域基线能力。Skill source 从远端 GitHub 拉取到 `~/.agents/sources/`，运行时只通过软链接暴露；不默认常驻安装所有通用 Skill、Matt 或 Research。
 

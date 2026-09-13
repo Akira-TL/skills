@@ -35,11 +35,10 @@ Task 如何拆、谁能领取、哪些 blocker 已解除、当前 frontier 是�
 
 ## 安装
 
-项目级安装只从远端 GitHub source 拉取，并在当前项目建立软链接：
+机器级安装只从远端 GitHub source 拉取，并注册到 `~/.agents/skills/`：
 
 ```bash
 python3 ~/.agents/scripts/skills.py install \
   https://github.com/Akira-TL/skills.git \
-  --skill agent-orchestration \
-  --project .
+  --skill agent-orchestration
 ```

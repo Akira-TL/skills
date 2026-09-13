@@ -10,10 +10,10 @@
 - Knowledge：当前仍为 planned，正式实现后再加入可安装目录。
 - 外部能力：当 first-party 能力不足时，Router 只从已登记外部来源动态读取当前 Skill 清单，向用户呈现与任务相关的最小候选；不把外部整仓加入 Lattice，也不因来源可信而跳过安装确认。
 
-Router 默认先复用当前项目已经安装的能力。只有真实任务出现能力缺口时才推荐新增 Skill；专业产品默认项目级安装，并在安装前说明来源、用途和范围，取得用户明确同意。
+Router 默认先复用当前会话已经真实可用的能力；当前会话缺少时再检查机器级 `~/.agents/skills/` 注册表。机器级已经安装的 Skill 不重复安装，由当前执行器按自己的 Skill 机制发现、引用或链接；只有机器级也不存在时才推荐从远端新增 Skill，安装前仍需说明来源、用途和范围并取得用户明确同意。
 
 `routing/akira/references/CATALOG.md` 是 first-party 能力注册表：统一维护我们自有 Skill / 产品族的准确名称、用途、GitHub source、发布状态、安装粒度与推荐命令。真正执行安装、更新、卸载或诊断时再读取 `INSTALLATION.md`；`akira/SKILL.md` 不复制这些详细表。first-party 不足时才继续读取 `EXTERNAL-SOURCES.md`。
 
-Akira 管理的 Skill 只从 Catalog 登记的远端 GitHub source 拉取到 `~/.agents/sources/`；全局或项目 `.agents/skills/` 都只是指向 Git checkout 的软链接。ForgeRelay 常驻视图再链接到全局 `~/.agents/skills/`。安装逻辑由 Lattice 自带的 `scripts/skills.py` 实现，不依赖第三方 Skill package manager。
+Akira 管理的 Skill 只从 Catalog 登记的远端 GitHub source 拉取到 `~/.agents/sources/`，再以软链接注册到机器级 `~/.agents/skills/`。安装逻辑由 Lattice 自带的 `scripts/skills.py` 实现，不依赖第三方 Skill package manager，也不管理 ForgeRelay、Claude Code、Codex 或其他执行器自己的 Skill 目录。
 
-Akira Lattice 在 ForgeRelay 中只常驻 Router 与极少数跨域基线能力，当前为 `akira` 与 `browser-access`。Word、PPT、Matt、Research 等不因为“未来可能用到”常驻安装；OpenAI Plugins 等外部来源也只在真实任务需要时动态发现并安装具体 Skill。
+Word、PPT、Matt、Research 与外部来源都只在真实任务需要时发现和安装；机器级已经安装的 Skill 直接复用，不因为“未来可能用到”继续扩张注册表。

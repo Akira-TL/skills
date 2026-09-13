@@ -1,6 +1,6 @@
 # Akira Skill 安装契约
 
-本文件只定义 **如何安装与更新 Skill**。安装“什么能力、来自哪个 first-party 产品仓”由 [`CATALOG.md`](CATALOG.md) 决定；外部来源由 [`EXTERNAL-SOURCES.md`](EXTERNAL-SOURCES.md) 决定。
+本文件只定义 **Akira 如何把 Skill 安装到机器级注册表**。安装“什么能力、来自哪个 first-party 产品仓”由 [`CATALOG.md`](CATALOG.md) 决定；外部来源由 [`EXTERNAL-SOURCES.md`](EXTERNAL-SOURCES.md) 决定。
 
 Akira 不依赖第三方 Skill package manager。正式安装入口是 Akira Lattice 自己的：
 
@@ -10,7 +10,7 @@ python3 ~/.agents/scripts/skills.py --help
 
 实现只依赖 Python 标准库与 Git。
 
-## 1. Source 与 Skill view 分离
+## 1. 运行时只有 source 与机器级注册表
 
 真正的 Skill 文件只存在于共享 Git checkout：
 
@@ -18,51 +18,65 @@ python3 ~/.agents/scripts/skills.py --help
 ~/.agents/sources/<owner>/<repo>/
 ```
 
-安装本身只建立软链接，不复制 Skill 目录。
-
-全局 Skill：
+机器上已经安装的 Skill 统一注册到：
 
 ```text
-~/.agents/sources/Akira-TL/skills/routing/akira/
-        ↓ symlink
-~/.agents/skills/akira
-        ↓ symlink（ForgeRelay 常驻基线才需要）
-~/.forgerelay/skills/akira
+~/.agents/skills/<skill>
 ```
 
-项目级 Skill：
+注册项始终是软链接：
 
 ```text
-~/.agents/sources/Akira-TL/akira-research-skills/skills/research/analysis/
+~/.agents/sources/<owner>/<repo>/<skill-dir>
         ↓ symlink
-<project>/.agents/skills/analysis
+~/.agents/skills/<skill>
 ```
 
-项目安装不复制到全局 `~/.agents/skills/`，也不因为一个项目的需求污染其他项目。
+Skill 内容不复制，Git checkout 是唯一实体。
 
-## 2. 只从远端 Git source 建立或更新 checkout
+机器级安装状态记录在：
 
-安装器接受 GitHub HTTPS 或 `git@github.com:` source。首次安装执行 clone；已有 source checkout 时：
+```text
+~/.agents/akira-skills.json
+```
 
-1. 核验 `origin` 与请求的 GitHub repository 一致；
-2. 检查 checkout 必须 clean；
-3. `git fetch --prune origin`；
-4. 对 branch ref 重置到对应 `origin/<ref>`；
-5. 记录实际 Git commit。
+manifest 保存 repository、ref、实际 commit 与 source-relative path，用于更新、诊断和同名冲突检查。
+
+## 2. Agent 先发现，再安装
+
+需要某个 Skill 时按以下顺序处理：
+
+1. 先检查当前会话是否已经真实可用；可用则直接使用。
+2. 当前会话不可用时，检查 `~/.agents/skills/<name>`；如果它是 Akira manifest 登记的有效机器级 Skill，不重复安装。
+3. 机器级注册表也不存在时，才按 Catalog 登记或用户明确批准的 GitHub source 安装。
+
+机器级 Skill 如何被当前执行器发现、引用、链接或暴露，由当前执行器自己的 Skill 机制决定。Akira 安装器不规定 ForgeRelay、Claude Code、Codex 或其他 harness 的运行时目录与加载方式。
+
+同名 Skill 如果已经由其他 repository 注册，安装器 fail closed；不得静默改写机器级名称指向。
+
+## 3. 只从远端 Git source 建立或更新 checkout
+
+安装器接受 GitHub HTTPS 或 `git@github.com:` source。需要远端安装或更新时：
+
+1. 首次安装执行 clone；
+2. 核验 `origin` 与请求的 GitHub repository 一致；
+3. 检查 checkout 必须 clean；
+4. `git fetch --prune origin`；
+5. 对 branch ref 重置到对应 `origin/<ref>`；
+6. 记录实际 Git commit。
 
 如果 source checkout 有本地修改，安装器 fail closed，不覆盖修改。
 
 Lattice 内的 `skills/akira`、`skills/research`、`skills/matt` submodule 只用于开发、review 与固定 source revision，**不是运行时安装源**。
 
-## 3. 项目级安装是默认方式
+## 4. 默认安装到 `~/.agents/skills`
 
 安装单个 Skill：
 
 ```bash
 python3 ~/.agents/scripts/skills.py install \
   https://github.com/Akira-TL/skills.git \
-  --skill general-word-document-generation \
-  --project /path/to/project
+  --skill general-word-document-generation
 ```
 
 安装一个产品目录中的全部 Skill：
@@ -71,130 +85,110 @@ python3 ~/.agents/scripts/skills.py install \
 python3 ~/.agents/scripts/skills.py install \
   https://github.com/Akira-TL/akira-research-skills.git \
   --all \
-  --root skills/research \
-  --project /path/to/project
+  --root skills/research
 ```
 
 `--root` 可重复，只影响 `--all` 的发现范围；显式 `--skill` 可以额外加入 root 之外的 Skill。
 
-安装完成后，项目中只有：
+安装完成后只新增或更新：
 
 ```text
-<project>/.agents/skills/<name> -> ~/.agents/sources/.../<skill-dir>
-<project>/.agents/akira-skills.json
+~/.agents/sources/<owner>/<repo>/
+~/.agents/skills/<name>
+~/.agents/akira-skills.json
 ```
 
-manifest 保存 repository、ref、实际 commit、source-relative path 与安装 scope；它不复制 Skill 正文。
+不会自动创建项目级 Skill 目录，也不会修改任何具体执行器的 Skill store。
 
-## 4. 全局安装只用于明确的跨项目基线
+## 5. Inspect
 
-普通 Research、Matt、Word、PPT 等能力不全局安装。
-
-只有明确的跨项目常驻能力使用 `--global`：
+外部或新 source 在安装前先检查：
 
 ```bash
-python3 ~/.agents/scripts/skills.py install \
-  https://github.com/Akira-TL/skills.git \
-  --skill akira \
-  --skill browser-access \
-  --global \
-  --forgerelay
+python3 ~/.agents/scripts/skills.py inspect <github-url>
 ```
 
-这会建立：
+`inspect` 只 clone/fetch source cache 并扫描 `SKILL.md`，不创建 `~/.agents/skills` 注册项。
 
-```text
-~/.agents/skills/akira          -> ~/.agents/sources/Akira-TL/skills/routing/akira
-~/.agents/skills/browser-access -> ~/.agents/sources/Akira-TL/skills/productivity/browser-access
+## 6. Update
 
-~/.forgerelay/skills/akira          -> ~/.agents/skills/akira
-~/.forgerelay/skills/browser-access -> ~/.agents/skills/browser-access
-```
-
-`--forgerelay` 只允许与 `--global` 一起使用。ForgeRelay view 始终链接到全局 `.agents/skills`，不直接链接 source checkout。
-
-## 5. 更新只更新 Git checkout
-
-项目级：
+更新全部机器级受管 Skill 的 source：
 
 ```bash
-python3 ~/.agents/scripts/skills.py update --project /path/to/project
-```
-
-全局：
-
-```bash
-python3 ~/.agents/scripts/skills.py update --global
+python3 ~/.agents/scripts/skills.py update
 ```
 
 只更新某个 repository：
 
 ```bash
 python3 ~/.agents/scripts/skills.py update \
-  --project /path/to/project \
   --source https://github.com/Akira-TL/akira-research-skills.git
 ```
 
-因为 Skill view 是软链接，checkout 更新后所有已安装 view 立即读取新内容；无需重新复制 Skill。
+因为机器级注册项是软链接，checkout 更新后注册表立即读取新内容。
 
-## 6. 卸载只删除受管软链接
+## 7. Remove
 
-删除单个项目 Skill：
+删除单个机器级注册项：
 
 ```bash
-python3 ~/.agents/scripts/skills.py remove analysis --project /path/to/project
+python3 ~/.agents/scripts/skills.py remove analysis
 ```
 
-删除同一 source 在当前项目安装的全部 Skill：
+删除某个 source 登记的全部 Skill：
 
 ```bash
 python3 ~/.agents/scripts/skills.py remove \
-  --source https://github.com/Akira-TL/akira-research-skills.git \
-  --project /path/to/project
+  --source https://github.com/Akira-TL/akira-research-skills.git
 ```
 
-安装器只删除 manifest 中登记且仍指向预期 source 的软链接。普通目录、指向其他 source 的软链接和未知文件 fail closed。
+安装器只删除 manifest 中登记且仍指向预期 source 的机器级软链接。普通目录、未知软链接和来源漂移都 fail closed。
 
-卸载不自动删除 `~/.agents/sources/` checkout；多个项目可以共享同一个 source cache。
+删除注册项不会删除 `~/.agents/sources/` checkout，也不替具体执行器清理它自己的引用或缓存。
 
-## 7. Doctor 与清单
+## 8. Doctor 与清单
 
-查看当前项目受管 Skill：
+查看机器级已安装 Skill：
 
 ```bash
-python3 ~/.agents/scripts/skills.py list --project /path/to/project
+python3 ~/.agents/scripts/skills.py list
 ```
 
-机械验证 source 与软链接：
+机械验证 source 与注册表：
 
 ```bash
-python3 ~/.agents/scripts/skills.py doctor --project /path/to/project
-```
-
-全局基线：
-
-```bash
-python3 ~/.agents/scripts/skills.py list --global
-python3 ~/.agents/scripts/skills.py doctor --global
+python3 ~/.agents/scripts/skills.py doctor
 ```
 
 Doctor 至少验证：
 
 - source Skill 仍存在 `SKILL.md`；
-- `.agents/skills/<name>` 是软链接且直接指向登记的 Git checkout 路径；
-- 全局 manifest 中标记为 ForgeRelay 的 Skill，其 `~/.forgerelay/skills/<name>` 是软链接且指向 `~/.agents/skills/<name>`。
+- `~/.agents/skills/<name>` 是软链接且直接指向 manifest 登记的 Git checkout 路径；
+- 注册表中不存在未登记的受管名称冲突。
 
-## 8. 不做的事情
+## 9. 执行器边界
 
-Akira Skill installer 不实现 dependency solver、包仓库、自动 Agent profile 检测、copy fallback 或隐式全局扩张。
+Akira Skill installer 不实现执行器适配层。它不决定：
+
+- ForgeRelay 从哪个目录加载 Skill；
+- Claude Code 如何发现或链接 Skill；
+- Codex 如何注册或暴露 Skill；
+- 某个执行器是否需要项目级链接、自己的 manifest、缓存或 profile。
+
+这些都由对应执行器自己的配置与能力机制负责。Akira Router 只把 `~/.agents/skills` 当作统一机器级发现入口。
+
+## 10. 不做的事情
+
+Akira Skill installer 不实现 dependency solver、包仓库、自动 Agent profile 检测或 copy fallback。
 
 它不：
 
 - 复制 Skill 目录；
-- 把项目 Skill 自动升级成全局 Skill；
 - 在 symlink 失败时悄悄退化为 copy；
+- 自动覆盖机器级同名 Skill 的其他来源；
 - 自动删除未知目录；
 - 用本地 Lattice submodule 代替远端发布 source；
-- 因 source repository 新增实验 Skill 而自动把它安装到已有项目。
+- 因 source repository 新增实验 Skill 而自动把它加入机器级注册表；
+- 管理任何具体执行器自己的 Skill 目录。
 
-需要新增能力时，由 Catalog / External Sources 决定具体 source 与 Skill 集合；安装器只机械执行 Git + symlink。
+需要新增能力时，由 Catalog / External Sources 决定具体 source 与 Skill 集合；安装器只机械执行 Git checkout 与机器级注册。

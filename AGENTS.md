@@ -13,7 +13,7 @@
 
 ## 安装边界
 
-本仓存在不等于默认安装本仓全部 Skill。Akira Lattice 默认只安装 `akira` Router 和明确列入基线的极少数跨域 Skill；其余通用 Skill、Matt、Research 等按真实项目任务由 Router 推荐，并在用户明确同意后项目级安装。
+本仓存在不等于默认安装本仓全部 Skill。Akira Lattice 只把真实需要的 Skill 注册到机器级 `~/.agents/skills/`；其余通用 Skill、Matt、Research 等按真实任务由 Router 推荐，并在用户明确同意后从远端 source 安装。具体执行器如何发现、链接或加载这些机器级 Skill，由执行器自己负责。
 
 Router 的受管产品状态只在 `routing/akira/references/CATALOG.md` 维护。未发布、planned 或 unavailable 的仓库不得生成伪造的可执行安装命令。
 
