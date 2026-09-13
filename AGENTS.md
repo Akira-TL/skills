@@ -13,7 +13,7 @@
 
 ## 安装边界
 
-本仓存在不等于默认安装本仓全部 Skill。Akira Lattice 只把真实需要的 Skill 注册到机器级 `~/.agents/skills/`；其余通用 Skill、Matt、Research 等按真实任务由 Router 推荐，并在用户明确同意后从远端 source 安装。具体执行器是否采用该共享注册表，以及如何发现、链接或加载 Skill，由执行器自己负责；执行器选择独立 Skill store 时，不得为了兼容自动建立到 `~/.agents/skills/` 的适配链接。
+本仓存在不等于默认安装本仓全部 Skill。Akira Lattice 只把真实需要的 Skill 安装到 `~/.agents/sources/` 并注册到机器级 `~/.agents/skills/`；这两层是 Akira 管理的唯一 Skill source 与机器级注册层。ForgeRelay、Claude Code、Codex 等执行器若需要持久暴露某个 Skill，由执行器自己在其 Skill 目录建立指向 `~/.agents/skills/<name>` 的软链接；共享安装器不得写入执行器目录，也不得为执行器维护第二份 source checkout。
 
 Router 的受管产品状态只在 `routing/akira/references/CATALOG.md` 维护。未发布、planned 或 unavailable 的仓库不得生成伪造的可执行安装命令。
 

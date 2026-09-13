@@ -29,7 +29,7 @@ GitHub source：`https://github.com/Akira-TL/skills.git`
 | `akira-guard` | Akira Guard 的使用语义、排障与边界 | 按需 | 需要理解/诊断 Guard，而不是仅执行已有 Guard 命令 |
 | `agent-orchestration` | 把已定义工作单元映射到当前 harness 的 Agent 执行原语 | 按需 | 任务已经拆好，且当前 harness 提供可用多 Agent / 并行原语 |
 
-采用 Akira 共享注册表时，单个通用 Skill 的机器级安装：
+单个通用 Skill 的机器级安装：
 
 ```bash
 python3 ~/.agents/scripts/skills.py install \
@@ -134,8 +134,8 @@ Matt fork 提供需求澄清、Spec/Ticket、实现、TDD、代码审查、缺�
 - 新能力安装前必须说明来源、用途、安装对象和范围，并取得用户明确同意。
 - 安装器只接受登记过或用户明确批准的远端 GitHub source；运行时 Skill 不从 Lattice 本地 submodule checkout 安装。
 - Skill 实体只存在于 `~/.agents/sources/<owner>/<repo>/` 的 Git checkout；`~/.agents/skills/` 只保存机器级软链接注册项。
-- `~/.agents/skills/` 是 Akira 的机器级已安装 Skill 注册表，只对明确采用这套共享注册表的执行器构成可复用来源；执行器使用独立 Skill store 时不得自动建立跨 store 适配链接。
-- Akira 不规定项目级 Skill 目录，也不规定任何具体执行器是否采用共享注册表、如何暴露 Skill，或如何维护自己的独立 Skill store。
+- `~/.agents/skills/` 是机器级已安装 Skill 注册表。当前会话缺少能力时先检查这里；已注册则不重复安装，未注册才从远端 GitHub 安装。
+- ForgeRelay、Claude Code、Codex 或其他执行器若需要自己的 Skill 目录，由执行器自行建立指向 `~/.agents/skills/<name>` 的软链接。Akira 不规定这些目录的路径，也不替执行器管理这些链接。
 - 更新只更新 Git source checkout；软链接不需要重新复制或重装。
 - 不因一次 Word、PPT、浏览器或 Guard 任务安装 Research / Matt。
 - 不因科研项目安装 Matt，也不因软件工程项目安装 Research；真实跨域任务除外。

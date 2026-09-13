@@ -38,7 +38,7 @@ docs/                              # 与稳定 Skill 一一对应的人类文档
 python3 ~/.agents/scripts/skills.py inspect https://github.com/Akira-TL/skills.git
 ```
 
-采用 Akira 共享注册表的环境只缺单一通用能力时，只安装对应 Skill，例如：
+机器级注册表只缺单一通用能力时，只安装对应 Skill，例如：
 
 ```bash
 python3 ~/.agents/scripts/skills.py install \
@@ -48,7 +48,7 @@ python3 ~/.agents/scripts/skills.py install \
 
 专业产品按真实任务安装到机器级 `~/.agents/skills`。软件工程任务由 `akira` Router 推荐 Matt fork；科研任务由 Router 推荐 Research suite。Router 在安装前说明来源、用途与范围并请求用户明确同意。
 
-机器级注册表只属于 Akira 的共享安装模型，不代表所有执行器都必须采用。执行器可以维护独立 Skill store；此时由执行器自己的机制决定常驻能力、按需能力与 source 布局，不得为了兼容自动建立到 `~/.agents/skills` 的跨 store 适配链接。
+`~/.agents/sources/` 与 `~/.agents/skills/` 是 Akira 管理的唯一 Skill source 与机器级注册层。ForgeRelay、Claude Code、Codex 等执行器需要某个已安装 Skill 时，由执行器自己在其 Skill 目录建立指向 `~/.agents/skills/<name>` 的软链接；本仓安装器不写执行器目录，也不为任何执行器维护第二份 source checkout。
 
 ## 检查
 
