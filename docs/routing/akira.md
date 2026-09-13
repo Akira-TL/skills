@@ -5,7 +5,7 @@
 ## 主要路由
 
 - 软件工程：安装/使用 `Akira-TL/matt-skills`；`ask-akira` 与 Parallel 系列属于该 Matt fork 的工程扩展。
-- 科学研究：安装/使用独立的 `Akira-TL/akira-research-skills`。
+- 科学研究：安装/使用已发布的独立 `Akira-TL/akira-research-skills`，按项目级范围安装完整 Research suite。
 - 浏览器、Word、科研/学术 PPT、Guard、通用 Agent 执行适配：直接使用本仓库中的对应通用 Skill，不需要单独产品仓。
 - Knowledge：当前仍为 planned，正式实现后再加入可安装目录。
 - 外部能力：当 first-party 能力不足时，Router 只从已登记外部来源动态读取当前 Skill 清单，向用户呈现与任务相关的最小候选；不把外部整仓加入 Lattice，也不因来源可信而跳过安装确认。

@@ -30,12 +30,12 @@
 
 - Source：`Akira-TL/akira-research-skills`
 - Local canonical checkout：`/home/Akira/Projects/akira-research-skills`
-- Status：`local-ready / remote-pending`
+- Status：available
 - Primary Router：`akira-research`
 - 用途：Research Question、Research Tree、Literature、Hypothesis、Design、Study、Data、Analysis、Interpretation、Communication 与 research.sqlite provenance。
-- Recommended install：整个 Research suite。
+- Recommended install：`npx skills add Akira-TL/akira-research-skills --skill '*' --agent '*' -y`。
 
-Research 内部共享 schema、migration、Research Tree 与对象契约，保持为独立高内聚产品仓。远端仓尚未由用户发布前，只能在维护环境使用已确认的本地 source；Router 不向普通项目生成一个尚不可取得的远端安装命令。
+Research 内部共享 schema、migration、Research Tree 与对象契约，保持为独立高内聚产品仓。科研项目需要完整 Research 工作流时，按项目级范围安装整个 suite，不作为全局默认能力。
 
 ## 外部能力源
 
