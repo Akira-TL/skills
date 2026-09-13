@@ -135,7 +135,7 @@ Matt fork 提供需求澄清、Spec/Ticket、实现、TDD、代码审查、缺�
 - 安装器只接受登记过或用户明确批准的远端 GitHub source；运行时 Skill 不从 Lattice 本地 submodule checkout 安装。
 - Skill 实体只存在于 `~/.agents/sources/<owner>/<repo>/` 的 Git checkout；`~/.agents/skills/` 只保存机器级软链接注册项。
 - `~/.agents/skills/` 是机器级已安装 Skill 注册表。当前会话缺少能力时先检查这里；已注册则不重复安装，未注册才从远端 GitHub 安装。
-- ForgeRelay、Claude Code、Codex 或其他执行器若需要自己的 Skill 目录，由执行器自行建立指向 `~/.agents/skills/<name>` 的软链接。Akira 不规定这些目录的路径，也不替执行器管理这些链接。
+- 具体执行器若需要自己的 Skill 目录，由执行器自行建立指向 `~/.agents/skills/<name>` 的软链接。Akira 不规定这些目录的路径，也不替执行器管理这些链接。
 - 更新只更新 Git source checkout；软链接不需要重新复制或重装。
 - 不因一次 Word、PPT、浏览器或 Guard 任务安装 Research / Matt。
 - 不因科研项目安装 Matt，也不因软件工程项目安装 Research；真实跨域任务除外。
