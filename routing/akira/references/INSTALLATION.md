@@ -47,10 +47,10 @@ manifest 保存 repository、ref、实际 commit 与 source-relative path，用�
 需要某个 Skill 时按以下顺序处理：
 
 1. 先检查当前会话是否已经真实可用；可用则直接使用。
-2. 当前会话不可用时，检查 `~/.agents/skills/<name>`；如果它是 Akira manifest 登记的有效机器级 Skill，不重复安装。
-3. 机器级注册表也不存在时，才按 Catalog 登记或用户明确批准的 GitHub source 安装。
+2. 只有当前执行器明确采用 Akira 共享注册表时，才检查 `~/.agents/skills/<name>`；如果它是 Akira manifest 登记的有效机器级 Skill，不重复安装。
+3. 采用共享注册表且机器级也不存在时，才按 Catalog 登记或用户明确批准的 GitHub source 安装。
 
-机器级 Skill 如何被当前执行器发现、引用、链接或暴露，由当前执行器自己的 Skill 机制决定。Akira 安装器不规定 ForgeRelay、Claude Code、Codex 或其他 harness 的运行时目录与加载方式。
+执行器可以选择完全不采用 `~/.agents/skills`，而维护自己的独立 Skill store。此时本文件的机器级安装命令不适用于该执行器，也不得为了兼容自动建立跨 store 软链接；实际 source、常驻集合、按需能力与暴露方式由执行器自己的机制决定。
 
 同名 Skill 如果已经由其他 repository 注册，安装器 fail closed；不得静默改写机器级名称指向。
 
@@ -175,7 +175,7 @@ Akira Skill installer 不实现执行器适配层。它不决定：
 - Codex 如何注册或暴露 Skill；
 - 某个执行器是否需要项目级链接、自己的 manifest、缓存或 profile。
 
-这些都由对应执行器自己的配置与能力机制负责。Akira Router 只把 `~/.agents/skills` 当作统一机器级发现入口。
+这些都由对应执行器自己的配置与能力机制负责。`~/.agents/skills` 只是 Akira 的共享机器级注册表，不是所有执行器都必须采用的统一发现入口。
 
 ## 10. 不做的事情
 

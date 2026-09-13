@@ -38,7 +38,7 @@ docs/                              # 与稳定 Skill 一一对应的人类文档
 python3 ~/.agents/scripts/skills.py inspect https://github.com/Akira-TL/skills.git
 ```
 
-项目只缺单一通用能力时，只在当前项目建立对应软链接，例如：
+采用 Akira 共享注册表的环境只缺单一通用能力时，只安装对应 Skill，例如：
 
 ```bash
 python3 ~/.agents/scripts/skills.py install \
@@ -46,9 +46,9 @@ python3 ~/.agents/scripts/skills.py install \
   --skill browser-access
 ```
 
-专业产品按真实任务安装到机器级 `~/.agents/skills`。软件工程任务由 `akira` Router 推荐 Matt fork；科研任务由 Router 推荐 Research suite。Router 在安装前说明来源、用途与范围并请求用户明确同意；具体执行器如何加载已安装 Skill 由执行器自己负责。
+专业产品按真实任务安装到机器级 `~/.agents/skills`。软件工程任务由 `akira` Router 推荐 Matt fork；科研任务由 Router 推荐 Research suite。Router 在安装前说明来源、用途与范围并请求用户明确同意。
 
-Akira Lattice 在 ForgeRelay 中只常驻 `akira` Router 与少量跨域基线能力。Skill source 从远端 GitHub 拉取到 `~/.agents/sources/`，运行时只通过软链接暴露；不默认常驻安装所有通用 Skill、Matt 或 Research。
+机器级注册表只属于 Akira 的共享安装模型，不代表所有执行器都必须采用。执行器可以维护独立 Skill store；此时由执行器自己的机制决定常驻能力、按需能力与 source 布局，不得为了兼容自动建立到 `~/.agents/skills` 的跨 store 适配链接。
 
 ## 检查
 
