@@ -8,9 +8,9 @@
 - Ownership：本仓库
 - Status：available
 - 用途：跨领域、可单独复用的通用能力，以及产品安装 Router。
-- 默认全局基线：`akira`、`browser-access`。
+- ForgeRelay 常驻基线：`akira`、`browser-access`，由 `npx skills` 管理在 `~/.forgerelay/skills/`。
 - 按需能力：`akira-guard`、`agent-orchestration`、`general-word-document-generation`、`scientific-presentation-authoring`。
-- 安装策略：已经存在的全局基线直接复用；缺少某个按需能力时，只安装该 Skill，不因一次文档、PPT 或 Agent 编排需求安装其他产品仓。
+- 安装策略：已经存在的 ForgeRelay 常驻基线直接复用；缺少某个按需能力时，只安装该 Skill，不因一次文档、PPT 或 Agent 编排需求安装其他产品仓。
 
 通用能力不拥有科研状态机或 Matt 工程方法论。`agent-orchestration` 只适配当前 harness 已有执行原语，不接管 Parallel Task / Gate 协议。
 

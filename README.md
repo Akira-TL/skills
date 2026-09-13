@@ -46,7 +46,7 @@ npx skills add Akira-TL/skills --skill browser-access --agent '*' -y
 
 专业产品默认项目级安装。软件工程项目由 `akira` Router 推荐 Matt fork；科研项目由 Router 推荐 Research suite。Router 在安装前说明来源、用途与范围并请求用户明确同意。
 
-Akira Lattice 的全局安装只部署 `akira` Router 与少量跨域基线能力，不默认全局铺开所有通用 Skill、Matt 或 Research。
+Akira Lattice 在 ForgeRelay 中只常驻 `akira` Router 与少量跨域基线能力，当前基线由 `npx skills` 管理在 `~/.forgerelay/skills/`；不默认常驻安装所有通用 Skill、Matt 或 Research。
 
 ## 检查
 

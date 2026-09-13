@@ -12,4 +12,4 @@
 
 Router 默认先复用当前项目已经安装的能力。只有真实任务出现能力缺口时才推荐新增 Skill；专业产品默认项目级安装，并在安装前说明来源、用途和范围，取得用户明确同意。
 
-Akira Lattice 的全局默认只提供 Router 与极少数跨域基线能力。Word、PPT、Matt、Research 等不因为“未来可能用到”自动全局安装。OpenAI Plugins 等外部来源也只在真实任务需要时动态发现并项目级安装具体 Skill。
+Akira Lattice 在 ForgeRelay 中只常驻 Router 与极少数跨域基线能力，当前为 `akira` 与 `browser-access`，由 `npx skills` 管理在 `~/.forgerelay/skills/`。Word、PPT、Matt、Research 等不因为“未来可能用到”常驻安装；OpenAI Plugins 等外部来源也只在真实任务需要时动态发现并项目级安装具体 Skill。

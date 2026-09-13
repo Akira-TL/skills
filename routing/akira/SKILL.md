@@ -9,7 +9,7 @@ description: 判断当前项目需要哪些 Akira / Matt Skill 能力并保持�
 
 ## 1. 先看现有能力
 
-先检查当前项目已经存在的 `.agents/skills/`、`skills-lock.json` 和当前会话真实可用能力，再判断缺口。不要因为目录中有某类文件就自动定义项目类型，也不要重复安装已经可用的同名 Skill。
+先检查当前会话真实可用能力和当前项目自己的 Skill / lock 状态；在 ForgeRelay 中同时检查 `~/.forgerelay/skills/` 与 `~/.forgerelay/skills-lock.json` 的常驻基线。不要把 `~/.agents/skills/` 当作 Lattice 的正式安装状态，也不要因为目录中有某类文件就自动定义项目类型或重复安装已经可用的同名 Skill。
 
 读取 [`references/CATALOG.md`](references/CATALOG.md) 获取受管仓库、发布状态、默认基线与安装边界。若 first-party 能力不足，再读取 [`references/EXTERNAL-SOURCES.md`](references/EXTERNAL-SOURCES.md) 判断是否存在经过登记的外部能力源；外部源只用于发现最窄候选，不自动获得安装权限。
 
@@ -25,7 +25,7 @@ description: 判断当前项目需要哪些 Akira / Matt Skill 能力并保持�
 - Guard 语义与故障排查 → `akira-guard`；
 - 已定义工作单元到当前 harness 执行原语的适配 → `agent-orchestration`。
 
-默认全局基线由 Akira Lattice 管理；缺少其他通用能力时，只补当前 Skill。
+ForgeRelay 常驻基线由 Akira Lattice 管理，仅包含 `akira` 与 `browser-access`；缺少其他通用能力时，只补当前 Skill。
 
 ## 3. 完整产品域才安装产品仓
 
