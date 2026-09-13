@@ -43,7 +43,7 @@ description: 判断当前项目需要哪些 Akira / Matt Skill 能力并保持�
 当前发布状态
 ```
 
-用户明确同意后才能执行。准确安装命令必须从 Catalog 读取，不凭记忆拼 GitHub 仓库名或 Skill 名称。若目标处于 `remote-pending`、`planned` 或其他不可直接取得状态，保持 blocker / 本地维护路径边界，不把未来仓库伪装成已发布来源。
+用户明确同意后才能执行。准确安装命令与安装方式都必须从 Catalog 读取，不凭记忆拼 GitHub 仓库名、Skill 名称或安装参数。Akira 管理的 `npx skills` 安装遵守 Catalog 的软链接契约；安装后要核验目标 Skill 是软链接而不是复制目录。若目标处于 `remote-pending`、`planned` 或其他不可直接取得状态，保持 blocker / 本地维护路径边界，不把未来仓库伪装成已发布来源。
 
 ## 6. 安装后交给真实 Owner
 

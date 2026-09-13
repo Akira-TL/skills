@@ -16,9 +16,38 @@
 
 如果当前能力已经满足任务，不为“以后可能用到”读取并安装更多产品。外部第三方能力不在本表枚举，统一转到 [`EXTERNAL-SOURCES.md`](EXTERNAL-SOURCES.md)。
 
+## 安装方式：统一使用软链接
+
+Akira 管理的 Skill 使用 `npx skills` 的默认 **symlink mode**。安装命令不使用 `--copy`；安装完成后必须核验消费目录中的 Skill 是软链接，而不是普通目录或复制副本。
+
+ForgeRelay 的固定布局是：
+
+```text
+~/.forgerelay/.agents/skills/<skill>   # npx skills canonical store
+~/.forgerelay/skills/<skill>           # ForgeRelay 消费的软链接
+```
+
+由于当前 `npx skills` 没有原生 ForgeRelay target，也没有任意目标目录参数，ForgeRelay 安装时以 `~/.forgerelay` 为工作目录，同时指定 `universal` 与 `openclaw` 两个 target。`universal` 建立 canonical store，`openclaw` 的 `skills/` profile 让 CLI 自己创建 `~/.forgerelay/skills/<skill> -> ../.agents/skills/<skill>`。这里借用 `openclaw` 只用于路径 profile，不表示 ForgeRelay 依赖 OpenClaw。
+
+ForgeRelay 安装命令形态：
+
+```bash
+cd ~/.forgerelay
+npx skills add <source> --skill <skill-name> --agent universal openclaw -y
+```
+
+验收至少检查：
+
+```bash
+test -L ~/.forgerelay/skills/<skill-name>
+readlink ~/.forgerelay/skills/<skill-name>
+```
+
+若目标是普通目录，则安装未达到 Akira 运行时契约，应按上述 symlink mode 重装；不要用手工复制目录补救。
+
 ## ForgeRelay 常驻基线
 
-Akira Lattice 在 ForgeRelay 中只常驻以下两个 Skill，由根仓安装器通过 `npx skills` 管理在 `~/.forgerelay/skills/`：
+Akira Lattice 在 ForgeRelay 中只常驻以下两个 Skill，由根仓安装器通过 `npx skills` 的上述软链接模式管理：
 
 | Skill | 用途 | Source | 状态 |
 | --- | --- | --- | --- |
@@ -31,7 +60,7 @@ Research、Matt、Word、PPT、Guard Skill、Agent 编排和第三方专业能�
 
 GitHub source：`Akira-TL/skills`
 
-单个能力按需安装：
+单个能力按需安装使用 `npx skills` 默认软链接模式；不得加入 `--copy`：
 
 ```bash
 npx skills add Akira-TL/skills --skill <skill-name> --agent '*' -y
@@ -55,7 +84,7 @@ npx skills add Akira-TL/skills --skill <skill-name> --agent '*' -y
 - Primary Router：`akira-research`
 - 安装粒度：科研项目需要持续 Research 工作流时，安装完整 suite；不要把 13 个 Research Skill 当作全局常驻能力。
 
-项目级安装：
+项目级安装使用默认软链接模式；不得加入 `--copy`：
 
 ```bash
 npx skills add Akira-TL/akira-research-skills --skill '*' --agent '*' -y
@@ -88,7 +117,7 @@ Research suite 当前能力：
 - Primary Router：`ask-matt`
 - 安装粒度：软件工程项目需要完整工程方法链时安装整个 Matt fork。
 
-项目级安装：
+项目级安装使用默认软链接模式；不得加入 `--copy`：
 
 ```bash
 npx skills add Akira-TL/matt-skills --skill '*' --agent '*' -y
@@ -129,6 +158,7 @@ Matt fork 提供需求澄清、Spec/Ticket、实现、TDD、代码审查、缺�
 ## 安装边界
 
 - 新能力安装前必须说明来源、用途、安装对象和范围，并取得用户明确同意。
+- 所有 Akira 管理的 `npx skills add` 使用 symlink mode；命令不得带 `--copy`，安装后必须核验目标 Skill 为软链接。
 - 产品仓默认项目级安装，不使用 `-g`；ForgeRelay 的两个常驻基线由 Lattice 根安装器单独维护。
 - 不因一次 Word、PPT、浏览器或 Guard 任务安装 Research / Matt。
 - 不因科研项目安装 Matt，也不因软件工程项目安装 Research；真实跨域任务除外。
