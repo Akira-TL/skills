@@ -26,16 +26,13 @@ Skill 会先把研究材料拆成背景、目标、章节、样品设计、方�
 
 ## 安装
 
-从当前仓库安装：
+项目级安装只从远端 GitHub source 拉取，并在当前项目建立软链接：
 
 ```bash
-npx skills add . --skill scientific-presentation-authoring --agent codex -g -y
-```
-
-也可以直接从 GitHub 安装：
-
-```bash
-npx skills add Akira-TL/skills --skill scientific-presentation-authoring --agent codex -g -y
+python3 ~/.agents/scripts/skills.py install \
+  https://github.com/Akira-TL/skills.git \
+  --skill scientific-presentation-authoring \
+  --project .
 ```
 
 ## Runtime source

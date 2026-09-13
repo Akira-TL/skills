@@ -11,10 +11,10 @@
 - 默认安装：no
 - 用途：OpenAI 官方维护的专业插件与领域 Skill 集合，包括生命科学、开发、设计、文档与第三方服务等能力。
 
-Router 不在本仓库复制 OpenAI Plugins 的完整 Skill 清单，因为 upstream 会持续变化。需要判断当前有哪些可安装能力时，读取官方当前来源并使用 skills CLI 的只读列表入口：
+Router 不在本仓库复制 OpenAI Plugins 的完整 Skill 清单，因为 upstream 会持续变化。需要判断当前有哪些可安装能力时，用 Akira 自带安装器只读检查当前 GitHub source；这一步只 clone/fetch 到共享 source cache，不建立 Skill 软链接：
 
 ```bash
-npx skills add openai/plugins --list
+python3 ~/.agents/scripts/skills.py inspect https://github.com/openai/plugins.git
 ```
 
 只把与当前任务直接相关的候选 Skill 告诉用户，不把整个 upstream 仓库加入项目。准备安装具体 Skill 前，至少确认：
@@ -25,10 +25,13 @@ npx skills add openai/plugins --list
 - 当前项目是否已经存在足够能力；
 - 安装范围是否保持为当前项目。
 
-用户明确同意后，只安装实际需要的 Skill：
+用户明确同意后，只在当前项目安装实际需要的 Skill：
 
 ```bash
-npx skills add openai/plugins --skill <skill-name> --agent '*' -y
+python3 ~/.agents/scripts/skills.py install \
+  https://github.com/openai/plugins.git \
+  --skill <skill-name> \
+  --project .
 ```
 
 不得因为 OpenAI 是官方来源就自动安装、全局安装或默认信任其中所有执行动作。

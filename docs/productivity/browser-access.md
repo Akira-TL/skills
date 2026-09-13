@@ -103,14 +103,11 @@ productivity/browser-access/REFERENCE.md
 
 `visible-browser-form-automation` 已更名为 `browser-access`。原有动态表单、文件上传、可见浏览器和不可逆提交边界仍然保留，新名称同时覆盖登录后页面读取、网络资源解析以及 harness/browser capability discovery。
 
-新安装统一使用：
+项目级安装统一从远端 GitHub source 拉取，并在当前项目建立软链接：
 
 ```bash
-npx skills add . --skill browser-access --agent '*' -g -y
-```
-
-或从 GitHub：
-
-```bash
-npx skills add Akira-TL/skills --skill browser-access --agent '*' -g -y
+python3 ~/.agents/scripts/skills.py install \
+  https://github.com/Akira-TL/skills.git \
+  --skill browser-access \
+  --project .
 ```

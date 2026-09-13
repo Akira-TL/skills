@@ -9,9 +9,9 @@ description: 判断当前项目需要哪些 Akira / Matt Skill 能力并保持�
 
 ## 1. 先看现有能力
 
-先检查当前会话真实可用能力和当前项目自己的 Skill / lock 状态；在 ForgeRelay 中同时检查 `~/.forgerelay/skills/` 与 `~/.forgerelay/skills-lock.json` 的常驻基线。不要把 `~/.agents/skills/` 当作 Lattice 的正式安装状态，也不要因为目录中有某类文件就自动定义项目类型或重复安装已经可用的同名 Skill。
+先检查当前会话真实可用能力和当前项目自己的 Skill / lock 状态；在 ForgeRelay 中检查 `~/.agents/skills/` 与 `~/.agents/.skill-lock.json` 的 canonical 安装，以及 `~/.forgerelay/skills/` 的软链接视图。ForgeRelay 目录只用于消费软链接，不保存第二份 Skill 内容；也不要因为目录中有某类文件就自动定义项目类型或重复安装已经可用的同名 Skill。
 
-当当前能力不足、用户询问可用 Skill、或需要生成安装命令时，读取 [`references/CATALOG.md`](references/CATALOG.md)。它是 first-party 能力名称、GitHub source、发布状态、安装粒度与 `npx skills` 命令的唯一 source of truth；不要在本文件里维护第二份能力清单。若 first-party 能力仍不足，再读取 [`references/EXTERNAL-SOURCES.md`](references/EXTERNAL-SOURCES.md) 判断是否存在经过登记的外部能力源；外部源只用于发现最窄候选，不自动获得安装权限。
+当当前能力不足、用户询问可用 Skill、或需要生成安装命令时，读取 [`references/CATALOG.md`](references/CATALOG.md)。它是 first-party 能力名称、GitHub source、发布状态、安装粒度与推荐命令的唯一 source of truth；不要在本文件里维护第二份能力清单。真正执行安装、更新、卸载或诊断时，再读取 [`references/INSTALLATION.md`](references/INSTALLATION.md) 的 Git + symlink 契约。若 first-party 能力仍不足，再读取 [`references/EXTERNAL-SOURCES.md`](references/EXTERNAL-SOURCES.md) 判断是否存在经过登记的外部能力源。
 
 完成标准：能够根据 Catalog 说明当前任务缺的是“通用单一能力”“完整产品域”，还是“需要从登记外部源发现具体 Skill”。
 
@@ -23,7 +23,7 @@ description: 判断当前项目需要哪些 Akira / Matt Skill 能力并保持�
 
 只有当前项目的主要持续工作需要一整套内部协作能力时，才按 Catalog 推荐完整产品仓。产品的准确 GitHub source、Primary Router、当前状态和安装命令全部以 Catalog 为准，不在本文件重复维护。
 
-完整产品默认**项目级安装**，不使用 `-g`。跨域需求出现时再增加第二个产品，不因“可能以后用到”预装。
+完整产品仍然按真实需求才安装；安装器从 Catalog 登记的远端 GitHub source 更新共享 checkout，并只在当前项目 `.agents/skills/` 建立软链接。跨域需求出现时再增加第二个产品，不因“可能以后用到”预装。
 
 ## 4. 外部能力只按当前清单发现
 
@@ -43,7 +43,7 @@ description: 判断当前项目需要哪些 Akira / Matt Skill 能力并保持�
 当前发布状态
 ```
 
-用户明确同意后才能执行。准确安装命令与安装方式都必须从 Catalog 读取，不凭记忆拼 GitHub 仓库名、Skill 名称或安装参数。Akira 管理的 `npx skills` 安装遵守 Catalog 的软链接契约；安装后要核验目标 Skill 是软链接而不是复制目录。若目标处于 `remote-pending`、`planned` 或其他不可直接取得状态，保持 blocker / 本地维护路径边界，不把未来仓库伪装成已发布来源。
+用户明确同意后才能执行。准确 GitHub source 与 Skill 集合从 Catalog 读取，安装语义从 `INSTALLATION.md` 读取，不凭记忆拼仓库名、Skill 名称或安装参数。安装后要核验目标 Skill 是指向共享 Git checkout 的软链接，而不是复制目录。若目标处于 `remote-pending`、`planned` 或其他不可直接取得状态，保持 blocker，不把未来仓库伪装成已发布来源。
 
 ## 6. 安装后交给真实 Owner
 

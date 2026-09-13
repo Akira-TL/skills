@@ -32,14 +32,11 @@ productivity/general-word-document-generation/SKILL.md
 
 ## 安装
 
-从当前仓库安装：
+项目级安装只从远端 GitHub source 拉取，并在当前项目建立软链接：
 
 ```bash
-npx skills add . --skill general-word-document-generation --agent codex -g -y
-```
-
-也可以直接从 GitHub 安装：
-
-```bash
-npx skills add Akira-TL/skills --skill general-word-document-generation --agent codex -g -y
+python3 ~/.agents/scripts/skills.py install \
+  https://github.com/Akira-TL/skills.git \
+  --skill general-word-document-generation \
+  --project .
 ```

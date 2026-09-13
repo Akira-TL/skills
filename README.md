@@ -32,21 +32,24 @@ docs/                              # 与稳定 Skill 一一对应的人类文档
 
 ## 安装
 
-查看本仓可用的通用 Skills：
+查看远端仓当前可用 Skill：
 
 ```bash
-npx skills add Akira-TL/skills --list
+python3 ~/.agents/scripts/skills.py inspect https://github.com/Akira-TL/skills.git
 ```
 
-项目只缺单一通用能力时安装具体 Skill，例如：
+项目只缺单一通用能力时，只在当前项目建立对应软链接，例如：
 
 ```bash
-npx skills add Akira-TL/skills --skill browser-access --agent '*' -y
+python3 ~/.agents/scripts/skills.py install \
+  https://github.com/Akira-TL/skills.git \
+  --skill browser-access \
+  --project .
 ```
 
 专业产品默认项目级安装。软件工程项目由 `akira` Router 推荐 Matt fork；科研项目由 Router 推荐 Research suite。Router 在安装前说明来源、用途与范围并请求用户明确同意。
 
-Akira Lattice 在 ForgeRelay 中只常驻 `akira` Router 与少量跨域基线能力，当前基线由 `npx skills` 管理在 `~/.forgerelay/skills/`；不默认常驻安装所有通用 Skill、Matt 或 Research。
+Akira Lattice 在 ForgeRelay 中只常驻 `akira` Router 与少量跨域基线能力。Skill source 从远端 GitHub 拉取到 `~/.agents/sources/`，运行时只通过软链接暴露；不默认常驻安装所有通用 Skill、Matt 或 Research。
 
 ## 检查
 
