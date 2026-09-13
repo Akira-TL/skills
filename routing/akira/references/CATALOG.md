@@ -37,6 +37,10 @@
 
 Research 内部共享 schema、migration、Research Tree 与对象契约，保持为独立高内聚产品仓。远端仓尚未由用户发布前，只能在维护环境使用已确认的本地 source；Router 不向普通项目生成一个尚不可取得的远端安装命令。
 
+## 外部能力源
+
+外部 Skill 不作为本目录中的产品仓，也不由 Lattice 预先固定源码。当前登记来源、动态发现方式与安装边界见 [`EXTERNAL-SOURCES.md`](EXTERNAL-SOURCES.md)。当 first-party 能力不足时，Router 可以从已登记来源查当前 Skill 清单，但只能推荐与任务直接相关的最小候选，并在安装前再次取得用户同意。
+
 ## Akira Knowledge
 
 - Source：未来 `Akira-TL/akira-knowledge-skills`

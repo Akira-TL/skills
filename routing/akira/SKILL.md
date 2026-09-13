@@ -11,9 +11,9 @@ description: 判断当前项目需要哪些 Akira / Matt Skill 能力并保持�
 
 先检查当前项目已经存在的 `.agents/skills/`、`skills-lock.json` 和当前会话真实可用能力，再判断缺口。不要因为目录中有某类文件就自动定义项目类型，也不要重复安装已经可用的同名 Skill。
 
-读取 [`references/CATALOG.md`](references/CATALOG.md) 获取受管仓库、发布状态、默认基线与安装边界。目录是本 Router 的 source of truth。
+读取 [`references/CATALOG.md`](references/CATALOG.md) 获取受管仓库、发布状态、默认基线与安装边界。若 first-party 能力不足，再读取 [`references/EXTERNAL-SOURCES.md`](references/EXTERNAL-SOURCES.md) 判断是否存在经过登记的外部能力源；外部源只用于发现最窄候选，不自动获得安装权限。
 
-完成标准：能够说明当前任务缺的是“通用单一能力”还是“完整产品域”。
+完成标准：能够说明当前任务缺的是“通用单一能力”“完整产品域”，还是“需要从登记外部源发现具体 Skill”。
 
 ## 2. 优先补单一通用能力
 
@@ -37,7 +37,13 @@ description: 判断当前项目需要哪些 Akira / Matt Skill 能力并保持�
 
 Research、Matt 等默认**项目级安装**，不使用 `-g`。跨域需求出现时再增加第二个产品，不因“可能以后用到”预装。
 
-## 4. 安装必须先获得用户同意
+## 4. 外部能力只按当前清单发现
+
+当受管 first-party 能力不足，而 `EXTERNAL-SOURCES.md` 已登记合适来源时，按该来源的当前官方清单发现候选 Skill。不要把外部仓作为 Lattice submodule、不要缓存整仓正文，也不要根据旧会话记忆猜 Skill 名称。
+
+只把与当前任务直接相关的候选、执行副作用和数据边界告诉用户。外部来源即使由可信组织维护，也仍需要用户明确同意后才能项目级安装。
+
+## 5. 安装必须先获得用户同意
 
 准备安装尚未存在的 Skill / 产品仓时，先向用户说明：
 
@@ -57,7 +63,7 @@ npx skills add Akira-TL/skills --skill <skill-name> --agent '*' -y
 
 Matt 或其他完整产品按 Catalog 的 `recommended install` 执行。若目标处于 `remote-pending`、`planned` 或其他不可直接取得状态，保持 blocker / 本地维护路径边界，不把未来仓库伪装成已发布来源。
 
-## 5. 安装后交给真实 Owner
+## 6. 安装后交给真实 Owner
 
 安装成功后只核验所需 Skill 确实出现，然后把工作交给对应 Owner：
 
