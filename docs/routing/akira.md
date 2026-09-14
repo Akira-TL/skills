@@ -4,7 +4,7 @@
 
 ## 主要路由
 
-- 软件工程：安装/使用 Akira 自主维护的 `Akira-TL/matt-skills`；`ask-akira` 与 Parallel 系列属于该 Matt 工程体系的扩展。
+- 软件工程：安装/使用 Akira 自主维护的 `Akira-TL/matt-skills`；Primary Router 为 `ask-akira`，普通 `standard` 工程流再按需加载 `ask-matt`，Parallel 系列继续负责正式多 Agent coordination。
 - 科学研究：安装/使用已发布的独立 `Akira-TL/akira-research-skills`，按项目级范围安装完整 Research suite。
 - 浏览器、Word、科研/学术 PPT、Guard、通用 Agent 执行适配：直接使用本仓库中的对应通用 Skill，不需要单独产品仓。
 - Knowledge：当前仍为 planned，正式实现后再加入可安装目录。

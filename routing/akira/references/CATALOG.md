@@ -81,8 +81,8 @@ Research suite 当前能力：
 
 - GitHub source：`https://github.com/Akira-TL/matt-skills.git`
 - Status：available
-- Primary Router：`ask-matt`
-- 安装粒度：持续软件工程需要时，将稳定 Matt suite 与 Akira 自有的三个工程扩展安装到机器级注册表。
+- Primary Router：`ask-akira`
+- 安装粒度：持续软件工程需要时，将稳定 Matt suite（已包含 `ask-akira`）与两个 Parallel 扩展安装到机器级注册表。
 
 安装：
 
@@ -92,22 +92,21 @@ uv run python ~/.agents/skills/akira/scripts/skills.py install \
   --all \
   --root skills/engineering \
   --root skills/productivity \
-  --skill ask-akira \
   --skill parallel-coordinator \
   --skill parallel-execution
 ```
 
-这里 `--root` 只安装 Matt 稳定的 `engineering` / `productivity` 两个产品目录；三个显式 `--skill` 再加入 Akira 工程扩展，避免仓库其他 `misc` / 实验性 Skill 因 `--all` 被自动带入。
+这里 `--root` 安装 Matt 稳定的 `engineering` / `productivity` 两个产品目录，其中已包含 `ask-akira`；两个显式 `--skill` 再加入仍处于实验阶段的 Parallel 扩展，避免仓库其他实验性 Skill 因 `--all` 被自动带入。
 
 Akira 自主维护的 Matt Engineering 提供需求澄清、Spec/Ticket、实现、TDD、代码审查、缺陷诊断、重构、工程写作等工程能力，并包含以下 Akira 工程扩展：
 
 | Skill | 能力 |
 | --- | --- |
-| `ask-akira` | 在 Matt 工程方法上增加 Akira 项目协作与路由 |
+| `ask-akira` | Engineering Primary Router；默认进入 standard，并拥有特殊 Execution Policy 与协调边界 |
 | `parallel-coordinator` | 发布和协调 Parallel Task / Gate 工作 |
 | `parallel-execution` | Worker 领取、执行、提交和阶段汇报协议 |
 
-这些增量不是第二套工程体系；安装 Matt 后，以 `ask-matt` / `ask-akira` 继续路由。
+这些能力不是第二套工程体系；安装 Matt 后由 `ask-akira` 接管软件工程入口，`standard` 分支再按需加载 `ask-matt` 解析 Matt standard flow。
 
 ## Akira Knowledge
 
@@ -127,7 +126,7 @@ Akira 自主维护的 Matt Engineering 提供需求澄清、Spec/Ticket、实现
 | Git 提交、Guard 检查与 Guard 语义/排障 | `akira-guard` | 基础 bootstrap；缺失时修复安装 |
 | 已拆分工作的 Agent 执行适配 | `agent-orchestration` | 机器级缺失时装单个 Skill |
 | 持续科研项目 | Akira Research | 机器级缺失时安装完整 Research suite |
-| 持续软件工程项目 | Matt Engineering | 机器级缺失时安装稳定 Matt suite + Akira 工程扩展 |
+| 持续软件工程项目 | Matt Engineering | 机器级缺失时安装稳定 Matt suite + Parallel 扩展 |
 | Knowledge 产品 | 暂不可用 | 不安装 |
 | first-party 没有的专业能力 | External Sources | 读取 `EXTERNAL-SOURCES.md`，再按最小候选请求用户授权 |
 
