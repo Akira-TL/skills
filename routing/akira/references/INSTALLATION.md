@@ -168,14 +168,13 @@ Doctor 至少验证：
 
 ## 9. 执行器边界
 
-Akira Skill installer 不实现执行器适配层。它不决定：
+Akira Skill installer 不实现运行环境适配层。它不决定：
 
-- 具体执行器从哪个目录加载 Skill；
-- Claude Code 如何发现或链接 Skill；
-- Codex 如何注册或暴露 Skill；
-- 某个执行器是否需要项目级链接、自己的 manifest、缓存或 profile。
+- 当前运行环境从哪个目录加载 Skill；
+- 当前运行环境是否需要额外的 Skill view、manifest、缓存或 profile；
+- 项目是否需要显式建立项目级 Skill 链接。
 
-这些都由对应执行器自己的配置与能力机制负责。`~/.agents/sources/` 是唯一受管 source checkout，`~/.agents/skills/` 是唯一机器级注册表；执行器自己的 Skill 目录只作为软链接视图，不维护第二份 source checkout。
+这些都由当前运行环境与项目约定负责。`~/.agents/sources/` 是唯一受管 source checkout，`~/.agents/skills/` 是唯一机器级注册表；项目级或其他运行时 Skill view 只作为显式引用层，不维护第二份 source checkout，也不会因为机器级注册项存在而自动创建。
 
 ## 10. 不做的事情
 
