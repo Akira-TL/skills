@@ -9,7 +9,7 @@ description: 判断当前项目需要哪些 Akira / Matt Skill 能力并保持�
 
 ## 1. 先看现有能力
 
-先检查当前会话真实可用能力；当前会话不可用时，再检查机器级注册表 `~/.agents/skills/`。若机器级已经存在同名受管 Skill，不重复安装；当前执行器如果需要自己的 Skill 目录，由执行器自己建立指向 `~/.agents/skills/<name>` 的软链接。只有机器级注册表也没有时，才按 Catalog 从远端 GitHub 安装。
+先检查当前会话真实可用能力；当前会话不可用时，再检查机器级注册表 `~/.agents/skills/`。若机器级已经存在同名受管 Skill，不重复安装，并优先通过当前执行器正常的 Skill 加载机制引用该机器级注册项。机器级已安装不等于自动向项目目录投影：`<project>/.agents/skills/` 可以作为开放 Agent Skills 生态中的显式项目级 Skill view；只有项目或当前执行器确实需要该项目级暴露时，Agent 才可显式建立 `<project>/.agents/skills/<name> -> ~/.agents/skills/<name>` 软链接。该链接不是新的安装，也不得仅因“当前会话未暴露 Skill”而自动创建。只有机器级注册表也没有时，才按 Catalog 从远端 GitHub 安装。
 
 当当前能力不足、用户询问可用 Skill、或需要生成安装命令时，读取 [`references/CATALOG.md`](references/CATALOG.md)。它是 first-party 能力名称、GitHub source、发布状态与安装粒度的唯一 source of truth；不要在本文件里维护第二份能力清单。真正执行安装、更新、卸载或诊断时，再读取 [`references/INSTALLATION.md`](references/INSTALLATION.md) 并调用本 Skill 自带的 `scripts/skills.py`。若 first-party 能力仍不足，再读取 [`references/EXTERNAL-SOURCES.md`](references/EXTERNAL-SOURCES.md) 判断是否存在经过登记的外部能力源。
 
@@ -23,7 +23,7 @@ description: 判断当前项目需要哪些 Akira / Matt Skill 能力并保持�
 
 只有当前项目的主要持续工作需要一整套内部协作能力时，才按 Catalog 推荐完整产品仓。产品的准确 GitHub source、Primary Router、当前状态和安装命令全部以 Catalog 为准，不在本文件重复维护。
 
-完整产品仍然按真实需求才安装；本 Skill 的安装脚本把远端 GitHub source 更新到共享 checkout，并把选中的 Skill 注册到机器级 `~/.agents/skills/`。执行器自己的 Skill 目录只是引用视图，需要时由执行器自己的机制引用机器级注册项。跨域需求出现时再增加第二个产品，不因“可能以后用到”预装。
+完整产品仍然按真实需求才安装；本 Skill 的安装脚本把远端 GitHub source 更新到共享 checkout，并把选中的 Skill 注册到机器级 `~/.agents/skills/`。执行器或项目自己的 Skill 目录只是显式引用视图，不是安装事实；需要时由 Agent/执行器按项目约定建立对机器级注册项的引用，不从机器级注册表自动投影。跨域需求出现时再增加第二个产品，不因“可能以后用到”预装。
 
 ## 4. 外部能力只按当前清单发现
 

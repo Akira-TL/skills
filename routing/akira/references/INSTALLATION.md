@@ -50,7 +50,7 @@ manifest 保存 repository、ref、实际 commit 与 source-relative path，用�
 2. 当前会话不可用时，检查 `~/.agents/skills/<name>`；如果它是 Akira manifest 登记的有效机器级 Skill，不重复安装。
 3. 机器级注册表也不存在时，才按 Catalog 登记或用户明确批准的 GitHub source 安装。
 
-机器级 Skill 安装完成后，执行器若需要自己的 Skill 目录，由执行器自己建立 `<executor-skill-dir>/<name> -> ~/.agents/skills/<name>` 软链接。Akira 安装器不规定任何具体执行器的运行时目录，也不创建、更新或删除这些执行器链接。
+机器级 Skill 安装完成后，执行器优先通过自身正常的 Skill 加载机制引用 `~/.agents/skills/<name>`。机器级注册项不会自动投影到执行器或项目目录。若项目或执行器明确采用自己的 Skill view，可以显式建立 `<executor-or-project-skill-dir>/<name> -> ~/.agents/skills/<name>` 软链接；其中 `<project>/.agents/skills/` 是开放 Agent Skills 生态允许的项目级 view。此类链接是显式适配，不是重新安装，也不得仅因当前会话未暴露某个已安装 Skill 而自动创建。Akira 安装器不规定这些 view 的路径，也不创建、更新或删除它们。
 
 同名 Skill 如果已经由其他 repository 注册，安装器 fail closed；不得静默改写机器级名称指向。
 

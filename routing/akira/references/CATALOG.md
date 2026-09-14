@@ -137,7 +137,7 @@ Akira 自主维护的 Matt Engineering 提供需求澄清、Spec/Ticket、实现
 - 安装器只接受登记过或用户明确批准的远端 GitHub source；运行时 Skill 不从 Lattice 本地 submodule checkout 安装。
 - Skill 实体只存在于 `~/.agents/sources/<owner>/<repo>/` 的 Git checkout；`~/.agents/skills/` 只保存机器级软链接注册项。
 - `~/.agents/skills/` 是机器级已安装 Skill 注册表。当前会话缺少能力时先检查这里；已注册则不重复安装，未注册才从远端 GitHub 安装。
-- 具体执行器若需要自己的 Skill 目录，由执行器自行建立指向 `~/.agents/skills/<name>` 的软链接。Akira 不规定这些目录的路径，也不替执行器管理这些链接。
+- 机器级已注册 Skill 优先由当前执行器通过正常 Skill 加载机制引用，不自动投影到执行器或项目目录。若项目或执行器明确需要自己的 Skill view，可显式建立指向 `~/.agents/skills/<name>` 的软链接；`<project>/.agents/skills/` 是允许的项目级 Agent Skills view。此类链接不是新的安装，也不得仅因当前会话未暴露 Skill 而自动创建；Akira 不规定这些 view 的路径，也不替执行器管理这些链接。
 - 更新只更新 Git source checkout；软链接不需要重新复制或重装。
 - 不因一次 Word、PPT、浏览器或 Guard 任务安装 Research / Matt。
 - 不因科研项目安装 Matt，也不因软件工程项目安装 Research；真实跨域任务除外。
