@@ -1,6 +1,6 @@
 # Akira Guard
 
-`akira-guard` 用于理解、配置和排查 Akira Lattice 的统一 Guard，以及区分普通提交的轻量机械检查与大型、关键修改所需的额外验证。
+`akira-guard` 用于理解、配置和排查跨项目 Akira Guard，以及区分普通提交的轻量机械检查与大型、关键修改所需的额外验证。
 
 ## 使用方式
 

@@ -1,7 +1,7 @@
 ---
 name: akira-guard
-summary: 理解、配置与排查 Akira Guard，并在需要时选择统一的提交、配置、架构、Skill 与收尾检查入口。
-description: 用于配置、扩展或排查 Akira Guard，或需要判断 Guard 各命令与轻量提交检查、关键修改验证之间边界的任务。普通开发中已经明确知道具体 `~/.agents/scripts/guard.py` 命令时直接调用，不要为了执行已知命令额外加载本 Skill。
+summary: 理解、配置与排查 Akira Guard，并在需要时选择统一的提交、架构、Skill 与收尾检查入口。
+description: 用于配置、扩展或排查 Akira Guard，或需要判断 Guard 各命令与轻量提交检查、关键修改验证之间边界的任务。普通开发中已经明确知道具体 `~/.agents/skills/akira-guard/scripts/guard.py` 命令时直接调用，不要为了执行已知命令额外加载本 Skill。
 ---
 
 # Akira Guard
