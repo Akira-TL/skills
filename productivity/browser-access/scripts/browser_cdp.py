@@ -20,12 +20,13 @@ from browser_cdp_core import (
     CdpProtocolError,
     browser_client,
     chrome_file_path,
-    click_expression,
+    dispatch_primary_click,
     emit,
     ensure_browser,
     ensure_then_targets,
     fill_expression,
     inspect_expression,
+    interaction_point_expression,
     list_targets,
     page_client,
     page_targets,
@@ -34,7 +35,9 @@ from browser_cdp_core import (
     read_json_object,
     require_browser,
     selected_target,
+    replace_focused_text,
     summarize_network_events,
+    target_state_expression,
     target_view,
     wait_ready,
 )
@@ -102,7 +105,7 @@ def build_parser() -> argparse.ArgumentParser:
     network_parser.add_argument("--url-contains", help="return only requests/responses whose URL contains this text")
     network_parser.add_argument("--max-results", type=int, default=200, help="maximum summarized network records")
 
-    click_parser = sub.add_parser("click", help="click an element selected by CSS")
+    click_parser = sub.add_parser("click", help="click a CSS-selected element through real CDP pointer events")
     add_target_argument(click_parser)
     click_parser.add_argument("selector")
     click_parser.add_argument(
@@ -111,7 +114,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="allow an HTML submit-like control; use only when the task's submit boundary has been explicitly authorized",
     )
 
-    fill_parser = sub.add_parser("fill", help="set a text/select/contenteditable value and dispatch input/change events")
+    type_parser = sub.add_parser("type", help="replace text through a real pointer focus path and CDP text input")
+    add_target_argument(type_parser)
+    type_parser.add_argument("selector")
+    type_parser.add_argument("value")
+
+    fill_parser = sub.add_parser("fill", help="compatibility fallback: set a native input/textarea/select value through the DOM")
     add_target_argument(fill_parser)
     fill_parser.add_argument("selector")
     fill_parser.add_argument("value")
@@ -219,7 +227,12 @@ def command_network(args: argparse.Namespace) -> dict[str, Any]:
     with page_client(target, timeout=args.timeout) as client:
         client.call("Network.enable")
         if args.click:
-            trigger_result = client.evaluate(click_expression(args.click, allow_submit=args.allow_submit))
+            trigger_result = client.evaluate(
+                interaction_point_expression(args.click, allow_submit=args.allow_submit)
+            )
+            if not isinstance(trigger_result, dict):
+                raise CdpProtocolError("Pointer target inspection did not return an object")
+            dispatch_primary_click(client, trigger_result)
         elif args.navigate:
             client.call("Page.enable")
             trigger_result = client.call("Page.navigate", {"url": args.navigate})
@@ -237,7 +250,39 @@ def command_network(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_click(args: argparse.Namespace) -> dict[str, Any]:
-    return command_eval_like(args, click_expression(args.selector, allow_submit=args.allow_submit))
+    target = selected_target(args.endpoint, args.target, timeout=args.timeout)
+    with page_client(target, timeout=args.timeout) as client:
+        point = client.evaluate(
+            interaction_point_expression(args.selector, allow_submit=args.allow_submit)
+        )
+        if not isinstance(point, dict):
+            raise CdpProtocolError("Pointer target inspection did not return an object")
+        dispatch_primary_click(client, point)
+    return {"clicked": True, "target": target_view(target), "interaction": point}
+
+
+def command_type(args: argparse.Namespace) -> dict[str, Any]:
+    target = selected_target(args.endpoint, args.target, timeout=args.timeout)
+    with page_client(target, timeout=args.timeout) as client:
+        point = client.evaluate(
+            interaction_point_expression(args.selector, require_text_target=True)
+        )
+        if not isinstance(point, dict):
+            raise CdpProtocolError("Text target inspection did not return an object")
+        dispatch_primary_click(client, point)
+        focused = client.evaluate(target_state_expression(args.selector))
+        if not isinstance(focused, dict) or not focused.get("focused"):
+            raise CdpProtocolError(
+                "Pointer click did not focus the requested text target; refusing to send keyboard input"
+            )
+        replace_focused_text(client, args.value)
+        state = client.evaluate(target_state_expression(args.selector))
+    return {
+        "typed": True,
+        "target": target_view(target),
+        "interaction": point,
+        "state": state,
+    }
 
 
 def command_fill(args: argparse.Namespace) -> dict[str, Any]:
@@ -326,6 +371,8 @@ def dispatch(args: argparse.Namespace) -> Any:
         return command_network(args)
     if args.command == "click":
         return command_click(args)
+    if args.command == "type":
+        return command_type(args)
     if args.command == "fill":
         return command_fill(args)
     if args.command == "upload":

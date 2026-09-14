@@ -129,5 +129,42 @@ class SelectTargetTests(unittest.TestCase):
             BROWSER_CDP.select_target(self.targets, None)
 
 
+class InteractionTests(unittest.TestCase):
+    class FakeClient:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, object]]] = []
+
+        def call(self, method: str, params: dict[str, object] | None = None) -> dict[str, object]:
+            self.calls.append((method, params or {}))
+            return {}
+
+    def test_pointer_expression_uses_hit_test_without_dom_click(self) -> None:
+        expression = BROWSER_CDP.interaction_point_expression("#option")
+        self.assertIn("elementFromPoint", expression)
+        self.assertNotIn("el.click()", expression)
+
+    def test_fill_rejects_contenteditable_dom_injection(self) -> None:
+        expression = BROWSER_CDP.fill_expression("[contenteditable=true]", "hello")
+        self.assertIn("Refusing DOM fill for contenteditable", expression)
+        self.assertNotIn("el.textContent = nextValue", expression)
+
+    def test_primary_click_dispatches_real_mouse_sequence(self) -> None:
+        client = self.FakeClient()
+        BROWSER_CDP.dispatch_primary_click(client, {"x": 12.5, "y": 24.0})
+        self.assertEqual(
+            [method for method, _ in client.calls],
+            ["Input.dispatchMouseEvent", "Input.dispatchMouseEvent", "Input.dispatchMouseEvent"],
+        )
+        self.assertEqual([params["type"] for _, params in client.calls], ["mouseMoved", "mousePressed", "mouseReleased"])
+
+    def test_replace_text_uses_keyboard_editing_and_insert_text(self) -> None:
+        client = self.FakeClient()
+        BROWSER_CDP.replace_focused_text(client, "谭朗")
+        self.assertEqual(client.calls[-1], ("Input.insertText", {"text": "谭朗"}))
+        key_calls = [params for method, params in client.calls if method == "Input.dispatchKeyEvent"]
+        self.assertEqual(key_calls[0]["commands"], ["selectAll"])
+        self.assertEqual(key_calls[2]["commands"], ["deleteBackward"])
+
+
 if __name__ == "__main__":
     unittest.main()

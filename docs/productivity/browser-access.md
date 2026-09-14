@@ -44,13 +44,15 @@ Agent 可以打开登录入口、选择机构登录、定位验证码区域并�
 
 ## 动态页面与表单能力
 
-原 `visible-browser-form-automation` 中已经验证的表单规则仍然保留：
+原 `visible-browser-form-automation` 中已经验证的表单规则继续保留，但交互策略已经收紧：
 
 - 先读取页面正文和控件元数据，再建立当前页面映射；
-- 条件题按真实交互顺序展开，每次状态变化后重新读取 DOM；
-- 文本赋值后按页面需要派发 `input` / `change`；
+- 文本 `input`、`textarea` 与 `contenteditable` 默认通过真实点击取得焦点后执行键盘输入，不以 DOM setter 作为首选；
+- 单选、多选、按钮与自定义控件默认走真实 pointer / mouse 事件，而不是 `element.click()`；
+- 条件题按真实交互顺序展开，每次状态变化后重新读取页面状态；
+- `fill` 只作为原生 `input` / `textarea` / `select` 的兼容兜底；富文本 `contenteditable` 不通过 `fill` 写入；
 - 上传前检查数量、大小、类型和浏览器实际运行的操作系统路径；
-- 姓名、金额、日期、编号等关键字段在交还用户前必须回读确认；
+- 姓名、金额、日期、编号等关键字段在交还用户前必须回读，同时确认组件自身的 required/error/invalid 状态已经按预期变化；
 - “提交”“发送”“付款”“发布”“删除”“授权”等不可逆动作仍以用户明确授权为硬边界。
 
 ## WSL + Windows Chrome adapter
@@ -71,7 +73,7 @@ Profile directory: %USERPROFILE%\.agent-browser\profile
 productivity/browser-access/scripts/browser_cdp.py
 ```
 
-它统一处理 Chrome 生命周期、page target 选择、导航、页面文本/控件勘察、点击、填写、等待、上传、任意单次 CDP 调用和网络请求观察。Agent 通过 `uv run <script-path> --help` 读取当前命令面；页面特定逻辑使用 CLI 的 `eval`，而不是重复编写 WebSocket/CDP 包装脚本。复杂网站的 `inspect` 默认只回传可见控件和文件控件，减少无关 DOM 对上下文的占用。
+它统一处理 Chrome 生命周期、page target 选择、导航、页面文本/控件勘察、真实指针点击、真实文本输入、DOM 兼容填写、等待、上传、任意单次 CDP 调用和网络请求观察。`click` 使用 `Input.dispatchMouseEvent`，`type` 使用真实点击取得焦点后调用键盘编辑命令与 `Input.insertText`；`fill` 明确降为兼容兜底。Agent 通过 `uv run <script-path> --help` 读取当前命令面；页面特定逻辑使用 CLI 的 `eval`，而不是重复编写 WebSocket/CDP 包装脚本。复杂网站的 `inspect` 默认只回传可见控件和文件控件，减少无关 DOM 对上下文的占用。
 
 完整的 CDP 原理、DOM 表达式、网络资源解析、跨系统上传路径和问卷实践经验位于：
 

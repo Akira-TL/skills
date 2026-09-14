@@ -8,11 +8,11 @@
 
 选中本 adapter 后，任务级浏览器操作统一优先使用本 Skill 目录下的 `scripts/browser_cdp.py`。脚本使用 PEP 723 声明运行依赖，应通过 `uv run <absolute-script-path> ...` 调用；完整命令和参数以 `--help` 为准。
 
-它把高频能力固定为同一个控制面：`status` / `ensure` 处理生命周期，`tabs` 发现 page target，`open` / `navigate` / `focus` 管理页面，`text` / `inspect` 完成勘察，`click` / `fill` / `wait` / `upload` 完成交互，`eval` 承载页面特定 JavaScript，`call` 承载任意单次 CDP 方法，`network` 捕获请求与响应元数据。
+它把高频能力固定为同一个控制面：`status` / `ensure` 处理生命周期，`tabs` 发现 page target，`open` / `navigate` / `focus` 管理页面，`text` / `inspect` 完成勘察，`click` / `type` / `fill` / `wait` / `upload` 完成交互，`eval` 承载页面特定 JavaScript，`call` 承载任意单次 CDP 方法，`network` 捕获请求与响应元数据。
 
 除 `status` 外，命令在 CDP 不可达时会尝试以固定 `agent-browser` Profile 启动 Windows Chrome。存在多个真实 `type=page` target 且没有唯一选择时，脚本会直接拒绝继续，并要求通过 `--target` 使用 target ID、标题或 URL 的唯一片段选择页面。
 
-`inspect` 默认只回传可见控件和文件控件，同时报告页面控件总数；需要隐藏控件时再使用其显式选项。`click` 默认拒绝关联表单的 HTML 提交控件，只有已经满足 `SKILL.md` 的提交授权边界时才使用对应显式放行参数。
+`inspect` 默认只回传可见控件和文件控件，同时报告页面控件总数；需要隐藏控件时再使用其显式选项。`click` 会先滚动并验证 `elementFromPoint` 命中目标，再通过 `Input.dispatchMouseEvent` 发出真实指针事件；它默认拒绝关联表单的 HTML 提交控件，只有已经满足 `SKILL.md` 的提交授权边界时才使用对应显式放行参数。`type` 复用同一真实点击取得焦点，再以 `Input.dispatchKeyEvent` 选择/清除现有文本并用 `Input.insertText` 输入。
 
 `eval`、`call` 与 `network` 是低层逃生口。任务中应组合这些入口，而不是重新编写 Python/WebSocket/CDP 包装代码；下面的原始协议片段只用于理解或维护这个 CLI。
 
@@ -176,36 +176,25 @@ document.body.innerText
 
 不要依赖某个站点一定使用 `div1`、`q1` 这类命名；先观察再建立当前页面映射。
 
-## 6. 填写普通输入框
+## 6. 文本输入
 
-普通文本框、`textarea`、`select` 和 `contenteditable` 优先使用 CLI 的 `fill`，它会走原生 setter 并触发 `input` / `change`。只有站点组件需要额外逻辑时才通过 `eval` 补充。
+普通文本 `input`、`textarea` 与 `contenteditable` 默认使用 CLI 的 `type`：脚本先把目标滚动到可见区域，验证中心点击点没有被其他元素遮挡，通过 `Input.dispatchMouseEvent` 取得真实焦点，再以编辑键事件清除旧内容并调用 `Input.insertText` 输入新文本。
 
-需要让页面监听到变更时，不只设置 `value`，还要触发事件：
-
-```javascript
-const el = document.querySelector('#q1');
-el.focus();
-el.value = '示例';
-el.dispatchEvent(new Event('input', { bubbles: true }));
-el.dispatchEvent(new Event('change', { bubbles: true }));
-el.blur();
+```bash
+uv run <script-path> type '#q1' '示例'
 ```
 
-如果框架重写了原生 setter，可以调用 `HTMLInputElement.prototype` 上的 setter，再派发事件。
+`contenteditable` 可能只是富文本编辑器的 DOM 表面，真实状态由编辑器内部 model 管理，因此 `fill` 明确拒绝直接修改 `contenteditable.textContent`。`type` 完成后仍要检查站点自身的错误、必填、ARIA、条件展示或其他组件状态，不能只看 DOM 文本。
 
-## 7. 单选和条件题
+`fill` 保留为兼容兜底，仅用于原生 `input`、`textarea`、`select`。它直接设置 DOM 值并派发 `input` / `change`，只有确认站点确实以普通 DOM 值为状态来源、或者真实输入路径不可用且操作后能严格验证组件状态时才使用。
 
-普通点击优先使用 CLI 的 `click`，交互后再使用 `inspect` 或 `wait` 重新确认条件题状态。需要点击包装元素或执行站点特定逻辑时使用 `eval`。
+## 7. 点击、单选和条件题
 
-优先让页面自己的点击逻辑生效：
+普通点击优先使用 CLI 的 `click`。该命令不是 `element.click()` 包装：它读取目标实际屏幕坐标、通过 `elementFromPoint` 验证落点，再发送 CDP mouse move / press / release。自定义单选、React/Vue 控件和条件题都先走这条真实 pointer 路径。
 
-```javascript
-document.querySelector('#q2_1')?.click();
-```
+如果真实 `input` 被隐藏而交互绑定在可见 label、anchor 或 wrapper 上，应把 selector 指向站点实际可点击的可见目标。若中心落点被 overlay 或其他元素遮挡，CLI 会拒绝继续；先重新定位真正的交互目标，而不是退回 `element.click()` 绕过命中测试。
 
-如果真实 `input` 被隐藏而点击绑定在包装元素上，应点击站点实际监听的 label、anchor 或 wrapper。点击后重新读取后续题目的 `display` 状态。
-
-不要一次性给所有隐藏题写值再假定页面会接受；条件题应按真实交互顺序展开。
+点击后使用 `inspect`、`wait` 或站点特定 `eval` 重新读取组件状态、错误状态和后续题目的显示状态。不要一次性给所有隐藏题写值再假定页面会接受；条件题应按真实交互顺序展开。
 
 ## 8. 日期控件
 
@@ -267,20 +256,24 @@ Get-ChildItem "$env:USERPROFILE\Downloads" |
 
 先通过 `inspect` 回读当前页面；需要把多个站点特定字段组合成一次结构化校验时，通过 `eval` 返回对象，不再创建一次性 WebSocket 脚本。
 
-最终检查可以返回一组结构化状态，例如：
+最终检查不只回读字段内容，还应同时返回会证明站点内部状态已接受输入的信号，例如必填/错误提示、`aria-invalid`、校验类名、单选状态、条件题显示状态与当前 URL。示例：
 
 ```javascript
 ({
   name: document.querySelector('#q1')?.value,
+  nameInvalid: document.querySelector('#q1')?.getAttribute('aria-invalid'),
   outboundAmount: document.querySelector('#q5')?.value,
-  returnAmount: document.querySelector('#q9')?.value,
   cityTransport: document.querySelector('input[name="q11"]:checked')?.value,
+  visibleErrors: [...document.querySelectorAll('[role="alert"], .error, .invalid')]
+    .filter(el => getComputedStyle(el).display !== 'none')
+    .map(el => el.innerText.trim())
+    .filter(Boolean),
   uploadMessage: document.querySelector('.uploadmsg')?.innerText || '',
   href: location.href
 })
 ```
 
-实际字段名必须来自当前页面勘察结果。
+实际字段名、错误选择器和状态信号必须来自当前页面勘察结果；DOM 中存在文本不能单独作为受控组件填写成功的证据。
 
 ## 12. 事故预防
 

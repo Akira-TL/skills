@@ -427,9 +427,15 @@ def inspect_expression(text_limit: int, *, all_controls: bool = False) -> str:
 """.strip()
 
 
-def click_expression(selector: str, *, allow_submit: bool) -> str:
+def interaction_point_expression(
+    selector: str,
+    *,
+    allow_submit: bool = False,
+    require_text_target: bool = False,
+) -> str:
     selector_js = json.dumps(selector, ensure_ascii=False)
     allow_js = "true" if allow_submit else "false"
+    require_text_js = "true" if require_text_target else "false"
     return f"""
 (() => {{
   const selector = {selector_js};
@@ -441,19 +447,123 @@ def click_expression(selector: str, *, allow_submit: bool) -> str:
   if (submitLike && !{allow_js}) {{
     throw new Error('Refusing submit-like click without --allow-submit');
   }}
+  if (el.disabled) throw new Error('Refusing to interact with a disabled control');
+  if ({require_text_js}) {{
+    if (type === 'password') throw new Error('Password entry remains a human login boundary');
+    const textInputTypes = new Set(['', 'text', 'search', 'email', 'tel', 'url', 'number']);
+    const supported = (tag === 'input' && textInputTypes.has(type)) || tag === 'textarea' || el.isContentEditable;
+    if (!supported) throw new Error(`type requires a text input, textarea, or contenteditable target; got ${{el.tagName}} type=${{type || '(none)'}}`);
+    if (el.readOnly) throw new Error('Refusing to type into a readonly control; use its native UI');
+  }}
   el.scrollIntoView({{block: 'center', inline: 'nearest'}});
-  el.click();
+  const rect = el.getBoundingClientRect();
+  if (!(rect.width > 0 && rect.height > 0)) throw new Error('Target has no visible hit box');
+  const x = rect.left + rect.width / 2;
+  const y = rect.top + rect.height / 2;
+  const hit = document.elementFromPoint(x, y);
+  if (!hit || !(hit === el || el.contains(hit))) {{
+    const blocker = hit ? `${{hit.tagName}}#${{hit.id || ''}}.${{String(hit.className || '').replace(/\\s+/g, '.')}}` : 'none';
+    throw new Error(`Target center is not pointer-reachable; elementFromPoint hit ${{blocker}}`);
+  }}
   return {{
-    clicked: true,
+    x,
+    y,
     tag: el.tagName,
     type: el.type || '',
     id: el.id || '',
     name: el.name || '',
     text: (el.innerText || el.value || '').trim().slice(0, 300),
+    contenteditable: !!el.isContentEditable,
     href: location.href
   }};
 }})()
 """.strip()
+
+
+def target_state_expression(selector: str) -> str:
+    selector_js = json.dumps(selector, ensure_ascii=False)
+    return f"""
+(() => {{
+  const selector = {selector_js};
+  const el = document.querySelector(selector);
+  if (!el) throw new Error(`No element matches ${{selector}}`);
+  const active = document.activeElement;
+  return {{
+    tag: el.tagName,
+    type: el.type || '',
+    id: el.id || '',
+    name: el.name || '',
+    value: el.value ?? el.textContent ?? '',
+    focused: active === el || (!!active && el.contains(active)),
+    contenteditable: !!el.isContentEditable
+  }};
+}})()
+""".strip()
+
+
+def dispatch_primary_click(client: CdpClient, point: dict[str, Any]) -> None:
+    x = point.get("x")
+    y = point.get("y")
+    if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+        raise CdpProtocolError(f"Interaction point is missing numeric coordinates: {point!r}")
+    client.call("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": x, "y": y})
+    client.call(
+        "Input.dispatchMouseEvent",
+        {"type": "mousePressed", "x": x, "y": y, "button": "left", "buttons": 1, "clickCount": 1},
+    )
+    client.call(
+        "Input.dispatchMouseEvent",
+        {"type": "mouseReleased", "x": x, "y": y, "button": "left", "buttons": 0, "clickCount": 1},
+    )
+
+
+def replace_focused_text(client: CdpClient, value: str) -> None:
+    client.call(
+        "Input.dispatchKeyEvent",
+        {
+            "type": "rawKeyDown",
+            "key": "a",
+            "code": "KeyA",
+            "windowsVirtualKeyCode": 65,
+            "nativeVirtualKeyCode": 65,
+            "modifiers": 2,
+            "commands": ["selectAll"],
+        },
+    )
+    client.call(
+        "Input.dispatchKeyEvent",
+        {
+            "type": "keyUp",
+            "key": "a",
+            "code": "KeyA",
+            "windowsVirtualKeyCode": 65,
+            "nativeVirtualKeyCode": 65,
+            "modifiers": 2,
+        },
+    )
+    client.call(
+        "Input.dispatchKeyEvent",
+        {
+            "type": "rawKeyDown",
+            "key": "Backspace",
+            "code": "Backspace",
+            "windowsVirtualKeyCode": 8,
+            "nativeVirtualKeyCode": 8,
+            "commands": ["deleteBackward"],
+        },
+    )
+    client.call(
+        "Input.dispatchKeyEvent",
+        {
+            "type": "keyUp",
+            "key": "Backspace",
+            "code": "Backspace",
+            "windowsVirtualKeyCode": 8,
+            "nativeVirtualKeyCode": 8,
+        },
+    )
+    if value:
+        client.call("Input.insertText", {"text": value})
 
 
 def fill_expression(selector: str, value: str) -> str:
@@ -484,7 +594,7 @@ def fill_expression(selector: str, value: str) -> str:
   }} else if (tag === 'select') {{
     el.value = nextValue;
   }} else if (el.isContentEditable) {{
-    el.textContent = nextValue;
+    throw new Error('Refusing DOM fill for contenteditable; use type so the editor receives real input events');
   }} else {{
     throw new Error(`Unsupported fill target: ${{el.tagName}}`);
   }}
