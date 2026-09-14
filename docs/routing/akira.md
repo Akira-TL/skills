@@ -4,7 +4,7 @@
 
 ## 主要路由
 
-- 软件工程：安装/使用 `Akira-TL/matt-skills`；`ask-akira` 与 Parallel 系列属于该 Matt fork 的工程扩展。
+- 软件工程：安装/使用 Akira 自主维护的 `Akira-TL/matt-skills`；`ask-akira` 与 Parallel 系列属于该 Matt 工程体系的扩展。
 - 科学研究：安装/使用已发布的独立 `Akira-TL/akira-research-skills`，按项目级范围安装完整 Research suite。
 - 浏览器、Word、科研/学术 PPT、Guard、通用 Agent 执行适配：直接使用本仓库中的对应通用 Skill，不需要单独产品仓。
 - Knowledge：当前仍为 planned，正式实现后再加入可安装目录。
@@ -14,6 +14,6 @@ Router 默认先复用当前会话已经真实可用的能力；当前会话缺�
 
 `routing/akira/references/CATALOG.md` 是 first-party 能力注册表：统一维护我们自有 Skill / 产品族的准确名称、用途、GitHub source、发布状态、安装粒度与推荐命令。真正执行安装、更新、卸载或诊断时再读取 `INSTALLATION.md`；`akira/SKILL.md` 不复制这些详细表。first-party 不足时才继续读取 `EXTERNAL-SOURCES.md`。
 
-Akira 管理的 Skill 只从 Catalog 登记的远端 GitHub source 拉取到 `~/.agents/sources/`，再以软链接注册到机器级 `~/.agents/skills/`。安装逻辑由 `akira` Skill 自带的 `scripts/skills.py` 实现；Router 在确认能力缺口并获得用户授权后主动调用，不依赖 Lattice 根仓或第三方 Skill package manager。具体执行器自己的 Skill 目录只作为执行器视图，由执行器自己的机制引用 `~/.agents/skills/`；Akira 安装器不管理这些目录。
+Akira 管理的 Skill 只从 Catalog 登记的远端 GitHub source 拉取到 `~/.agents/sources/`，再以软链接注册到机器级 `~/.agents/skills/`。安装逻辑由 `akira` Skill 自带的 `scripts/skills.py` 实现；Lattice 根安装器只允许从云端临时 checkout 调用它 bootstrap `akira` 与 `browser-access`，Router 已可用后的其他安装都由 Router 在确认能力缺口并获得用户授权后主动调用。具体执行器自己的 Skill 目录只作为执行器视图，由执行器自己的机制引用 `~/.agents/skills/`；Akira 安装器不管理这些目录。
 
 Word、PPT、Matt、Research 与外部来源都只在真实任务需要时发现和安装；机器级已经安装的 Skill 直接复用，不因为“未来可能用到”继续扩张注册表。

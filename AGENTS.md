@@ -6,14 +6,14 @@
 
 - `routing/` 保存跨仓库 Router；当前 `akira` 负责根据项目用途选择最小 Skill / 产品仓。
 - `productivity/` 保存跨领域交付能力，例如浏览器、Word、科研/学术 PPT。
-- `engineering/` 只保存真正跨项目的基础设施能力，例如 Akira Guard 使用语义与 harness-agnostic Agent 编排；Matt 的工程方法、`ask-akira` 与 Parallel 系列属于 `Akira-TL/matt-skills` fork。
+- `engineering/` 只保存真正跨项目的基础设施能力，例如 Akira Guard 使用语义与 harness-agnostic Agent 编排；Matt 的工程方法、`ask-akira` 与 Parallel 系列属于 Akira 自主维护的 `Akira-TL/matt-skills`。
 - 完整科研工作流属于独立 `akira-research-skills`；未来 Knowledge 等高内聚产品族也应独立成仓。
 - 尚未稳定的本仓通用 Skill 放在 `in-progress/`；弃用 Skill 放在 `deprecated/`，不得无迁移说明地直接删除已发布名称。
 - 每个稳定 Skill 只有一个 canonical `SKILL.md`；人类文档放在 `docs/<category>/<skill-name>.md`。
 
 ## 安装边界
 
-Skill 发现与机器级安装由 `routing/akira/` 自己拥有：Router 决定是否需要新增能力，`routing/akira/scripts/` 机械执行远端 Git checkout、机器级注册、更新、删除与诊断。Lattice 根仓不实现 Skill 生命周期。
+Skill 发现与机器级安装由 `routing/akira/` 自己拥有：Router 决定是否需要新增能力，`routing/akira/scripts/` 机械执行远端 Git checkout、机器级注册、更新、删除与诊断。Lattice 根仓不实现通用 Skill 生命周期，只允许 `install.sh` 从云端临时 checkout 调用本 Skill 的安装器，bootstrap `akira` 与 `browser-access` 两个基础 Skill。
 
 本仓存在不等于默认安装本仓全部 Skill。真实需要的 Skill 才进入 `~/.agents/sources/` 并注册到 `~/.agents/skills/`；具体执行器若需要持久暴露某个 Skill，由执行器自己的机制引用机器级注册项。安装脚本只管理 Akira 机器级 source 与注册表。
 

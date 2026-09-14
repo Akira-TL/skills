@@ -26,7 +26,7 @@ docs/                              # 与稳定 Skill 一一对应的人类文档
 ## 产品边界
 
 - **通用 Akira Skills**：本仓库。Router、浏览器、Word、学术 PPT、Guard 与通用 Agent 执行适配。
-- **Matt Engineering**：`Akira-TL/matt-skills`。Matt 工程方法及本 fork 的 `ask-akira`、`parallel-coordinator`、`parallel-execution` 扩展。
+- **Matt Engineering**：`Akira-TL/matt-skills`。Akira 自主维护的 Matt 系列工程方法，以及 `ask-akira`、`parallel-coordinator`、`parallel-execution` 扩展。
 - **Akira Research**：`Akira-TL/akira-research-skills`。Research Tree、Literature、Design、Study、Data、Analysis、Interpretation、Communication 与 `research.sqlite` provenance。
 - **Akira Knowledge**：尚未建立；真正开始知识系统后再单独成仓，不提前维护空实现。
 
@@ -34,7 +34,7 @@ docs/                              # 与稳定 Skill 一一对应的人类文档
 
 ## 安装
 
-Skill 安装能力由 `routing/akira/` 自己维护。`akira` Router 已可用后，Agent 在确认能力缺口并获得用户授权时调用本 Skill 自带脚本；Lattice 根仓不负责 Skill 生命周期。
+Skill 安装能力由 `routing/akira/` 自己维护。Lattice 根 `install.sh` 只通过云端临时 checkout 调用本 Skill 的安装器 bootstrap `akira` 与 `browser-access`；Router 已可用后，其他能力均由 Agent 在确认能力缺口并获得用户授权时调用本 Skill 自带脚本安装。
 
 查看远端仓当前可用 Skill：
 
@@ -50,7 +50,7 @@ uv run python ~/.agents/skills/akira/scripts/skills.py install \
   --skill browser-access
 ```
 
-专业产品按真实任务安装到机器级 `~/.agents/skills`。软件工程任务由 `akira` Router 推荐 Matt fork；科研任务由 Router 推荐 Research suite。Router 在安装前说明来源、用途与范围并请求用户明确同意。
+专业产品按真实任务安装到机器级 `~/.agents/skills`。软件工程任务由 `akira` Router 推荐 Akira Matt Engineering；科研任务由 Router 推荐 Research suite。Router 在安装前说明来源、用途与范围并请求用户明确同意。
 
 `~/.agents/sources/` 与 `~/.agents/skills/` 是 `akira` Skill 安装器管理的唯一 Skill source 与机器级注册层。具体执行器需要某个已安装 Skill 时，由执行器自己的机制引用 `~/.agents/skills/<name>`；安装器不写执行器目录，也不为执行器维护第二份 source checkout。
 

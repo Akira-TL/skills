@@ -22,7 +22,7 @@ GitHub source：`https://github.com/Akira-TL/skills.git`
 
 | Skill | 能力 | 默认状态 | 何时安装 |
 | --- | --- | --- | --- |
-| `akira` | 能力 Router；决定当前项目还缺什么 | 基础能力 | Router bootstrap 提供；不由自身安装器首次自举 |
+| `akira` | 能力 Router；决定当前项目还缺什么 | 基础能力 | Lattice 根安装器从云端 bootstrap，并调用本 Skill 自带安装器完成注册 |
 | `browser-access` | 动态/认证网页访问、浏览器控制、登录态复用 | 基础能力 | 机器级缺失时安装 |
 | `general-word-document-generation` | 正式 Word / DOCX 文档生成与编辑 | 按需 | 当前任务明确需要 DOCX |
 | `scientific-presentation-authoring` | 科研/学术 PPT 内容组织与交付 | 按需 | 当前任务明确需要科研或学术演示文稿 |
@@ -80,7 +80,7 @@ Research suite 当前能力：
 - GitHub source：`https://github.com/Akira-TL/matt-skills.git`
 - Status：available
 - Primary Router：`ask-matt`
-- 安装粒度：持续软件工程需要时，将 promoted Matt suite 与 Akira fork 的三个工程扩展安装到机器级注册表。
+- 安装粒度：持续软件工程需要时，将稳定 Matt suite 与 Akira 自有的三个工程扩展安装到机器级注册表。
 
 安装：
 
@@ -95,9 +95,9 @@ uv run python ~/.agents/skills/akira/scripts/skills.py install \
   --skill parallel-execution
 ```
 
-这里 `--root` 只安装 Matt promoted 的 `engineering` / `productivity` 两个产品目录；三个显式 `--skill` 再加入 Akira fork extensions，避免仓库其他 `misc` / 实验性 Skill 因 `--all` 被自动带入。
+这里 `--root` 只安装 Matt 稳定的 `engineering` / `productivity` 两个产品目录；三个显式 `--skill` 再加入 Akira 工程扩展，避免仓库其他 `misc` / 实验性 Skill 因 `--all` 被自动带入。
 
-Matt fork 提供需求澄清、Spec/Ticket、实现、TDD、代码审查、缺陷诊断、重构、工程写作等工程能力。Akira 自有增量：
+Akira 自主维护的 Matt Engineering 提供需求澄清、Spec/Ticket、实现、TDD、代码审查、缺陷诊断、重构、工程写作等工程能力，并包含以下 Akira 工程扩展：
 
 | Skill | 能力 |
 | --- | --- |
@@ -125,7 +125,7 @@ Matt fork 提供需求澄清、Spec/Ticket、实现、TDD、代码审查、缺�
 | Guard 语义/排障 | `akira-guard` | 机器级缺失时装单个 Skill |
 | 已拆分工作的 Agent 执行适配 | `agent-orchestration` | 机器级缺失时装单个 Skill |
 | 持续科研项目 | Akira Research | 机器级缺失时安装完整 Research suite |
-| 持续软件工程项目 | Matt Engineering | 机器级缺失时安装 promoted Matt + Akira extensions |
+| 持续软件工程项目 | Matt Engineering | 机器级缺失时安装稳定 Matt suite + Akira 工程扩展 |
 | Knowledge 产品 | 暂不可用 | 不安装 |
 | first-party 没有的专业能力 | External Sources | 读取 `EXTERNAL-SOURCES.md`，再按最小候选请求用户授权 |
 
