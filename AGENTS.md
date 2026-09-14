@@ -7,7 +7,7 @@
 - `routing/` 保存跨仓库 Router；当前 `akira` 负责根据项目用途选择最小 Skill / 产品仓。
 - `productivity/` 保存跨领域交付能力，例如浏览器、Word、科研/学术 PPT。
 - `engineering/` 只保存真正跨项目的基础设施能力，例如 Akira Guard 使用语义与 harness-agnostic Agent 编排；Matt 的工程方法、`ask-akira` 与 Parallel 系列属于 Akira 自主维护的 `Akira-TL/matt-skills`。
-- 完整科研工作流属于独立 `akira-research-skills`；未来 Knowledge 等高内聚产品族也应独立成仓。
+- 完整科研工作流属于独立 `akira-research-skills`；Akira Knowledge 已独立到 `akira-knowledge-skills`，当前仓库只维护其能力发现状态，不复制 Knowledge 产品正文。
 - 尚未稳定的本仓通用 Skill 放在 `in-progress/`；弃用 Skill 放在 `deprecated/`，不得无迁移说明地直接删除已发布名称。
 - 每个稳定 Skill 只有一个 canonical `SKILL.md`；人类文档放在 `docs/<category>/<skill-name>.md`。
 

@@ -7,7 +7,7 @@
 - 软件工程：安装/使用 Akira 自主维护的 `Akira-TL/matt-skills`；Primary Router 为 `ask-akira`，普通 `standard` 工程流再按需加载 `ask-matt`，Parallel 系列继续负责正式多 Agent coordination。
 - 科学研究：安装/使用已发布的独立 `Akira-TL/akira-research-skills`，按项目级范围安装完整 Research suite。
 - 浏览器、Word、科研/学术 PPT、Guard、通用 Agent 执行适配：直接使用本仓库中的对应通用 Skill，不需要单独产品仓。
-- Knowledge：当前仍为 planned，正式实现后再加入可安装目录。
+- Knowledge：`Akira-TL/akira-knowledge-skills` 产品仓已建立，计划 Primary Router 为 `akira-knowledge`；当前尚无可安装 Skill，因此仍保持不可安装状态。
 - 外部能力：当 first-party 能力不足时，Router 只从已登记外部来源动态读取当前 Skill 清单，向用户呈现与任务相关的最小候选；不把外部整仓加入 Lattice，也不因来源可信而跳过安装确认。
 
 Router 默认先复用当前会话已经真实可用的能力；当前会话缺少时再检查机器级 `~/.agents/skills/` 注册表。机器级已经安装的 Skill 不重复安装，并优先通过当前执行器正常的 Skill 加载机制引用。机器级已安装不自动产生项目级投影：`<project>/.agents/skills/` 可以作为开放 Agent Skills 生态中的显式项目级 Skill view；只有项目或执行器确实需要该 view 时，Agent 才可显式建立 `<project>/.agents/skills/<name> -> ~/.agents/skills/<name>` 软链接。该链接不是重新安装，也不能仅凭“当前会话没看到 Skill”自动创建。只有机器级也不存在时才推荐从远端新增 Skill，安装前仍需说明来源、用途和范围并取得用户明确同意。

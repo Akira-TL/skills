@@ -110,11 +110,12 @@ Akira 自主维护的 Matt Engineering 提供需求澄清、Spec/Ticket、实现
 
 ## Akira Knowledge
 
-- Planned source：`https://github.com/Akira-TL/akira-knowledge-skills.git`
-- Status：planned
-- 用途：知识采集、概念关系、长期笔记、知识总结与复习工作流。
+- GitHub source：`https://github.com/Akira-TL/akira-knowledge-skills.git`
+- Status：unavailable；产品仓已初始化，但当前没有可安装 Skill
+- Planned Primary Router：`akira-knowledge`
+- 用途：长期知识管理；具体对象模型与内部 Skill 边界尚未定稿。
 
-当前没有可安装实现。不得生成伪造命令，也不得因为规划存在就把它描述为 available。
+当前只存在产品仓与已确认的产品边界，不存在可安装实现。不得生成安装命令，也不得把仓库已创建等同于产品已发布。
 
 ## 快速选择表
 
