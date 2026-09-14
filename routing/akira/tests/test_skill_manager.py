@@ -107,6 +107,34 @@ class InstallTests(unittest.TestCase):
                 {"repository", "ref", "commit", "source_path"},
             )
 
+    def test_install_refreshes_existing_same_source_metadata_after_checkout_moves(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            checkout = self._fixture_checkout(root)
+            source = "https://github.com/Akira-TL/example.git"
+            patches = self._patch_machine_paths(root)
+            with ExitStack() as stack:
+                for patcher in patches:
+                    stack.enter_context(patcher)
+                stack.enter_context(
+                    mock.patch.object(
+                        skill_manager,
+                        "ensure_source_checkout",
+                        side_effect=[
+                            (checkout, "old123", source),
+                            (checkout, "new456", source),
+                        ],
+                    )
+                )
+                skill_manager.install_from_source(source, skill_names=["alpha"])
+                skill_manager.install_from_source(source, skill_names=["beta"])
+
+            manifest = json.loads(
+                (root / ".agents" / "akira-skills.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(manifest["skills"]["alpha"]["commit"], "new456")
+            self.assertEqual(manifest["skills"]["beta"]["commit"], "new456")
+
     def test_all_can_be_limited_by_roots_and_extended_by_explicit_skill(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)

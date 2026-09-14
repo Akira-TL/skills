@@ -125,7 +125,7 @@ uv run python ~/.agents/skills/akira/scripts/skills.py update \
   --source https://github.com/Akira-TL/akira-research-skills.git
 ```
 
-因为机器级注册项是软链接，checkout 更新后注册表立即读取新内容。
+因为机器级注册项是软链接，checkout 更新后注册表立即读取新内容。同一 repository 共用一个 checkout；任何安装或更新动作推进该 checkout 时，安装器会同步刷新该 repository 下所有已注册 Skill 的 manifest commit/ref，避免 provenance 与实际文件 revision 不一致。
 
 ## 7. Remove
 

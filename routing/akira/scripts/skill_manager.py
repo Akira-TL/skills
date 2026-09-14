@@ -229,6 +229,41 @@ def _same_registered_source(
     )
 
 
+def _refresh_registered_checkout_metadata(
+    entries: dict[str, object],
+    *,
+    checkout: Path,
+    canonical: str,
+    ref: str,
+    commit: str,
+    available: dict[str, Path],
+) -> None:
+    for name, metadata in entries.items():
+        if not isinstance(metadata, dict):
+            raise SkillInstallError(f"机器级 Skill metadata 无效：{name}")
+        repository, source_path = _metadata_source(metadata)
+        if _normalize_remote_url(repository) != _normalize_remote_url(canonical):
+            continue
+
+        source_dir = checkout / source_path
+        discovered = available.get(name)
+        if discovered is None:
+            raise SkillInstallError(f"更新后 source 已不存在 Skill `{name}`：{canonical}")
+        if discovered.absolute() != source_dir.absolute():
+            raise SkillInstallError(f"更新后 Skill source path 漂移：{name}")
+
+        target = GLOBAL_SKILLS / name
+        if not target.is_symlink() or direct_link_target(target) != source_dir.absolute():
+            raise SkillInstallError(f"机器级 Skill 软链接漂移：{target}")
+
+        entries[name] = {
+            "repository": canonical,
+            "ref": ref,
+            "commit": commit,
+            "source_path": source_path,
+        }
+
+
 def install_from_source(
     source: str,
     *,
@@ -261,6 +296,14 @@ def install_from_source(
     manifest = load_manifest()
     entries = manifest["skills"]
     assert isinstance(entries, dict)
+    _refresh_registered_checkout_metadata(
+        entries,
+        checkout=checkout,
+        canonical=canonical,
+        ref=ref,
+        commit=commit,
+        available=available,
+    )
 
     for name in selected:
         source_dir = available[name].absolute()
