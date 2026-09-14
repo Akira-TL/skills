@@ -13,7 +13,7 @@
 
 ## 安装边界
 
-Skill 发现与机器级安装由 `routing/akira/` 自己拥有：Router 决定是否需要新增能力，`routing/akira/scripts/` 机械执行远端 Git checkout、机器级注册、更新、删除与诊断。Lattice 根仓不实现通用 Skill 生命周期，只允许 `install.sh` 从云端临时 checkout 调用本 Skill 的安装器，bootstrap `akira` 与 `browser-access` 两个基础 Skill。
+Skill 发现与机器级安装由 `routing/akira/` 自己拥有：Router 决定是否需要新增能力，`routing/akira/scripts/` 机械执行远端 Git checkout、机器级注册、更新、删除与诊断。Lattice 根仓不实现通用 Skill 生命周期，只允许 `install.sh` 从云端临时 checkout 调用本 Skill 的安装器，bootstrap `akira`、`browser-access` 与 `akira-guard` 三个基础 Skill。
 
 本仓存在不等于默认安装本仓全部 Skill。真实需要的 Skill 才进入 `~/.agents/sources/` 并注册到 `~/.agents/skills/`；具体执行器若需要持久暴露某个 Skill，由执行器自己的机制引用机器级注册项。安装脚本只管理 Akira 机器级 source 与注册表。
 
@@ -28,6 +28,6 @@ Router 的受管产品状态只在 `routing/akira/references/CATALOG.md` 维护�
 
 ## 检查与提交
 
-- 本仓不维护第二份 Guard；机械检查与正式 Git 提交统一使用 Akira Lattice 投射到 `~/.agents/scripts/` 的入口。
+- `engineering/akira-guard/` 是跨项目 Guard 的 canonical owner，通用 Git 提交与机械检查脚本随 Skill 发布；Lattice 只保留自身配置/仓库拓扑检查。
 - 稳定 Skill 行为变化同步对应 `docs/`。
 - Git 原子提交、diff ownership 与提交信息继续遵守全局 Git 规则。

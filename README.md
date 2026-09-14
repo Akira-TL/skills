@@ -34,7 +34,7 @@ docs/                              # 与稳定 Skill 一一对应的人类文档
 
 ## 安装
 
-Skill 安装能力由 `routing/akira/` 自己维护。Lattice 根 `install.sh` 只通过云端临时 checkout 调用本 Skill 的安装器 bootstrap `akira` 与 `browser-access`；Router 已可用后，其他能力均由 Agent 在确认能力缺口并获得用户授权时调用本 Skill 自带脚本安装。
+Skill 安装能力由 `routing/akira/` 自己维护。Lattice 根 `install.sh` 只通过云端临时 checkout 调用本 Skill 的安装器 bootstrap `akira`、`browser-access` 与 `akira-guard`；Router 已可用后，其他能力均由 Agent 在确认能力缺口并获得用户授权时调用本 Skill 自带脚本安装。
 
 查看远端仓当前可用 Skill：
 
@@ -56,10 +56,10 @@ uv run python ~/.agents/skills/akira/scripts/skills.py install \
 
 ## 检查
 
-本仓库不复制 Guard 实现。维护环境使用 Akira Lattice 的统一入口：
+跨项目 Guard 实现由 `engineering/akira-guard/` 自己维护。安装后统一入口：
 
 ```bash
-uv run ~/.agents/scripts/guard.py skills .
+uv run ~/.agents/skills/akira-guard/scripts/guard.py skills .
 ```
 
 稳定 Skill 修改需同步对应 `docs/<category>/<skill-name>.md`。

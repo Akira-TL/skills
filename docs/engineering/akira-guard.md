@@ -4,16 +4,17 @@
 
 ## 使用方式
 
-Guard 的 canonical implementation 位于 Akira Lattice：
+Guard 的 canonical implementation 随 `akira-guard` Skill 发布：
 
 ```text
-scripts/guard.py
+engineering/akira-guard/scripts/guard.py
+engineering/akira-guard/scripts/staged_syntax.py
 ```
 
-安装后通过全局运行时入口调用：
+安装后通过机器级 Skill 入口调用：
 
 ```bash
-uv run ~/.agents/scripts/guard.py <command>
+uv run ~/.agents/skills/akira-guard/scripts/guard.py <command>
 ```
 
 普通开发中已经知道具体 Guard 命令时可以直接调用，不需要先读取 `akira-guard` Skill。Skill 主要用于需要理解 Guard 能力、选择检查层级、配置或排查 Guard 行为的场景。
@@ -30,7 +31,7 @@ Guard 不替代 Agent 对 diff ownership、语义正确性和原子提交边界�
 
 ## 安装
 
-机器级安装只从远端 GitHub source 拉取，并注册到 `~/.agents/skills/`：
+`akira-guard` 是 Lattice 基础 bootstrap Skill，由根 `install.sh` 与 `akira`、`browser-access` 一起从远端 GitHub source 安装并注册到 `~/.agents/skills/`。需要显式修复或重装时仍可通过 `akira` 安装器安装单个 Skill：
 
 ```bash
 uv run python ~/.agents/skills/akira/scripts/skills.py install \

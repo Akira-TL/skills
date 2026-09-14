@@ -2,7 +2,7 @@
 
 本文件只定义 **Akira 如何把 Skill 安装到机器级注册表**。安装“什么能力、来自哪个 first-party 产品仓”由 [`CATALOG.md`](CATALOG.md) 决定；外部来源由 [`EXTERNAL-SOURCES.md`](EXTERNAL-SOURCES.md) 决定。
 
-安装能力由 `akira` Skill 自己拥有，不依赖第三方 Skill package manager。Akira Lattice 根仓只负责一个 bootstrap 例外：`install.sh` 从云端临时 checkout 本仓并调用这份安装器，确保 `akira` 与 `browser-access` 两个基础 Skill 已注册。正式通用入口仍是本 Skill 自带脚本：
+安装能力由 `akira` Skill 自己拥有，不依赖第三方 Skill package manager。Akira Lattice 根仓只负责一个 bootstrap 例外：`install.sh` 从云端临时 checkout 本仓并调用这份安装器，确保 `akira`、`browser-access` 与 `akira-guard` 三个基础 Skill 已注册。正式通用入口仍是本 Skill 自带脚本：
 
 ```bash
 uv run python ~/.agents/skills/akira/scripts/skills.py --help

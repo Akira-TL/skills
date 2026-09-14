@@ -6,15 +6,15 @@ description: 用于配置、扩展或排查 Akira Guard，或需要判断 Guard 
 
 # Akira Guard
 
-Akira Guard 是跨项目的机械检查与 Git 提交入口。真正实现位于 Akira Lattice 的 `scripts/guard.py`，运行时通过 `~/.agents/scripts/guard.py` 调用；本 Skill 只负责使用语义、选择边界与故障排查，不复制 Guard 实现。
+Akira Guard 是跨项目的机械检查与 Git 提交入口。本 Skill 同时拥有 Guard 的通用执行实现与使用语义；安装后统一通过 `~/.agents/skills/akira-guard/scripts/guard.py` 调用。Lattice 只保留自身静态配置与仓库拓扑检查，不再作为跨项目 Git Guard 的实现 owner。
 
 ## 先确认当前能力
 
 需要了解命令、参数或排查行为时，先读取实际 CLI：
 
 ```bash
-uv run ~/.agents/scripts/guard.py --help
-uv run ~/.agents/scripts/guard.py <command> --help
+uv run ~/.agents/skills/akira-guard/scripts/guard.py --help
+uv run ~/.agents/skills/akira-guard/scripts/guard.py <command> --help
 ```
 
 以当前 CLI 与实现为事实来源，不在 Skill 中维护容易过期的完整参数表。
@@ -24,7 +24,7 @@ uv run ~/.agents/scripts/guard.py <command> --help
 已完成一个明确修改目的后：
 
 1. 检查 diff ownership，只暂存当前原子修改。
-2. 使用 `uv run ~/.agents/scripts/guard.py commit -m '<message>'` 正式提交。
+2. 使用 `uv run ~/.agents/skills/akira-guard/scripts/guard.py commit -m '<message>'` 正式提交。
 3. Guard 负责提交入口中的轻量、确定性机械门禁；不要因为“最低检查”自行扩张为全项目 lint、typecheck、build 或 test suite。
 
 普通开发中如果已经知道要调用 `commit`，直接调用即可，不要求先经过本 Skill。
@@ -40,6 +40,6 @@ uv run ~/.agents/scripts/guard.py <command> --help
 ## 边界
 
 - Guard 是执行层，不负责判断 diff ownership、科研语义、业务正确性或用户是否接受实现。
-- Skill 是解释与路由层，不是 Guard 的执行中间件。
+- Skill 同时携带 Guard 通用执行脚本，但不会通过额外中间层包裹每次命令；Agent 已知命令时直接调用脚本。
 - 不为使用 Guard 安装全局 Git Hook，也不抢占项目已有 Husky、pre-commit、lefthook 或其他 Git Hook 的所有权。
 - 修改 Guard 本身时，把实现、测试与文档按独立修改目的分阶段提交；Guard 的机械规则与 Skill 的说明保持单一事实来源，不复制实现细节。

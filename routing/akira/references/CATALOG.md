@@ -26,7 +26,7 @@ GitHub source：`https://github.com/Akira-TL/skills.git`
 | `browser-access` | 动态/认证网页访问、浏览器控制、登录态复用 | 基础能力 | 机器级缺失时安装 |
 | `general-word-document-generation` | 正式 Word / DOCX 文档生成与编辑 | 按需 | 当前任务明确需要 DOCX |
 | `scientific-presentation-authoring` | 科研/学术 PPT 内容组织与交付 | 按需 | 当前任务明确需要科研或学术演示文稿 |
-| `akira-guard` | Akira Guard 的使用语义、排障与边界 | 按需 | 需要理解/诊断 Guard，而不是仅执行已有 Guard 命令 |
+| `akira-guard` | 跨项目 Git Guard、暂存语法检查、架构/Skill 结构检查及其使用语义 | 基础能力 | Lattice 根安装器从云端 bootstrap；正式 Git 提交默认使用其脚本 |
 | `agent-orchestration` | 把已定义工作单元映射到当前 harness 的 Agent 执行原语 | 按需 | 任务已经拆好，且当前 harness 提供可用多 Agent / 并行原语 |
 
 单个通用 Skill 的机器级安装：
@@ -122,7 +122,7 @@ Akira 自主维护的 Matt Engineering 提供需求澄清、Spec/Ticket、实现
 | 动态网页 / 登录态 / 浏览器 | `browser-access` | 机器级缺失时装单个 Skill |
 | Word / DOCX | `general-word-document-generation` | 机器级缺失时装单个 Skill |
 | 科研/学术 PPT | `scientific-presentation-authoring` | 机器级缺失时装单个 Skill |
-| Guard 语义/排障 | `akira-guard` | 机器级缺失时装单个 Skill |
+| Git 提交、Guard 检查与 Guard 语义/排障 | `akira-guard` | 基础 bootstrap；缺失时修复安装 |
 | 已拆分工作的 Agent 执行适配 | `agent-orchestration` | 机器级缺失时装单个 Skill |
 | 持续科研项目 | Akira Research | 机器级缺失时安装完整 Research suite |
 | 持续软件工程项目 | Matt Engineering | 机器级缺失时安装稳定 Matt suite + Akira 工程扩展 |
