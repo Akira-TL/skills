@@ -52,6 +52,8 @@ Akira Research 的 `ngs` 仍拥有高通量测序任务的科研语义、数据/
 
 `humanizer-zh` 是 `scientific-presentation-authoring` 的显式按需依赖，仅用于中文页面文案完成后的语言终检与自然化润色。它不拥有科研事实、统计结果、术语、证据强度或演示文稿结构；调用后必须保持这些内容不变。
 
+作为科研 PPT 依赖调用时使用**窄调用契约**：只允许识别并清理机械排比、宣传式大词、空泛意义句、翻译腔、过度连接词和其他 AI 写作模式；不得采用其通用写作建议去新增第一人称、个人观点、幽默、情绪、轶事、新例子、新事实或更强的科学结论。若上游 `humanizer-zh` 的一般风格建议与科研材料的事实/证据边界冲突，以 `scientific-presentation-authoring` 与上游科研 canonical content 为准。
+
 当科研 PPT 任务进入中文文案终检阶段时，先检查当前会话是否已经可用 `humanizer-zh`；不可用时再检查机器级 `~/.agents/skills/humanizer-zh`。只有机器级也缺失时，才向用户说明该依赖的来源、用途与安装范围并取得明确同意，然后通过 Akira 安装器按需安装：
 
 ```bash

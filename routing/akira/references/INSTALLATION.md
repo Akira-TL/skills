@@ -179,7 +179,7 @@ Akira Skill installer 不实现执行器适配层。它不决定：
 
 ## 10. 不做的事情
 
-Akira Skill installer 不实现 dependency solver、包仓库、自动 Agent profile 检测或 copy fallback。
+Akira Skill installer 不实现 dependency solver、包仓库、自动 Agent profile 检测或 copy fallback。某个 Skill 声明显式依赖时，由 owning Skill / Router 在真正到达该能力边界时检查当前会话与机器级注册表，缺失才按 Catalog / External Sources 请求用户授权并安装；安装器本身不递归解析或静默补装依赖。
 
 它不：
 
