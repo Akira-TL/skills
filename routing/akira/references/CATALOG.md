@@ -45,10 +45,44 @@ uv run python ~/.agents/skills/akira/scripts/skills.py install \
 
 - GitHub source：`https://github.com/Akira-TL/akira-research-skills.git`
 - Status：available
-- Primary Router：`akira-research`
-- 安装粒度：持续科研项目需要完整 Research suite 时，将整套能力安装到机器级注册表；机器级已有时不重复安装。
+- 产品结构：同一个 Research 产品包包含平级的 **Research series** 与 **Review series**。
+- Primary Routers：`akira-research`（Research series）与 `akira-review`（Review series）。
+- 安装粒度：按真实任务安装所需 series；两个 series 共享 `literature-access` 与 `research-standards`。当前安装器不推断依赖，因此 bundle 通过显式 `--skill` 列表表达；只有用户确实同时需要完整产品时才安装全套。
 
-安装完整 Research suite：
+安装 Research series：
+
+```bash
+uv run python ~/.agents/skills/akira/scripts/skills.py install \
+  https://github.com/Akira-TL/akira-research-skills.git \
+  --skill akira-research \
+  --skill research-tree \
+  --skill literature \
+  --skill literature-access \
+  --skill research-standards \
+  --skill hypothesis \
+  --skill design \
+  --skill study \
+  --skill data \
+  --skill analysis \
+  --skill interpretation \
+  --skill communication \
+  --skill ngs
+```
+
+安装 Review series：
+
+```bash
+uv run python ~/.agents/skills/akira/scripts/skills.py install \
+  https://github.com/Akira-TL/akira-research-skills.git \
+  --skill akira-review \
+  --skill review-literature \
+  --skill review-science \
+  --skill review-revision \
+  --skill literature-access \
+  --skill research-standards
+```
+
+若当前任务明确同时需要两个系列，可安装完整产品：
 
 ```bash
 uv run python ~/.agents/skills/akira/scripts/skills.py install \
@@ -57,15 +91,13 @@ uv run python ~/.agents/skills/akira/scripts/skills.py install \
   --root skills/research
 ```
 
-Research suite 当前能力：
+Research series 当前能力：
 
 | Skill | 能力 |
 | --- | --- |
-| `akira-research` | 科研项目总 Router、`research.sqlite` 与整体科研状态 |
+| `akira-research` | Research Primary Router、`research.sqlite` 与整体科研状态 |
 | `research-tree` | Research Question、Active Uncertainty、研究分支和科学关系 |
 | `literature` | 文献发现、阅读、批判性评估与跨论文证据综合 |
-| `literature-access` | DOI/PMID/PMCID/论文页面到可核验全文的获取流程 |
-| `research-standards` | 领域规范、报告指南与适用科研标准核验 |
 | `hypothesis` | competing explanations、预测和判别性 Hypothesis Set |
 | `design` | estimand、sampling、comparison、measurement、controls 与研究设计 |
 | `study` | 实际实验/观察/采样/Assay 执行和 deviation provenance |
@@ -75,7 +107,23 @@ Research suite 当前能力：
 | `communication` | 研究论文、综述、报告、补充材料与 reviewer response |
 | `ngs` | NGS assay-specific QC、reference/database、pipeline 与执行 provenance |
 
-安装后由 `akira-research` 接管后续路由，`akira` 不直接执行科研工作。
+Review series 当前能力：
+
+| Skill | 能力 |
+| --- | --- |
+| `akira-review` | Review Primary Router；固定 Review Packet、Assessment Boundary、评议模式与输出边界 |
+| `review-literature` | bounded field frame、closest prior work、contribution 与 novelty verification |
+| `review-science` | Claim-driven scientific assessment、Evidence → Claim 边界与 Concern contract |
+| `review-revision` | evidence-before-persuasion 修回再审与 concern resolution 判断 |
+
+两个系列共享：
+
+| Skill | 能力 |
+| --- | --- |
+| `literature-access` | DOI/PMID/PMCID/论文页面到可核验全文与 Supplement 的获取流程 |
+| `research-standards` | 领域规范、报告指南、Venue 规则与当前权威标准核验 |
+
+安装后由当前意图对应的 Primary Router 接管：研究者 / 作者侧工作进入 `akira-research`；导师式学术评议、独立同行评议、创新性核验与修回再审进入 `akira-review`。两者平级，Review 不作为 Research Current Loop 的自动阶段，`akira` 也不直接执行具体科研或评议工作。
 
 ## Matt Engineering
 
@@ -126,7 +174,8 @@ Akira 自主维护的 Matt Engineering 提供需求澄清、Spec/Ticket、实现
 | 科研/学术 PPT | `scientific-presentation-authoring` | 主 Skill 机器级缺失时安装；中文文案终检需要 `humanizer-zh` 时再按 External Sources 按需安装 |
 | Git 提交、Guard 检查与 Guard 语义/排障 | `akira-guard` | 基础 bootstrap；缺失时修复安装 |
 | 已拆分工作的 Agent 执行适配 | `agent-orchestration` | 机器级缺失时装单个 Skill |
-| 持续科研项目 | Akira Research | 机器级缺失时安装完整 Research suite |
+| 持续科研项目、研究执行与科学传播 | Akira Research / `akira-research` | 机器级缺失时安装 Research series |
+| 导师式学术评议、同行评议、创新性核验、修回再审 | Akira Research / `akira-review` | 机器级缺失时安装 Review series |
 | 持续软件工程项目 | Matt Engineering | 机器级缺失时安装稳定 Matt suite + Parallel 扩展 |
 | Knowledge 产品 | 暂不可用 | 不安装 |
 | first-party 没有的专业能力 | External Sources | 读取 `EXTERNAL-SOURCES.md`，再按最小候选请求用户授权 |

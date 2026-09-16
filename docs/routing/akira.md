@@ -5,7 +5,7 @@
 ## 主要路由
 
 - 软件工程：安装/使用 Akira 自主维护的 `Akira-TL/matt-skills`；Primary Router 为 `ask-akira`，普通 `standard` 工程流再按需加载 `ask-matt`，Parallel 系列继续负责正式多 Agent coordination。
-- 科学研究：安装/使用已发布的独立 `Akira-TL/akira-research-skills`，按项目级范围安装完整 Research suite。
+- 科学研究与学术评议：安装/使用已发布的独立 `Akira-TL/akira-research-skills`。该产品包包含平级的 Research series 与 Review series：研究者 / 作者侧进入 `akira-research`，导师式学术评议、独立同行评议、创新性核验与修回再审进入 `akira-review`；按真实任务安装所需 series，共享窄能力不重复实现。
 - 浏览器、Word、科研/学术 PPT、Guard、通用 Agent 执行适配：直接使用本仓库中的对应通用 Skill，不需要单独产品仓。
 - Knowledge：`Akira-TL/akira-knowledge-skills` 产品仓已建立，计划 Primary Router 为 `akira-knowledge`；当前尚无可安装 Skill，因此仍保持不可安装状态。
 - 外部能力：当 first-party 能力不足时，Router 只从已登记外部来源动态读取当前 Skill 清单，向用户呈现与任务相关的最小候选；不把外部整仓加入 Lattice，也不因来源可信而跳过安装确认。
