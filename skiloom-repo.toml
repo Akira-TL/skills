@@ -1,0 +1,10 @@
+schema = 1
+
+[discovery]
+include = [
+  "routing/*",
+  "engineering/*",
+  "productivity/*",
+  "in-progress/*",
+]
+exclude = []
