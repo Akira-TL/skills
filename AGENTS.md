@@ -15,7 +15,7 @@
 
 `routing/akira/` 只拥有能力选择与跨产品路由，不再拥有独立 Skill 生命周期实现。Package discovery、dependency resolution、source resolution、Registry / Store / Target、安装、更新、移除、同步、修复与恢复全部交给 Skiloom public CLI；本仓不得重新建立 Git checkout + symlink + private manifest 的第二写入路径。
 
-`akira` Package 显式依赖 `akira-tl/skiloom/skiloom`。Lattice 根安装器只负责确认 Skiloom CLI 可用，并通过 Skiloom bootstrap `akira`、`browser-access` 与 `akira-guard` 三个基础 direct requirements。
+`akira` 的生命周期动作要求 Skiloom CLI；当前 Skiloom first-party 仓尚无可供默认 Release resolver 使用的正式 Release，因此这一前置条件记录在 `routing/akira/DEPENDENCIES.md`，不伪装成会在 fresh Target 失败的跨仓 `*` Package dependency。Lattice 根安装器先以显式 Git source 建立 `akira-tl/skiloom/skiloom` direct requirement，再 bootstrap `akira`、`browser-access` 与 `akira-guard`。
 
 Router 的 first-party 能力映射只在 `routing/akira/references/CATALOG.md` 维护。Catalog 选择入口 Package coordinate，不复制 `skiloom-package.toml` 中的依赖闭包；不兼容、planned 或无法通过 Skiloom admission 的候选不得生成绕过标准的安装路径。
 

@@ -15,7 +15,7 @@
 
 `routing/akira/references/CATALOG.md` 只维护需求 → 入口 Package coordinate / Owner / source mode 的映射；Package 依赖只维护在 `skiloom-package.toml`。
 
-`akira` 自身显式依赖 `akira-tl/skiloom/skiloom`。执行安装、更新、移除、同步、修复与恢复时加载 Skiloom Router / specialist，并只使用公开 `skiloom` CLI。
+`akira` 的生命周期动作要求 Skiloom CLI，并在可用时加载 Skiloom Router / specialist。当前 Skiloom Router 由 Lattice 以显式 Git source 先行 bootstrap；这一前置条件记录在 `routing/akira/DEPENDENCIES.md`，不使用会在 fresh Target 触发 Release resolution 失败的跨仓 `*` dependency。
 
 当前 Target 状态通过：
 

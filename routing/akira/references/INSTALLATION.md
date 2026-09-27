@@ -6,7 +6,7 @@
 
 ## 1. 前置条件
 
-`akira` Package 依赖 `akira-tl/skiloom/skiloom` Skill Suite，但执行生命周期动作还要求宿主已经提供可执行的 Skiloom CLI。
+`akira` 的生命周期动作要求宿主已经提供 Skiloom CLI `>= 0.8.15`。当前 Skiloom first-party 仓尚无可供默认 Release resolver 使用的正式 Release，因此 Skiloom Router 作为 bootstrap direct requirement 由 Lattice 用显式 Git source 建立，而不是写成 `akira` 的跨仓 `*` Package dependency。详见 `../DEPENDENCIES.md`。
 
 先确认：
 
@@ -109,12 +109,13 @@ skiloom install akira-tl/akira-research-skills/akira-research --git main --scope
 Lattice 根安装器只做两件与 Skill 有关的事情：
 
 1. 验证 Skiloom CLI 满足最低运行要求；
-2. 通过 Skiloom public CLI 把基础 direct requirements 安装到用户级 Target。
+2. 先通过显式 Git source 安装 `akira-tl/skiloom/skiloom`，建立 Skiloom Router / specialist accepted state；
+3. 再把 Akira 基础 direct requirements 安装到用户级 Target。
 
-当前基础 direct requirements：
+当前 Akira 基础 direct requirements：
 
 - `akira-tl/skills/akira`
 - `akira-tl/skills/browser-access`
 - `akira-tl/skills/akira-guard`
 
-`akira` 自身的 Package dependency 会带入 Skiloom Skill Suite；后续生命周期全部由 accepted Skiloom state 继续管理。
+后续生命周期全部由 accepted Skiloom state 继续管理。

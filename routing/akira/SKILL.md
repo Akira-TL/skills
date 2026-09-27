@@ -1,13 +1,14 @@
 ---
 name: akira
 description: 判断当前项目缺少哪类 Akira / Matt / Research / Knowledge 能力并选择最小入口 Package；当开始新项目、当前任务需要尚未可用的 Skill、用户询问应安装什么能力，或需要安装、更新、移除与诊断 Skill 时使用。
+compatibility: Skill 生命周期动作要求 Skiloom CLI >= 0.8.15，并要求目标已建立 Skiloom accepted state；Akira 不提供私有 installer fallback。
 ---
 
 # Akira Skill Router
 
 `akira` 只负责能力选择与跨产品路由。Skill Package 的解析、依赖闭包、source resolution、安装、更新、移除、Target ownership、同步、修复与恢复统一交给 Skiloom；不得再维护第二套安装器、Registry、Store、manifest 或 Target 写入逻辑。
 
-本 Package 通过 `skiloom-package.toml` 依赖 `akira-tl/skiloom/skiloom`。执行 Skill 生命周期动作前必须实际加载 Skiloom Router / 对应 specialist，并使用公开 `skiloom` CLI。若 CLI 不可用，停止生命周期动作并报告 Skiloom 前置条件缺失；不得退回已废弃的 Akira 安装脚本。
+执行 Skill 生命周期动作前必须具备 Skiloom CLI，并优先实际加载 Skiloom Router / 对应 specialist。由于当前 Skiloom first-party 仓尚无可供默认 Release resolver 使用的正式 Release，`akira` 不把 Skiloom Router 写成跨仓 `*` Package dependency；Lattice bootstrap 通过显式 Git source 先建立 `akira-tl/skiloom/skiloom` direct requirement。若 CLI 或 Skiloom Target 前置条件缺失，停止生命周期动作并报告 blocker；不得退回已废弃的 Akira 安装脚本。
 
 ## 1. 先判断缺少什么能力
 
