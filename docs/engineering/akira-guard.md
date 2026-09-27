@@ -29,6 +29,8 @@ uv run ~/.agents/skills/akira-guard/scripts/guard.py <command>
 
 Guard 不替代 Agent 对 diff ownership、语义正确性和原子提交边界的判断，也不接管项目 Git Hook。Akira Lattice 不要求通过全局 Git Hook 才能使用 Guard。
 
+Skiloom 在 Linux 上可以把未转换 Package 以 symlink 投影到 Package Store，因此 Guard 的 Python 入口在导入 sibling 模块前显式关闭 bytecode 写入，避免 `__pycache__` / `.pyc` 反向污染 immutable Store payload。Guard 自身不得把运行时缓存写回 Skill Package。
+
 ## 安装
 
 `akira-guard` 是 Lattice 基础 bootstrap Package，入口为 `akira-tl/skills/akira-guard`。根 `install.sh` 与 `akira`、`browser-access` 一起通过 Skiloom public CLI 安装到用户级 Target；后续修复、更新与重装同样只走 Skiloom。
