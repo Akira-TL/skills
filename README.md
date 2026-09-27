@@ -33,7 +33,7 @@ skiloom-repo.toml                  # Skiloom repository discovery
 
 ## 安装与生命周期
 
-本仓不再维护自有 Skill installer。`akira` 的生命周期动作要求 Skiloom CLI；Lattice 先以显式 Git source bootstrap `akira-tl/skiloom/skiloom`，再安装 Akira 基础 Package。所有 Package discovery、dependency resolution、source resolution、Registry / Store / Target、安装、更新、移除、同步、修复与恢复统一使用 Skiloom public CLI。
+本仓不再维护自有 Skill installer。`akira` 的生命周期动作要求 Skiloom CLI；Lattice 先执行公开 `skiloom bootstrap` 建立 Skiloom Router / specialist accepted state，再安装 Akira 基础 Package。所有 Package discovery、dependency resolution、source resolution、Registry / Store / Target、安装、更新、移除、同步、修复与恢复统一使用 Skiloom public CLI。
 
 当前 first-party 仓使用 Git `main` source mode。示例：
 
@@ -44,7 +44,7 @@ skiloom install akira-tl/skills/browser-access --git main --scope user --yes --j
 
 第一条只生成 Candidate plan；第二条要求用户已经明确授权状态变化。
 
-Lattice 根 `install.sh` 要求 Skiloom CLI 已可用，先以 Git `main` 安装 `akira-tl/skiloom/skiloom`，再 bootstrap Akira 基础 direct requirements：`akira`、`browser-access`、`akira-guard`。
+Lattice 根 `install.sh` 要求 Skiloom CLI 已可用，先执行 `skiloom bootstrap --scope user`，再安装 Akira 基础 direct requirements：`akira`、`browser-access`、`akira-guard`。
 
 旧 `~/.agents/akira-skills.json`、`~/.agents/sources/` 与 Git + symlink installer 不再具有 lifecycle authority，也没有 fallback 路径。
 

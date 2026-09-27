@@ -106,11 +106,13 @@ skiloom install akira-tl/akira-research-skills/akira-research --git main --scope
 
 ## 9. Lattice bootstrap
 
-Lattice 根安装器只做两件与 Skill 有关的事情：
+Lattice 根安装器按以下顺序建立用户级 Target：
 
 1. 验证 Skiloom CLI 满足最低运行要求；
-2. 先通过显式 Git source 安装 `akira-tl/skiloom/skiloom`，建立 Skiloom Router / specialist accepted state；
-3. 再把 Akira 基础 direct requirements 安装到用户级 Target。
+2. 执行 `skiloom bootstrap --scope user --yes --non-interactive --json`，把 first-party Skiloom Router 建立为 Target 的显式 direct requirement；
+3. 再把 Akira 基础 direct requirements 安装到同一用户级 Target。
+
+必须先 bootstrap Skiloom Router：跨仓 Package dependency 默认按 Release requirement 解析，而当前 `Akira-TL/skiloom` 尚未发布 GitHub Release；显式 bootstrap 会建立其 Git `main` source binding，使 `akira` 对 `akira-tl/skiloom/skiloom` 的依赖在 fresh Target 中可解析。不得依赖某台机器恰好已有的 Skiloom Target 状态。
 
 当前 Akira 基础 direct requirements：
 
@@ -118,4 +120,4 @@ Lattice 根安装器只做两件与 Skill 有关的事情：
 - `akira-tl/skills/browser-access`
 - `akira-tl/skills/akira-guard`
 
-后续生命周期全部由 accepted Skiloom state 继续管理。
+`akira` 的 Package dependency 会复用 bootstrap 已建立的 Skiloom Git source binding，并把 Skiloom Skill Suite 保持在 Candidate Graph 中；后续生命周期全部由 accepted Skiloom state 继续管理。

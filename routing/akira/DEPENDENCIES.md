@@ -8,10 +8,10 @@
 
 当前 Skiloom first-party 仓没有可供默认 Release resolver 使用的正式 Release，因此这里不把 `akira-tl/skiloom/skiloom = "*"` 写入 `skiloom-package.toml`。否则 fresh Target 会尝试 Release resolution 并得到 `UnsatisfiableReleaseRequirements`。
 
-Lattice bootstrap 使用显式 Git source 先建立该 direct requirement：
+Lattice bootstrap 使用 Skiloom 自己的 first-party bootstrap 入口先建立该 direct requirement：
 
 ```text
-skiloom install akira-tl/skiloom/skiloom --git main --scope user --yes --json
+skiloom bootstrap --scope user --yes --non-interactive --json
 ```
 
-随后再安装 Akira 基础 Package。未来 Skiloom 提供正式 Release 后，可重新评估是否把这一 host/lifecycle prerequisite 收敛为普通 Package dependency。
+该命令由 Skiloom 自身选择 first-party Git source，并建立 Router / specialist accepted state；随后再安装 Akira 基础 Package。未来 Skiloom 提供正式 Release 后，可重新评估是否把这一 host/lifecycle prerequisite 收敛为普通 Package dependency。
