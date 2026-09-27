@@ -35,10 +35,4 @@ Task 如何拆、谁能领取、哪些 blocker 已解除、当前 frontier 是�
 
 ## 安装
 
-机器级安装只从远端 GitHub source 拉取，并注册到 `~/.agents/skills/`：
-
-```bash
-uv run python ~/.agents/skills/akira/scripts/skills.py install \
-  https://github.com/Akira-TL/skills.git \
-  --skill agent-orchestration
-```
+入口 Package：`akira-tl/skills/agent-orchestration`。只有真实需要该执行适配能力时才由 `akira` Router 交给 Skiloom 按需安装；当前 first-party source mode 使用 Git `main`。

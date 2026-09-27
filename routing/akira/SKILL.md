@@ -1,52 +1,81 @@
 ---
 name: akira
-description: 判断当前项目需要哪些 Akira / Matt Skill 能力并保持最小安装；当开始新项目、项目缺少一类能力、用户询问应安装什么 Skill，或任务跨到尚未安装的科研、工程、浏览器、文档、PPT 等能力时使用。
+description: 判断当前项目缺少哪类 Akira / Matt / Research / Knowledge 能力并选择最小入口 Package；当开始新项目、当前任务需要尚未可用的 Skill、用户询问应安装什么能力，或需要安装、更新、移除与诊断 Skill 时使用。
 ---
 
 # Akira Skill Router
 
-`akira` 是通用能力 Router，不替代 Research、Matt 或其他专业 Skill。它负责根据当前项目持续工作的主要类型和当前真实任务，决定是否需要补装新的 Skill，并把安装范围控制在最小充分集合。
+`akira` 只负责能力选择与跨产品路由。Skill Package 的解析、依赖闭包、source resolution、安装、更新、移除、Target ownership、同步、修复与恢复统一交给 Skiloom；不得再维护第二套安装器、Registry、Store、manifest 或 Target 写入逻辑。
 
-## 1. 先看现有能力
+本 Package 通过 `skiloom-package.toml` 依赖 `akira-tl/skiloom/skiloom`。执行 Skill 生命周期动作前必须实际加载 Skiloom Router / 对应 specialist，并使用公开 `skiloom` CLI。若 CLI 不可用，停止生命周期动作并报告 Skiloom 前置条件缺失；不得退回已废弃的 Akira 安装脚本。
 
-先检查当前会话真实可用能力；当前会话不可用时，再检查机器级注册表 `~/.agents/skills/`。若机器级已经存在同名受管 Skill，不重复安装，并优先通过当前执行器正常的 Skill 加载机制引用该机器级注册项。机器级已安装不等于自动向项目目录投影：`<project>/.agents/skills/` 可以作为开放 Agent Skills 生态中的显式项目级 Skill view；只有项目或当前执行器确实需要该项目级暴露时，Agent 才可显式建立 `<project>/.agents/skills/<name> -> ~/.agents/skills/<name>` 软链接。该链接不是新的安装，也不得仅因“当前会话未暴露 Skill”而自动创建。只有机器级注册表也没有时，才按 Catalog 从远端 GitHub 安装。
+## 1. 先判断缺少什么能力
 
-当当前能力不足、用户询问可用 Skill、或需要生成安装命令时，读取 [`references/CATALOG.md`](references/CATALOG.md)。它是 first-party 能力名称、GitHub source、发布状态与安装粒度的唯一 source of truth；不要在本文件里维护第二份能力清单。真正执行安装、更新、卸载或诊断时，再读取 [`references/INSTALLATION.md`](references/INSTALLATION.md) 并调用本 Skill 自带的 `scripts/skills.py`。若 first-party 能力仍不足，再读取 [`references/EXTERNAL-SOURCES.md`](references/EXTERNAL-SOURCES.md) 判断是否存在经过登记的外部能力源。
+先检查当前会话是否已经真实具备所需 Skill；已经可用时直接交给真实 Owner，不因为 Catalog 中存在更新候选就主动扩大安装范围。
 
-完成标准：能够根据 Catalog 说明当前任务缺的是“通用单一能力”“完整产品域”，还是“需要从登记外部源发现具体 Skill”。
+需要新增能力、确认当前 Target 状态或执行生命周期动作时，读取 [`references/CATALOG.md`](references/CATALOG.md)。Catalog 只负责把“需求”映射到入口 Package coordinate、Primary Router / Owner 与当前 source mode；它不维护依赖闭包。
 
-## 2. 优先补单一通用能力
-
-任务只缺一个跨领域能力时，先从 Catalog 的“Akira 通用 Skills / 快速选择表”选择最小 Skill，不安装完整专业产品仓。其他通用能力只有在真实任务需要时才按 Catalog 的准确名称和来源安装。
-
-## 3. 完整产品域才安装产品仓
-
-只有当前项目的主要持续工作需要一整套内部协作能力时，才按 Catalog 推荐完整产品仓。产品的准确 GitHub source、Primary Router、当前状态和安装命令全部以 Catalog 为准，不在本文件重复维护。
-
-完整产品仍然按真实需求才安装；本 Skill 的安装脚本把远端 GitHub source 更新到共享 checkout，并把选中的 Skill 注册到机器级 `~/.agents/skills/`。执行器或项目自己的 Skill 目录只是显式引用视图，不是安装事实；需要时由 Agent/执行器按项目约定建立对机器级注册项的引用，不从机器级注册表自动投影。跨域需求出现时再增加第二个产品，不因“可能以后用到”预装。
-
-## 4. 外部能力只按当前清单发现
-
-当受管 first-party 能力不足，而 `EXTERNAL-SOURCES.md` 已登记合适来源时，按该来源的当前官方清单发现候选 Skill。不要把外部仓作为 Lattice submodule、不要缓存整仓正文，也不要根据旧会话记忆猜 Skill 名称。
-
-只把与当前任务直接相关的候选、执行副作用和数据边界告诉用户。外部来源即使由可信组织维护，也仍需要用户明确同意后才能安装到机器级注册表。
-
-## 5. 安装必须先获得用户同意
-
-准备安装尚未存在的 Skill / 产品仓时，先向用户说明：
+当前 Target 的安装事实由 Skiloom Registry / Target state 决定。需要确认时使用：
 
 ```text
-来源仓库
-当前任务为什么需要
-计划安装的 Skill 或完整产品族
-安装范围：机器级 Skill 注册表
-当前发布状态
+skiloom status --scope user --json
 ```
 
-用户明确同意后才能执行。准确 GitHub source 与 Skill 集合从 Catalog 读取，安装语义从 `INSTALLATION.md` 读取，并直接调用本 Skill 自带的安装脚本；不凭记忆拼仓库名、Skill 名称或安装参数。安装后要核验机器级 `~/.agents/skills/<name>` 指向共享 Git checkout，全程不复制目录；执行器自己的 Skill 引用不属于本 Router 的安装契约。若目标处于 `remote-pending`、`planned` 或其他不可直接取得状态，保持 blocker，不把未来仓库伪装成已发布来源。
+不要通过扫描目录、读取旧 `~/.agents/akira-skills.json` 或检查旧 `~/.agents/sources/` 来推断安装状态。
+
+完成标准：已经确定当前任务应直接使用现有能力，还是需要一个明确的入口 Package coordinate。
+
+## 2. 只选择入口 Package
+
+单一通用能力选择对应单一 Package。持续专业工作选择该产品的 Primary Router Package：
+
+- 软件工程 → `ask-akira`
+- Research series → `akira-research`
+- Review series → `akira-review`
+- Knowledge → `akira-knowledge`
+
+不要在 Router 中手工枚举这些入口的完整子 Skill 集合。完整 dependency closure 只由各 Package 的 `skiloom-package.toml` 与 Skiloom resolver 决定。
+
+跨域需求出现时再增加第二个入口 Package；不得因为“以后可能需要”把 Akira 变成全家桶依赖。
+
+## 3. 安装前先生成 Skiloom 计划
+
+对尚未接受的能力先走公开 Candidate 操作。当前 first-party Package 尚以 Git `main` 作为 source mode 时，使用：
+
+```text
+skiloom install <coordinate> --git main --scope user --plan --json
+```
+
+读取 `SKILOOM-CLI-V1` 结构化结果，至少核对 direct requirement、exact source revision、Candidate Package / dependency graph、source delta、projection / activation name、warning 与 compatibility risk。
+
+`--json` 只选择结构化输出，不代表批准。
+
+若用户本轮已经明确要求安装该具体能力，可把该请求作为本次 Candidate 操作的明确授权；若安装是 Router 主动建议，则先向用户展示计划中与决策相关的来源、入口 Package、主要新增依赖与 Target 影响，再取得明确同意。
+
+## 4. 只通过 Skiloom 提交状态变化
+
+获得明确授权后：
+
+```text
+skiloom install <coordinate> --git main --scope user --yes --json
+```
+
+更新、移除、同步、修复、恢复、重命名、detach / rebind / forget 等动作统一加载并遵守 `skiloom-manage`，使用对应公开 CLI。
+
+不得直接写 Skiloom Registry、Package Store、`.skiloom-state`、Target 中的受管投影、旧 Akira manifest 或旧 Akira source / symlink 注册结构。
+
+不得为了绕过 Skiloom 的 source authorization、operation lock、ownership preflight、Store verification、Target reconciliation 或 recovery 规则而操作文件系统。
+
+## 5. 外部能力仍先发现与审计
+
+first-party 能力不足时读取 [`references/EXTERNAL-SOURCES.md`](references/EXTERNAL-SOURCES.md)。
+
+候选发现优先使用 `skiloom-discover` / `skiloom search`；用户选定候选后，再把它收敛为明确 Package coordinate 与 source mode，交给 `skiloom-manage` 走同一 Candidate acceptance 流程。
+
+外部来源出现在清单中不等于 Skiloom 已接受其 Package。若当前 upstream 不能通过 Skiloom Package admission，保持 blocker；不得调用旧安装器绕过标准。
 
 ## 6. 安装后交给真实 Owner
 
-安装成功后只核验所需 Skill 确实出现，然后按 Catalog 记录的 Primary Router / Owner 交接。`akira` 不接管专业产品内部工作，也不复制其路由规则。
+状态变化成功后，只确认所需入口 Package 已成为 Target 的 accepted projection，然后立即交给 Catalog 中记录的 Primary Router / Owner。
 
-后续出现新的能力缺口时重新走本 Router；已经安装某个产品不授权自动扩张其他产品。
+`akira` 不复制 Research、Review、Matt 或 Knowledge 的内部方法，也不根据 Catalog 推测其依赖关系。新的能力缺口重新从第 1 步判断。

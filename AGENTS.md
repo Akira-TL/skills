@@ -13,11 +13,11 @@
 
 ## 安装边界
 
-Skill 发现与机器级安装由 `routing/akira/` 自己拥有：Router 决定是否需要新增能力，`routing/akira/scripts/` 机械执行远端 Git checkout、机器级注册、更新、删除与诊断。Lattice 根仓不实现通用 Skill 生命周期，只允许 `install.sh` 从云端临时 checkout 调用本 Skill 的安装器，bootstrap `akira`、`browser-access` 与 `akira-guard` 三个基础 Skill。
+`routing/akira/` 只拥有能力选择与跨产品路由，不再拥有独立 Skill 生命周期实现。Package discovery、dependency resolution、source resolution、Registry / Store / Target、安装、更新、移除、同步、修复与恢复全部交给 Skiloom public CLI；本仓不得重新建立 Git checkout + symlink + private manifest 的第二写入路径。
 
-本仓存在不等于默认安装本仓全部 Skill。真实需要的 Skill 才进入 `~/.agents/sources/` 并注册到 `~/.agents/skills/`；具体执行器若需要持久暴露某个 Skill，由执行器自己的机制引用机器级注册项。安装脚本只管理 Akira 机器级 source 与注册表。
+`akira` Package 显式依赖 `akira-tl/skiloom/skiloom`。Lattice 根安装器只负责确认 Skiloom CLI 可用，并通过 Skiloom bootstrap `akira`、`browser-access` 与 `akira-guard` 三个基础 direct requirements。
 
-Router 的受管产品状态只在 `routing/akira/references/CATALOG.md` 维护。未发布、planned 或 unavailable 的仓库不得生成伪造的可执行安装命令。
+Router 的 first-party 能力映射只在 `routing/akira/references/CATALOG.md` 维护。Catalog 选择入口 Package coordinate，不复制 `skiloom-package.toml` 中的依赖闭包；不兼容、planned 或无法通过 Skiloom admission 的候选不得生成绕过标准的安装路径。
 
 ## Skill 编写
 

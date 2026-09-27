@@ -31,10 +31,4 @@ Guard 不替代 Agent 对 diff ownership、语义正确性和原子提交边界�
 
 ## 安装
 
-`akira-guard` 是 Lattice 基础 bootstrap Skill，由根 `install.sh` 与 `akira`、`browser-access` 一起从远端 GitHub source 安装并注册到 `~/.agents/skills/`。需要显式修复或重装时仍可通过 `akira` 安装器安装单个 Skill：
-
-```bash
-uv run python ~/.agents/skills/akira/scripts/skills.py install \
-  https://github.com/Akira-TL/skills.git \
-  --skill akira-guard
-```
+`akira-guard` 是 Lattice 基础 bootstrap Package，入口为 `akira-tl/skills/akira-guard`。根 `install.sh` 与 `akira`、`browser-access` 一起通过 Skiloom public CLI 安装到用户级 Target；后续修复、更新与重装同样只走 Skiloom。

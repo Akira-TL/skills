@@ -105,10 +105,4 @@ productivity/browser-access/REFERENCE.md
 
 `visible-browser-form-automation` 已更名为 `browser-access`。原有动态表单、文件上传、可见浏览器和不可逆提交边界仍然保留，新名称同时覆盖登录后页面读取、网络资源解析以及 harness/browser capability discovery。
 
-机器级安装统一从远端 GitHub source 拉取，并注册到 `~/.agents/skills/`：
-
-```bash
-uv run python ~/.agents/skills/akira/scripts/skills.py install \
-  https://github.com/Akira-TL/skills.git \
-  --skill browser-access
-```
+入口 Package：`akira-tl/skills/browser-access`。安装、更新与修复统一由 `akira` Router 交给 Skiloom；当前 first-party source mode 使用 Git `main`，不再调用 Akira 私有安装脚本。

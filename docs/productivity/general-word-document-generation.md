@@ -32,10 +32,4 @@ productivity/general-word-document-generation/SKILL.md
 
 ## 安装
 
-机器级安装只从远端 GitHub source 拉取，并注册到 `~/.agents/skills/`：
-
-```bash
-uv run python ~/.agents/skills/akira/scripts/skills.py install \
-  https://github.com/Akira-TL/skills.git \
-  --skill general-word-document-generation
-```
+入口 Package：`akira-tl/skills/general-word-document-generation`。生命周期统一由 `akira` Router 交给 Skiloom；当前 first-party source mode 使用 Git `main`，不再调用 Akira 私有安装脚本。

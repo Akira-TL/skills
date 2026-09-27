@@ -1,6 +1,6 @@
 ---
 name: scientific-presentation-authoring
-description: 用于创建、改写或审阅科研与学术类 PPT 的结构、页面文案和版式逻辑；适用于研究汇报、论文汇报、答辩、组会、研究计划，以及根据参考 PPT 提炼写法或视觉规则而非直接套用模板的任务。负责章节组织、结果页事实表述、图文对应、可行性与进度安排；中文文案终检显式依赖 humanizer-zh，缺失时通过 akira Router 按需安装。
+description: 用于创建、改写或审阅科研与学术类 PPT 的结构、页面文案和版式逻辑；适用于研究汇报、论文汇报、答辩、组会、研究计划，以及根据参考 PPT 提炼写法或视觉规则而非直接套用模板的任务。负责章节组织、结果页事实表述、图文对应、可行性与进度安排；中文文案终检条件依赖 humanizer-zh，缺失时通过 akira Router 与 Skiloom 处理能力缺口。
 ---
 
 # 科研 PPT 内容与编排 Skill
@@ -134,9 +134,9 @@ description: 用于创建、改写或审阅科研与学术类 PPT 的结构、�
 进入本步骤时按以下顺序处理：
 
 1. 当前会话已经真实可用 `humanizer-zh` → 直接调用；
-2. 当前会话不可用但机器级 `~/.agents/skills/humanizer-zh` 已登记 → 由当前执行器加载该机器级 Skill；
-3. 机器级也缺失 → 交给 `akira` Router，按 `EXTERNAL-SOURCES.md` 登记的 `op7418/Humanizer-zh` 来源说明用途并取得用户明确同意后按需安装；
-4. 用户不允许安装 → 明确记录“Humanizer 终检未执行”，不得把本 Skill 自己的规则冒充为已经执行过 `humanizer-zh`。
+2. 当前会话不可用 → 交给 `akira` Router，由它根据 `EXTERNAL-SOURCES.md` 使用 Skiloom 检查当前 Target 与候选 Package compatibility；
+3. Target 缺失且候选可被 Skiloom 接受 → 在用户明确授权后由 Skiloom 安装；
+4. upstream 当前不能通过 Skiloom admission，或用户不允许状态变化 → 明确记录“Humanizer 终检未执行”，不得使用旧 Akira installer 绕过标准，也不得把本 Skill 自己的规则冒充为已经执行过 `humanizer-zh`。
 
 调用 `humanizer-zh` 时只使用它的模式识别与语言清理能力。不得因为其通用写作建议而新增第一人称、个人观点、幽默、情绪、轶事、新例子、新事实或更强的科学结论；科研材料的 canonical content、学术语体与证据边界始终优先。
 

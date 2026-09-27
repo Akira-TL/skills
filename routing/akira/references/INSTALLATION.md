@@ -1,193 +1,120 @@
-# Akira Skill 安装契约
+# Akira Skill 生命周期契约
 
-本文件只定义 **Akira 如何把 Skill 安装到机器级注册表**。安装“什么能力、来自哪个 first-party 产品仓”由 [`CATALOG.md`](CATALOG.md) 决定；外部来源由 [`EXTERNAL-SOURCES.md`](EXTERNAL-SOURCES.md) 决定。
+本文件定义 `akira` Router 如何把能力选择交给 Skiloom。Akira 不再拥有独立 Skill installer；所有生命周期状态变化只通过公开 `skiloom` CLI 完成。
 
-安装能力由 `akira` Skill 自己拥有，不依赖第三方 Skill package manager。Akira Lattice 根仓只负责一个 bootstrap 例外：`install.sh` 从云端临时 checkout 本仓并调用这份安装器，确保 `akira`、`browser-access` 与 `akira-guard` 三个基础 Skill 已注册。正式通用入口仍是本 Skill 自带脚本：
+安装“什么能力”由 [`CATALOG.md`](CATALOG.md) 决定；外部来源由 [`EXTERNAL-SOURCES.md`](EXTERNAL-SOURCES.md) 约束；Package 直接依赖由各自 `skiloom-package.toml` 声明。
 
-```bash
-uv run python ~/.agents/skills/akira/scripts/skills.py --help
-```
+## 1. 前置条件
 
-实现只依赖 Python 标准库与 Git。Router 已经可用后，Agent 在确认能力缺口并获得用户授权时主动调用该脚本；`akira` 本体的首次 bootstrap 由 Lattice 根安装器通过云端临时 checkout 调用同一实现完成，不从 Lattice 本地 submodule 安装。
+`akira` Package 依赖 `akira-tl/skiloom/skiloom` Skill Suite，但执行生命周期动作还要求宿主已经提供可执行的 Skiloom CLI。
 
-## 1. 运行时只有 source 与机器级注册表
-
-真正的 Skill 文件只存在于共享 Git checkout：
+先确认：
 
 ```text
-~/.agents/sources/<owner>/<repo>/
+skiloom --version
 ```
 
-机器上已经安装的 Skill 统一注册到：
+CLI 不可用时停止安装、更新、移除、同步、修复与恢复操作，并明确报告前置条件缺失。不得退回历史 `scripts/skills.py`、Git clone + symlink 或任何私有 manifest 实现。
+
+## 2. Target 与状态事实
+
+Lattice 的默认 Skill Target 使用 Skiloom 的用户级 scope：
 
 ```text
-~/.agents/skills/<skill>
+--scope user
 ```
 
-注册项始终是软链接：
+在当前 Skiloom Host mapping 中，该默认 Target 解析到用户级 Agent Skills Target；具体路径由 Skiloom CLI 解析，不由 Akira 写死或管理。
+
+检查状态：
 
 ```text
-~/.agents/sources/<owner>/<repo>/<skill-dir>
-        ↓ symlink
-~/.agents/skills/<skill>
+skiloom status --scope user --json
 ```
 
-Skill 内容不复制，Git checkout 是唯一实体。
+需要更完整诊断时加载 `skiloom-doctor` 并使用公开 doctor 命令。
 
-机器级安装状态记录在：
+旧 `~/.agents/akira-skills.json`、`~/.agents/sources/` 与历史 Akira-created symlink 不再具有 lifecycle authority。它们不得作为“已安装”“当前 revision”或“允许更新”的事实来源。
+
+## 3. Candidate 计划
+
+从 Catalog 得到入口 Package coordinate 后，先生成计划。当前 first-party 仓尚以 Git `main` 作为正式 source mode：
 
 ```text
-~/.agents/akira-skills.json
+skiloom install <coordinate> --git main --scope user --plan --json
 ```
 
-manifest 保存 repository、ref、实际 commit 与 source-relative path，用于更新、诊断和同名冲突检查。
+读取 `SKILOOM-CLI-V1`，根据任务至少检查 direct requirements、exact sources、packages、dependency edges、source deltas、projections、renames、detached-content risks 与 warnings。
 
-## 2. Agent 先发现，再安装
+Skiloom resolver 负责递归 dependency closure。Akira 不再展开 `--skill` 列表、不扫描 repository root，也不决定依赖安装顺序。
 
-需要某个 Skill 时按以下顺序处理：
+## 4. Candidate 接受
 
-1. 先检查当前会话是否已经真实可用；可用则直接使用。
-2. 当前会话不可用时，检查 `~/.agents/skills/<name>`；如果它是 Akira manifest 登记的有效机器级 Skill，不重复安装。
-3. 机器级注册表也不存在时，才按 Catalog 登记或用户明确批准的 GitHub source 安装。
-
-机器级 Skill 安装完成后，执行器优先通过自身正常的 Skill 加载机制引用 `~/.agents/skills/<name>`。机器级注册项不会自动投影到执行器或项目目录。若项目或执行器明确采用自己的 Skill view，可以显式建立 `<executor-or-project-skill-dir>/<name> -> ~/.agents/skills/<name>` 软链接；其中 `<project>/.agents/skills/` 是开放 Agent Skills 生态允许的项目级 view。此类链接是显式适配，不是重新安装，也不得仅因当前会话未暴露某个已安装 Skill 而自动创建。Akira 安装器不规定这些 view 的路径，也不创建、更新或删除它们。
-
-同名 Skill 如果已经由其他 repository 注册，安装器 fail closed；不得静默改写机器级名称指向。
-
-## 3. 只从远端 Git source 建立或更新 checkout
-
-安装器接受 GitHub HTTPS 或 `git@github.com:` source。需要远端安装或更新时：
-
-1. 首次安装执行 clone；
-2. 核验 `origin` 与请求的 GitHub repository 一致；
-3. 检查 checkout 必须 clean；
-4. `git fetch --prune origin`；
-5. 对 branch ref 重置到对应 `origin/<ref>`；
-6. 记录实际 Git commit。
-
-如果 source checkout 有本地修改，安装器 fail closed，不覆盖修改。
-
-Lattice 内的 `skills/akira`、`skills/research`、`skills/matt` submodule 只用于开发、review 与固定 source revision，**不是运行时安装源**。
-
-## 4. 默认安装到 `~/.agents/skills`
-
-安装单个 Skill：
-
-```bash
-uv run python ~/.agents/skills/akira/scripts/skills.py install \
-  https://github.com/Akira-TL/skills.git \
-  --skill general-word-document-generation
-```
-
-安装一个产品目录中的全部 Skill：
-
-```bash
-uv run python ~/.agents/skills/akira/scripts/skills.py install \
-  https://github.com/Akira-TL/akira-research-skills.git \
-  --all \
-  --root skills/research
-```
-
-`--root` 可重复，只影响 `--all` 的发现范围；显式 `--skill` 可以额外加入 root 之外的 Skill。
-
-安装完成后只新增或更新：
+只有用户已明确授权该状态变化后才提交：
 
 ```text
-~/.agents/sources/<owner>/<repo>/
-~/.agents/skills/<name>
-~/.agents/akira-skills.json
+skiloom install <coordinate> --git main --scope user --yes --json
 ```
 
-不会自动创建项目级 Skill 目录，也不会修改任何具体执行器的 Skill store。
+`--json` 不是授权；`--yes` 也不授权独立风险边界，例如 Release retarget 或 import merge。相关情况必须遵守 `skiloom-manage` 的专门规则。
 
-## 5. Inspect
+## 5. 其他生命周期动作
 
-外部或新 source 在安装前先检查：
+统一加载并遵守 `skiloom-manage`：
 
-```bash
-uv run python ~/.agents/skills/akira/scripts/skills.py inspect <github-url>
+```text
+skiloom update --plan --json
+skiloom update --yes --json
+skiloom remove <coordinate> --plan --json
+skiloom remove <coordinate> --yes --json
+skiloom sync --json
+skiloom repair --json
+skiloom recover --plan --json
 ```
 
-`inspect` 只 clone/fetch source cache 并扫描 `SKILL.md`，不创建 `~/.agents/skills` 注册项。
+rename、detach、rebind、forget、observe、export / import 与其他动作同样只使用其公开 CLI 契约。
 
-## 6. Update
+## 6. 不允许的第二写入路径
 
-更新全部机器级受管 Skill 的 source：
+Akira 不再：
 
-```bash
-uv run python ~/.agents/skills/akira/scripts/skills.py update
+- clone / fetch Skill source 作为自己的生命周期实现；
+- 维护 `~/.agents/akira-skills.json`；
+- 创建或删除机器级 Skill symlink；
+- 维护自己的 source checkout registry；
+- 递归解析依赖；
+- 通过文件系统直接修复 Target；
+- 在 Skiloom 失败时 fallback 到旧安装器。
+
+也不得直接修改 Skiloom Registry、Package Store、`.skiloom-state` 或 managed projection。
+
+## 7. first-party source mode
+
+当前 Akira first-party 仓尚未全部提供可供默认 resolver 使用的正式 Release，因此 Catalog 明确使用 Git `main`。例如：
+
+```text
+skiloom install akira-tl/akira-research-skills/akira-research --git main --scope user --plan --json
 ```
 
-只更新某个 repository：
+未来完成 Release 发布后，可以把 source policy 切换到 version / Release resolution；Package coordinate 与 dependency graph 不因此回退到手写 bundle。
 
-```bash
-uv run python ~/.agents/skills/akira/scripts/skills.py update \
-  --source https://github.com/Akira-TL/akira-research-skills.git
-```
+## 8. 外部 Package
 
-因为机器级注册项是软链接，checkout 更新后注册表立即读取新内容。同一 repository 共用一个 checkout；任何安装或更新动作推进该 checkout 时，安装器会同步刷新该 repository 下所有已注册 Skill 的 manifest commit/ref，避免 provenance 与实际文件 revision 不一致。
+外部能力先通过 `skiloom-discover` / `skiloom search` 发现并审计。已知 GitHub source 时，也必须先形成明确 Package coordinate，并通过 Skiloom plan 验证 Package admission。
 
-## 7. Remove
+如果 upstream 因 frontmatter、package layout 或其他标准问题无法被 Skiloom 接受，保持 blocker。不得使用历史 Akira installer 绕过 admission。
 
-删除单个机器级注册项：
+## 9. Lattice bootstrap
 
-```bash
-uv run python ~/.agents/skills/akira/scripts/skills.py remove analysis
-```
+Lattice 根安装器只做两件与 Skill 有关的事情：
 
-删除某个 source 登记的全部 Skill：
+1. 验证 Skiloom CLI 满足最低运行要求；
+2. 通过 Skiloom public CLI 把基础 direct requirements 安装到用户级 Target。
 
-```bash
-uv run python ~/.agents/skills/akira/scripts/skills.py remove \
-  --source https://github.com/Akira-TL/akira-research-skills.git
-```
+当前基础 direct requirements：
 
-安装器只删除 manifest 中登记且仍指向预期 source 的机器级软链接。普通目录、未知软链接和来源漂移都 fail closed。
+- `akira-tl/skills/akira`
+- `akira-tl/skills/browser-access`
+- `akira-tl/skills/akira-guard`
 
-删除注册项不会删除 `~/.agents/sources/` checkout，也不替具体执行器清理它自己的引用或缓存。
-
-## 8. Doctor 与清单
-
-查看机器级已安装 Skill：
-
-```bash
-uv run python ~/.agents/skills/akira/scripts/skills.py list
-```
-
-机械验证 source 与注册表：
-
-```bash
-uv run python ~/.agents/skills/akira/scripts/skills.py doctor
-```
-
-Doctor 至少验证：
-
-- source Skill 仍存在 `SKILL.md`；
-- `~/.agents/skills/<name>` 是软链接且直接指向 manifest 登记的 Git checkout 路径；
-- 注册表中不存在未登记的受管名称冲突。
-
-## 9. 执行器边界
-
-Akira Skill installer 不实现运行环境适配层。它不决定：
-
-- 当前运行环境从哪个目录加载 Skill；
-- 当前运行环境是否需要额外的 Skill view、manifest、缓存或 profile；
-- 项目是否需要显式建立项目级 Skill 链接。
-
-这些都由当前运行环境与项目约定负责。`~/.agents/sources/` 是唯一受管 source checkout，`~/.agents/skills/` 是唯一机器级注册表；项目级或其他运行时 Skill view 只作为显式引用层，不维护第二份 source checkout，也不会因为机器级注册项存在而自动创建。
-
-## 10. 不做的事情
-
-Akira Skill installer 不实现 dependency solver、包仓库、自动 Agent profile 检测或 copy fallback。某个 Skill 声明显式依赖时，由 owning Skill / Router 在真正到达该能力边界时检查当前会话与机器级注册表，缺失才按 Catalog / External Sources 请求用户授权并安装；安装器本身不递归解析或静默补装依赖。
-
-它不：
-
-- 复制 Skill 目录；
-- 在 symlink 失败时悄悄退化为 copy；
-- 自动覆盖机器级同名 Skill 的其他来源；
-- 自动删除未知目录；
-- 用本地 Lattice submodule 代替远端发布 source；
-- 因 source repository 新增实验 Skill 而自动把它加入机器级注册表；
-- 管理任何具体执行器自己的 Skill 目录。
-
-需要新增能力时，由 Catalog / External Sources 决定具体 source 与 Skill 集合；安装器只机械执行 Git checkout 与机器级注册。
+`akira` 自身的 Package dependency 会带入 Skiloom Skill Suite；后续生命周期全部由 accepted Skiloom state 继续管理。

@@ -1,194 +1,99 @@
 # Akira 能力目录
 
-本文件是 `akira` Router 的 **first-party 能力注册表**，也是“当前有哪些能力、从哪里安装、应安装单个 Skill 还是完整产品族”的唯一 source of truth。
+本文件是 `akira` Router 的 first-party 能力映射表。它只回答三件事：当前需求对应哪个入口 Package、该 Package 的 Primary Router / Owner 是谁、当前应使用什么 source mode。
 
-`akira/SKILL.md` 只负责判断何时查能力；具体 Skill 名称、GitHub source、发布状态、安装粒度与推荐安装命令只在这里维护。Router 不从旧会话记忆、本机残留目录或 GitHub 搜索结果猜测 first-party 能力。
+Package 的完整依赖闭包不在这里维护。所有直接依赖只写入 owning Package 的 `skiloom-package.toml`，递归解析由 Skiloom resolver 完成。
 
 ## 使用规则
 
-出现以下任一情况时读取本文件：
+- 当前会话已经具备所需能力时直接复用，不因为 Catalog 中存在其他能力而扩张 Target。
+- 需要新增能力时只选择最小入口 Package coordinate。
+- 当前 first-party 仓尚未完成统一 Release 发布，因此使用显式 Git `main` source：`--git main`。未来切到正式 Release 后只修改 source policy，不把 dependency closure 搬回 Catalog。
+- 安装、更新、移除、同步、修复与诊断全部交给 Skiloom；具体执行契约见 [`INSTALLATION.md`](INSTALLATION.md)。
+- first-party 不足时再读取 [`EXTERNAL-SOURCES.md`](EXTERNAL-SOURCES.md)。
 
-- 当前任务需要尚未可用的能力；
-- 用户询问“有什么 Skill / 应该安装什么”；
-- 需要决定安装单个通用 Skill，还是完整 Research / Matt 产品族；
-- 需要生成准确安装命令；
-- 需要确认某个产品当前是 `available`、`planned` 还是不可安装。
+## Akira 通用能力
 
-如果当前能力已经满足任务，不为“以后可能用到”安装更多产品。安装机制的详细语义见 [`INSTALLATION.md`](INSTALLATION.md)；外部第三方能力见 [`EXTERNAL-SOURCES.md`](EXTERNAL-SOURCES.md)。
+Repository coordinate：`akira-tl/skills`
 
-## Akira 通用 Skills
-
-GitHub source：`https://github.com/Akira-TL/skills.git`
-
-| Skill | 能力 | 默认状态 | 何时安装 |
+| 需求 | 入口 Package coordinate | Owner | 默认策略 |
 | --- | --- | --- | --- |
-| `akira` | 能力 Router；决定当前项目还缺什么 | 基础能力 | Lattice 根安装器从云端 bootstrap，并调用本 Skill 自带安装器完成注册 |
-| `browser-access` | 动态/认证网页访问、浏览器控制、登录态复用 | 基础能力 | 机器级缺失时安装 |
-| `general-word-document-generation` | 正式 Word / DOCX 文档生成与编辑 | 按需 | 当前任务明确需要 DOCX |
-| `scientific-presentation-authoring` | 科研/学术 PPT 内容组织与交付 | 按需 | 当前任务明确需要科研或学术演示文稿；中文文案终检阶段按需补 `humanizer-zh` |
-| `akira-guard` | 跨项目 Git Guard、暂存语法检查、架构/Skill 结构检查及其使用语义 | 基础能力 | Lattice 根安装器从云端 bootstrap；正式 Git 提交默认使用其脚本 |
-| `agent-orchestration` | 把已定义工作单元映射到当前 harness 的 Agent 执行原语 | 按需 | 任务已经拆好，且当前 harness 提供可用多 Agent / 并行原语 |
+| 能力选择与跨产品路由 | `akira-tl/skills/akira` | `akira` | 基础能力 |
+| 动态/认证网页与浏览器控制 | `akira-tl/skills/browser-access` | `browser-access` | 按需 |
+| Word / DOCX 生成与编辑 | `akira-tl/skills/general-word-document-generation` | `general-word-document-generation` | 按需 |
+| 科研/学术 PPT | `akira-tl/skills/scientific-presentation-authoring` | `scientific-presentation-authoring` | 按需 |
+| Git Guard 与 Guard 语义 | `akira-tl/skills/akira-guard` | `akira-guard` | 基础能力 |
+| 已拆分工作的 Agent 执行适配 | `akira-tl/skills/agent-orchestration` | `agent-orchestration` | 按需 |
 
-单个通用 Skill 的机器级安装：
-
-```bash
-uv run python ~/.agents/skills/akira/scripts/skills.py install \
-  https://github.com/Akira-TL/skills.git \
-  --skill <skill-name>
-```
-
-这些通用 Skill 不拥有 Research 状态机，也不复制 Matt 工程方法论。
-
-`scientific-presentation-authoring` 的中文文案终检显式依赖外部 `humanizer-zh`，但该依赖不属于 first-party Catalog，也不进入默认 bootstrap。需要时按 [`EXTERNAL-SOURCES.md`](EXTERNAL-SOURCES.md) 登记的来源检查当前会话与机器级注册表，机器级缺失时再请求用户授权并安装。
-
-## Akira Research
-
-- GitHub source：`https://github.com/Akira-TL/akira-research-skills.git`
-- Status：available
-- 产品结构：同一个 Research 产品包包含平级的 **Research series** 与 **Review series**。
-- Primary Routers：`akira-research`（Research series）与 `akira-review`（Review series）。
-- 安装粒度：按真实任务安装所需 series；两个 series 共享 `literature-access` 与 `research-standards`。当前安装器不推断依赖，因此 bundle 通过显式 `--skill` 列表表达；只有用户确实同时需要完整产品时才安装全套。
-
-安装 Research series：
-
-```bash
-uv run python ~/.agents/skills/akira/scripts/skills.py install \
-  https://github.com/Akira-TL/akira-research-skills.git \
-  --skill akira-research \
-  --skill research-tree \
-  --skill literature \
-  --skill literature-access \
-  --skill research-standards \
-  --skill hypothesis \
-  --skill design \
-  --skill study \
-  --skill data \
-  --skill analysis \
-  --skill interpretation \
-  --skill communication \
-  --skill ngs
-```
-
-安装 Review series：
-
-```bash
-uv run python ~/.agents/skills/akira/scripts/skills.py install \
-  https://github.com/Akira-TL/akira-research-skills.git \
-  --skill akira-review \
-  --skill review-literature \
-  --skill review-science \
-  --skill review-revision \
-  --skill literature-access \
-  --skill research-standards
-```
-
-若当前任务明确同时需要两个系列，可安装完整产品：
-
-```bash
-uv run python ~/.agents/skills/akira/scripts/skills.py install \
-  https://github.com/Akira-TL/akira-research-skills.git \
-  --all \
-  --root skills/research
-```
-
-Research series 当前能力：
-
-| Skill | 能力 |
-| --- | --- |
-| `akira-research` | Research Primary Router、`research.sqlite` 与整体科研状态 |
-| `research-tree` | Research Question、Active Uncertainty、研究分支和科学关系 |
-| `literature` | 文献发现、阅读、批判性评估与跨论文证据综合 |
-| `hypothesis` | competing explanations、预测和判别性 Hypothesis Set |
-| `design` | estimand、sampling、comparison、measurement、controls 与研究设计 |
-| `study` | 实际实验/观察/采样/Assay 执行和 deviation provenance |
-| `data` | Dataset identity、raw/curated/derived、QC、mapping 与 freeze |
-| `analysis` | 统计、生物信息、机器学习、敏感性分析和可重建计算 |
-| `interpretation` | Observation、Claim、因果/机制边界与科学解释 |
-| `communication` | 研究论文、综述、报告、补充材料与 reviewer response |
-| `ngs` | NGS assay-specific QC、reference/database、pipeline 与执行 provenance |
-
-Review series 当前能力：
-
-| Skill | 能力 |
-| --- | --- |
-| `akira-review` | Review Primary Router；固定 Review Packet、Assessment Boundary、评议模式与输出边界 |
-| `review-literature` | bounded field frame、closest prior work、contribution 与 novelty verification |
-| `review-science` | Claim-driven scientific assessment、Evidence → Claim 边界与 Concern contract |
-| `review-revision` | evidence-before-persuasion 修回再审与 concern resolution 判断 |
-
-两个系列共享：
-
-| Skill | 能力 |
-| --- | --- |
-| `literature-access` | DOI/PMID/PMCID/论文页面到可核验全文与 Supplement 的获取流程 |
-| `research-standards` | 领域规范、报告指南、Venue 规则与当前权威标准核验 |
-
-安装后由当前意图对应的 Primary Router 接管：研究者 / 作者侧工作进入 `akira-research`；导师式学术评议、独立同行评议、创新性核验与修回再审进入 `akira-review`。两者平级，Review 不作为 Research Current Loop 的自动阶段，`akira` 也不直接执行具体科研或评议工作。
+`scientific-presentation-authoring` 的中文文案终检存在条件依赖 `humanizer-zh`。该条件依赖不作为本 Package 的强制 dependency；只有真正进入中文终检分支时才按 External Sources 处理。
 
 ## Matt Engineering
 
-- GitHub source：`https://github.com/Akira-TL/matt-skills.git`
+- Repository coordinate：`akira-tl/matt-skills`
 - Status：available
+- 入口 Package：`akira-tl/matt-skills/ask-akira`
 - Primary Router：`ask-akira`
-- 安装粒度：持续软件工程需要时，将稳定 Matt suite（已包含 `ask-akira`）与两个 Parallel 扩展安装到机器级注册表。
+- Source mode：Git `main`
 
-安装：
+持续软件工程项目只选择 `ask-akira` 作为入口。`ask-matt`、TDD、代码审查、诊断、设计与其他 Matt Skills 的安装闭包由 `skiloom-package.toml` 自动解析，不在这里枚举。
 
-```bash
-uv run python ~/.agents/skills/akira/scripts/skills.py install \
-  https://github.com/Akira-TL/matt-skills.git \
-  --all \
-  --root skills/engineering \
-  --root skills/productivity \
-  --skill parallel-coordinator \
-  --skill parallel-execution
-```
+Parallel 系列中，`parallel-execution` 已通过现有依赖图进入标准工程闭包；需要主 Agent 发布/协调 Parallel Task 与 Gate 时，再按真实任务额外选择：
 
-这里 `--root` 安装 Matt 稳定的 `engineering` / `productivity` 两个产品目录，其中已包含 `ask-akira`；两个显式 `--skill` 再加入仍处于实验阶段的 Parallel 扩展，避免仓库其他实验性 Skill 因 `--all` 被自动带入。
+- `akira-tl/matt-skills/parallel-coordinator`
 
-Akira 自主维护的 Matt Engineering 提供需求澄清、Spec/Ticket、实现、TDD、代码审查、缺陷诊断、重构、工程写作等工程能力，并包含以下 Akira 工程扩展：
+## Akira Research
 
-| Skill | 能力 |
-| --- | --- |
-| `ask-akira` | Engineering Primary Router；默认进入 standard，并拥有特殊 Execution Policy 与协调边界 |
-| `parallel-coordinator` | 发布和协调 Parallel Task / Gate 工作 |
-| `parallel-execution` | Worker 领取、执行、提交和阶段汇报协议 |
+Repository coordinate：`akira-tl/akira-research-skills`
 
-这些能力不是第二套工程体系；安装 Matt 后由 `ask-akira` 接管软件工程入口，`standard` 分支再按需加载 `ask-matt` 解析 Matt standard flow。
+### Research series
+
+- Status：available
+- 入口 Package：`akira-tl/akira-research-skills/akira-research`
+- Primary Router：`akira-research`
+- Source mode：Git `main`
+
+用于持续科研项目、研究执行、分析、解释与科学传播。Research series 的专业 Skill 与共享能力由 `akira-research` 的 Package dependency graph 自动闭合。
+
+### Review series
+
+- Status：available
+- 入口 Package：`akira-tl/akira-research-skills/akira-review`
+- Primary Router：`akira-review`
+- Source mode：Git `main`
+
+用于导师式学术评议、独立同行评议、创新性核验与修回再审。Review 与 Research 是平级入口；安装其中一个不会因为同仓而自动把另一个升级为 direct requirement。
 
 ## Akira Knowledge
 
-- GitHub source：`https://github.com/Akira-TL/akira-knowledge-skills.git`
-- Status：unavailable；产品仓已初始化，但当前没有可安装 Skill
-- Planned Primary Router：`akira-knowledge`
-- 用途：长期知识管理；具体对象模型与内部 Skill 边界尚未定稿。
+- Repository coordinate：`akira-tl/akira-knowledge-skills`
+- Status：available
+- 入口 Package：`akira-tl/akira-knowledge-skills/akira-knowledge`
+- Primary Router：`akira-knowledge`
+- Source mode：Git `main`
 
-当前只存在产品仓与已确认的产品边界，不存在可安装实现。不得生成安装命令，也不得把仓库已创建等同于产品已发布。
+`akira-knowledge` 负责长期知识管理入口；`knowledge-capture`、`knowledge-curate`、`knowledge-maintain` 与 `knowledge-retrieve` 的闭包由 Skiloom dependency graph 自动解析。
 
-## 快速选择表
+## 快速选择
 
-| 当前需求 | 选择 | 安装策略 |
-| --- | --- | --- |
-| 动态网页 / 登录态 / 浏览器 | `browser-access` | 机器级缺失时装单个 Skill |
-| Word / DOCX | `general-word-document-generation` | 机器级缺失时装单个 Skill |
-| 科研/学术 PPT | `scientific-presentation-authoring` | 主 Skill 机器级缺失时安装；中文文案终检需要 `humanizer-zh` 时再按 External Sources 按需安装 |
-| Git 提交、Guard 检查与 Guard 语义/排障 | `akira-guard` | 基础 bootstrap；缺失时修复安装 |
-| 已拆分工作的 Agent 执行适配 | `agent-orchestration` | 机器级缺失时装单个 Skill |
-| 持续科研项目、研究执行与科学传播 | Akira Research / `akira-research` | 机器级缺失时安装 Research series |
-| 导师式学术评议、同行评议、创新性核验、修回再审 | Akira Research / `akira-review` | 机器级缺失时安装 Review series |
-| 持续软件工程项目 | Matt Engineering | 机器级缺失时安装稳定 Matt suite + Parallel 扩展 |
-| Knowledge 产品 | 暂不可用 | 不安装 |
-| first-party 没有的专业能力 | External Sources | 读取 `EXTERNAL-SOURCES.md`，再按最小候选请求用户授权 |
+| 当前需求 | 选择的入口 Package |
+| --- | --- |
+| 能力路由 | `akira-tl/skills/akira` |
+| 浏览器 | `akira-tl/skills/browser-access` |
+| Word / DOCX | `akira-tl/skills/general-word-document-generation` |
+| 科研/学术 PPT | `akira-tl/skills/scientific-presentation-authoring` |
+| Guard | `akira-tl/skills/akira-guard` |
+| Agent 执行适配 | `akira-tl/skills/agent-orchestration` |
+| 软件工程 | `akira-tl/matt-skills/ask-akira` |
+| Parallel 主协调 | `akira-tl/matt-skills/parallel-coordinator` |
+| 科研项目 | `akira-tl/akira-research-skills/akira-research` |
+| 学术评议 | `akira-tl/akira-research-skills/akira-review` |
+| 长期知识管理 | `akira-tl/akira-knowledge-skills/akira-knowledge` |
 
-## 安装边界
+## 生命周期边界
 
-- 新能力安装前必须说明来源、用途、安装对象和范围，并取得用户明确同意。
-- 安装器只接受登记过或用户明确批准的远端 GitHub source；运行时 Skill 不从 Lattice 本地 submodule checkout 安装。
-- Skill 实体只存在于 `~/.agents/sources/<owner>/<repo>/` 的 Git checkout；`~/.agents/skills/` 只保存机器级软链接注册项。
-- `~/.agents/skills/` 是机器级已安装 Skill 注册表。当前会话缺少能力时先检查这里；已注册则不重复安装，未注册才从远端 GitHub 安装。
-- 机器级已注册 Skill 优先由当前执行器通过正常 Skill 加载机制引用，不自动投影到执行器或项目目录。若项目或执行器明确需要自己的 Skill view，可显式建立指向 `~/.agents/skills/<name>` 的软链接；`<project>/.agents/skills/` 是允许的项目级 Agent Skills view。此类链接不是新的安装，也不得仅因当前会话未暴露 Skill 而自动创建；Akira 不规定这些 view 的路径，也不替执行器管理这些链接。
-- 更新只更新 Git source checkout；软链接不需要重新复制或重装。
-- 不因一次 Word、PPT、浏览器或 Guard 任务安装 Research / Matt。
-- 不因科研项目安装 Matt，也不因软件工程项目安装 Research；真实跨域任务除外。
-- 已经可用的同名能力直接复用，不重复安装。
-- `planned`、`remote-pending`、`unavailable` 等非 available 状态不得生成看似可执行的安装方案。
+- Catalog 只选择入口 Package，不手写完整 Skill 列表。
+- `skiloom-package.toml` 是 Package dependency 的唯一事实来源。
+- Skiloom Registry / accepted Target state 是安装状态的唯一事实来源。
+- 不读取或写入旧 `~/.agents/akira-skills.json` 作为安装状态。
+- 不通过旧 `~/.agents/sources/`、目录扫描或软链接存在性替代 Skiloom 状态判断。
+- `planned`、不兼容或无法通过 Skiloom admission 的候选保持 blocker，不使用旧安装器绕过。
