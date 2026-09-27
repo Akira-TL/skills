@@ -1,6 +1,5 @@
 ---
 name: agent-orchestration
-summary: 在当前 Agent harness 已提供并行执行能力时，把已经定义好的工作单元映射到其原生 Agent、进程或 Git worktree，并把真实执行结果交回上游流程。
 description: 用于任务边界已经明确，且当前 harness 确实提供子 Agent、进程、终端会话或 Git worktree 等执行原语的场景。只负责把既有工作单元落到当前可用执行能力并收集结果；不负责拆 Task、决定 blocking/frontier、claim/Ownership 或 Task/Gate acceptance，也不假设具体产品、CLI、模型名称或并行实现存在。
 ---
 

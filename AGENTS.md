@@ -22,12 +22,14 @@ Router 的受管产品状态只在 `routing/akira/references/CATALOG.md` 维护�
 ## Skill 编写
 
 - Skill 目录名与 frontmatter `name` 使用 lowercase kebab-case 且必须一致。
+- 每个 Skill 包维护 `skiloom-package.toml`，仓库级发现范围由根目录 `skiloom-repo.toml` 统一定义；canonical `SKILL.md` 只使用标准 Agent Skill frontmatter，执行器专属调用策略留在执行器自己的 metadata 文件中。
 - 编写正文前先确定 user-invoked 或 model-invoked；只保留清晰可判定的触发条件。
 - 多步骤流程写成可检查顺序；分支或低频材料放 sibling reference，并由 `SKILL.md` 显式引用。
 - 同一规则只保留一个 source of truth；产品仓正文不为了“方便 Router”复制回本仓。
 
 ## 检查与提交
 
+- 修改 Skill 或 Skiloom metadata 后，从本仓根目录运行 `skiloom validate . --json`，确保仓库发现规则、标准 frontmatter 与 Package metadata 全部可被公开 CLI 接受。
 - `engineering/akira-guard/` 是跨项目 Guard 的 canonical owner，通用 Git 提交与机械检查脚本随 Skill 发布；Lattice 只保留自身配置/仓库拓扑检查。
 - 稳定 Skill 行为变化同步对应 `docs/`。
 - Git 原子提交、diff ownership 与提交信息继续遵守全局 Git 规则。
