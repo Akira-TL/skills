@@ -118,6 +118,7 @@ Lattice 根安装器按以下顺序建立用户级 Target：
 
 - `akira-tl/skills/akira`
 - `akira-tl/skills/browser-access`
-- `akira-tl/skills/akira-guard`
+
+Guard 已作为 `akira` Package 的内置执行能力随包安装，不再拥有独立 Package coordinate 或 direct requirement。
 
 `akira` 当前不声明跨仓 Skiloom Package dependency；Skiloom Router / specialist 由上述 bootstrap direct requirement 独立保持在 accepted Target state 中。后续生命周期全部由 Skiloom accepted state 继续管理。

@@ -18,11 +18,10 @@ Repository coordinate：`akira-tl/skills`
 
 | 需求 | 入口 Package coordinate | Owner | 默认策略 |
 | --- | --- | --- | --- |
-| 能力选择与跨产品路由 | `akira-tl/skills/akira` | `akira` | 基础能力 |
+| 能力选择、跨产品路由与内置 Guard | `akira-tl/skills/akira` | `akira` | 基础能力 |
 | 动态/认证网页与浏览器控制 | `akira-tl/skills/browser-access` | `browser-access` | 按需 |
 | Word / DOCX 生成与编辑 | `akira-tl/skills/general-word-document-generation` | `general-word-document-generation` | 按需 |
 | 科研/学术 PPT | `akira-tl/skills/scientific-presentation-authoring` | `scientific-presentation-authoring` | 按需 |
-| Git Guard 与 Guard 语义 | `akira-tl/skills/akira-guard` | `akira-guard` | 基础能力 |
 | 已拆分工作的 Agent 执行适配 | `akira-tl/skills/agent-orchestration` | `agent-orchestration` | 按需 |
 
 `scientific-presentation-authoring` 的中文文案终检存在条件依赖 `humanizer-zh`。该条件依赖不作为本 Package 的强制 dependency；只有真正进入中文终检分支时才按 External Sources 处理。
@@ -81,7 +80,7 @@ Repository coordinate：`akira-tl/akira-research-skills`
 | 浏览器 | `akira-tl/skills/browser-access` |
 | Word / DOCX | `akira-tl/skills/general-word-document-generation` |
 | 科研/学术 PPT | `akira-tl/skills/scientific-presentation-authoring` |
-| Guard | `akira-tl/skills/akira-guard` |
+| Guard | `akira-tl/skills/akira`（内置） |
 | Agent 执行适配 | `akira-tl/skills/agent-orchestration` |
 | 软件工程 | `akira-tl/matt-skills/ask-akira` |
 | Parallel 主协调 | `akira-tl/matt-skills/parallel-coordinator` |

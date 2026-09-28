@@ -8,9 +8,8 @@ Akira 的通用 Agent Skills 与能力 Router 仓库。
 
 ```text
 routing/
-└── akira/                         # 跨仓库能力 Router；生命周期交给 Skiloom
+└── akira/                         # 必装能力 Router + 内置 Guard；生命周期交给 Skiloom
 engineering/
-├── akira-guard/                   # Guard 使用语义与排障
 └── agent-orchestration/           # harness-agnostic 执行适配
 productivity/
 ├── browser-access/                # 浏览器与人工认证边界
@@ -44,7 +43,7 @@ skiloom install akira-tl/skills/browser-access --git main --scope user --yes --j
 
 第一条只生成 Candidate plan；第二条要求用户已经明确授权状态变化。
 
-Lattice 根 `install.sh` 要求 Skiloom CLI 已可用，先显式安装 `akira-tl/skiloom/skiloom` 的 Git `main` direct requirement，再安装 Akira 基础 direct requirements：`akira`、`browser-access`、`akira-guard`。当前 bare `skiloom bootstrap` 因上游尚无 GitHub Release 不能用于 fresh Target。
+Lattice 根 `install.sh` 要求 Skiloom CLI 已可用，先显式安装 `akira-tl/skiloom/skiloom` 的 Git `main` direct requirement，再安装 Akira 基础 direct requirements：`akira` 与 `browser-access`。Guard 已内置进必装 `akira` Package，不再有独立 direct requirement。当前 bare `skiloom bootstrap` 因上游尚无 GitHub Release 不能用于 fresh Target。
 
 旧 `~/.agents/akira-skills.json`、`~/.agents/sources/` 与 Git + symlink installer 不再具有 lifecycle authority，也没有 fallback 路径。
 
@@ -56,10 +55,10 @@ Skiloom Package 静态验证：
 skiloom validate . --json
 ```
 
-跨项目 Guard 实现由 `engineering/akira-guard/` 自己维护。安装后的 Guard 入口仍为：
+跨项目 Guard 实现随必装 `akira` Package 维护。安装后的 Guard 入口为：
 
 ```bash
-uv run ~/.agents/skills/akira-guard/scripts/guard.py skills .
+uv run ~/.agents/skills/akira/scripts/guard.py skills .
 ```
 
 稳定 Skill 修改需同步对应 `docs/<category>/<skill-name>.md`。

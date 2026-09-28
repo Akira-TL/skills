@@ -80,3 +80,13 @@ first-party 能力不足时读取 [`references/EXTERNAL-SOURCES.md`](references/
 状态变化成功后，只确认所需入口 Package 已成为 Target 的 accepted projection，然后立即交给 Catalog 中记录的 Primary Router / Owner。
 
 `akira` 不复制 Research、Review、Matt 或 Knowledge 的内部方法，也不根据 Catalog 推测其依赖关系。新的能力缺口重新从第 1 步判断。
+
+## 7. 内置 Guard
+
+Akira Guard 是本 Package 的必装执行能力，不再作为独立 `akira-guard` Skill Package。实现位于 `scripts/guard.py` 与 `scripts/staged_syntax.py`；普通开发已经知道具体 Guard 命令时直接调用：
+
+```text
+uv run ~/.agents/skills/akira/scripts/guard.py <command>
+```
+
+需要理解 Guard 的提交门禁、检查分层、Skiloom Store 边界或排查行为时，读取 [`references/GUARD.md`](references/GUARD.md)。Guard 不建立第二个 Package requirement，也不改变本 Router 的能力选择职责。
