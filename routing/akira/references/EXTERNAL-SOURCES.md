@@ -41,33 +41,44 @@ Akira Research 的 `ngs` 仍拥有高通量测序任务的科研语义、数据/
 
 ## Humanizer-zh
 
-- Source：`https://github.com/op7418/Humanizer-zh.git`
-- Owner：`op7418`
-- Intended Skill：`humanizer-zh`
+- Source：`https://github.com/ai-zixun/humanizer-zh.git`
+- Owner：`ai-zixun`
+- Package coordinate：`ai-zixun/humanizer-zh/humanizer-zh`
+- Preferred source：GitHub Release `v1.3.0`
 - License：MIT
+- Default scope：`user`
 - Lattice pin：no
 - 默认安装：no
 - 当前 first-party consumer：`scientific-presentation-authoring`
 
-`humanizer-zh` 只在科研 PPT 的中文页面文案终检分支中使用，不拥有科研事实、统计结果、术语、证据强度或演示结构。
+`humanizer-zh` 是可选中文语言 QA，不是科研 PPT 的完成门禁。科研 PPT 即使不安装 Humanizer，也必须依靠 first-party 规则完成事实、术语、证据强度、结果/解释边界和基础语言清理；只有需要额外处理翻译腔、机械排比、空泛大词、口号式收束或段落节奏时，才按需调用 Humanizer。
 
-窄调用契约：只允许清理机械排比、宣传式大词、空泛意义句、翻译腔、过度连接词及其他 AI 写作模式；不得借此新增第一人称、个人观点、幽默、情绪、轶事、新例子、新事实或更强科学结论。
+窄调用契约：
+
+- 只允许清理翻译腔、结构腔、排版腔、机械对照句、空泛结论、过度连接词和其他 AI 式语言模式；
+- 必须保留原文事实、数字、统计结果、术语、限定条件、作者立场与信息密度；
+- 不得新增第一人称、个人观点、幽默、情绪、轶事、新例子、新事实或更强科学结论；
+- 不启用 `v1.3.0` 的可选作者声线 / Voice Adoption；科研与技术材料始终采用中性、克制、可核验表达。
 
 ### 当前 Skiloom compatibility
 
-2026-09-27 对 upstream Git `main` 的实际 Skiloom Candidate plan 返回：
+2026-09-28 对正式 GitHub Release 的实际 Candidate plan：
 
 ```text
-InvalidSkillPackage
-reason: invalid-allowed-tools
+repository: ai-zixun/humanizer-zh
+release: v1.3.0
+package: ai-zixun/humanizer-zh/humanizer-zh
+status: planned
+warnings: []
 ```
 
-因此当前 upstream 不能作为 Skiloom-accepted Package 安装。进入中文终检分支时：
+因此当前可以直接由 Skiloom Release resolver 管理，不需要跟随 Git `main`：
 
-- 当前会话已经具备该能力 → 可以按窄调用契约使用；
-- 当前 Target 没有且 upstream 仍不能通过 Skiloom admission → 明确报告 Humanizer 终检 blocker；
-- 不得调用旧 Akira installer 绕过 admission；
-- 若以后 upstream 修复或我们明确决定维护兼容 Package，重新执行 Skiloom plan 后再更新本状态。
+```text
+skiloom install ai-zixun/humanizer-zh/humanizer-zh --scope user --plan --json
+```
+
+只有用户明确授权本次状态变化后才提交安装。Humanizer 不可用或用户不愿安装时，继续完成科研 PPT，并如实跳过可选 Humanizer QA；不得把它升级为 blocker。
 
 ## 其他外部来源
 

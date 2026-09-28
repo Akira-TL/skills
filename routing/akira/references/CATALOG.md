@@ -24,7 +24,7 @@ Repository coordinate：`akira-tl/skills`
 | 科研/学术 PPT | `akira-tl/skills/scientific-presentation-authoring` | `scientific-presentation-authoring` | `user` | 按需 |
 | 已拆分工作的 Agent 执行适配 | `akira-tl/skills/agent-orchestration` | `agent-orchestration` | `user` | 按需 |
 
-`scientific-presentation-authoring` 的中文文案终检存在条件依赖 `humanizer-zh`。该条件依赖不作为本 Package 的强制 dependency；只有真正进入中文终检分支时才按 External Sources 处理。
+`scientific-presentation-authoring` 可按需调用 `humanizer-zh` 做额外中文语言 QA；它不是强制 dependency，也不是交付门禁。默认候选与窄调用边界见 External Sources。
 
 ## Matt Engineering
 
@@ -72,9 +72,9 @@ Repository coordinate：`akira-tl/akira-research-skills`
 - 入口 Package：`akira-tl/akira-knowledge-skills/akira-knowledge`
 - Primary Router：`akira-knowledge`
 - Source mode：Git `main`
-- Default scope：`user`
+- Default scope：`workspace`
 
-`akira-knowledge` 负责长期知识管理入口；`knowledge-capture`、`knowledge-curate`、`knowledge-maintain` 与 `knowledge-retrieve` 的闭包由 Skiloom dependency graph 自动解析。
+`akira-knowledge` 是项目级 / Vault 级长期知识工作流，必须从目标知识项目或 Obsidian Vault 对应工作目录安装到 `workspace` Target；不得进入用户级 `~/.agents/skills`。`akira-knowledge` 负责长期知识管理入口；`knowledge-capture`、`knowledge-curate`、`knowledge-maintain` 与 `knowledge-retrieve` 的闭包由 Skiloom dependency graph 自动解析。
 
 ## 快速选择
 
@@ -90,7 +90,7 @@ Repository coordinate：`akira-tl/akira-research-skills`
 | Parallel 主协调 | `akira-tl/matt-skills/parallel-coordinator` | `workspace` |
 | 科研项目 | `akira-tl/akira-research-skills/akira-research` | `workspace` |
 | 学术评议 | `akira-tl/akira-research-skills/akira-review` | `workspace` |
-| 长期知识管理 | `akira-tl/akira-knowledge-skills/akira-knowledge` | `user` |
+| 长期知识管理 | `akira-tl/akira-knowledge-skills/akira-knowledge` | `workspace` |
 
 ## 生命周期边界
 

@@ -7,7 +7,7 @@
 - 软件工程：入口 `akira-tl/matt-skills/ask-akira`，Primary Router 为 `ask-akira`，默认安装到当前项目 `workspace` Target。
 - Research series：入口 `akira-tl/akira-research-skills/akira-research`，默认安装到当前科研项目 `workspace` Target。
 - Review series：入口 `akira-tl/akira-research-skills/akira-review`，默认安装到当前评议/科研项目 `workspace` Target。
-- Knowledge：入口 `akira-tl/akira-knowledge-skills/akira-knowledge`，当前已 available。
+- Knowledge：入口 `akira-tl/akira-knowledge-skills/akira-knowledge`，当前已 available，默认安装到目标知识项目 / Vault 对应工作目录的 `workspace` Target。
 - 浏览器、Word、科研/学术 PPT、Guard、Agent 执行适配：选择 `akira-tl/skills/<skill-name>` 单一 Package。
 - 外部能力：先通过 Skiloom discovery 获取候选，再按来源、副作用与数据边界审计。
 
@@ -23,7 +23,7 @@
 skiloom status --scope <user|workspace> --json
 ```
 
-Matt、Research 与 Review 的 `workspace` scope 必须从目标项目根目录执行；不得因为用户级已经安装同名 Package 就跳过项目级安装。
+Matt、Research、Review 与 Knowledge 的 `workspace` scope 必须从目标项目 / Vault 对应工作目录执行；不得因为用户级已经安装同名 Package 就跳过项目级安装。
 
 获取。不得再用旧 `~/.agents/akira-skills.json`、`~/.agents/sources/` 或软链接存在性推断安装事实。
 

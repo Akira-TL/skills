@@ -1,6 +1,6 @@
 ---
 name: scientific-presentation-authoring
-description: 用于创建、改写或审阅科研与学术类 PPT 的结构、页面文案和版式逻辑；适用于研究汇报、论文汇报、答辩、组会、研究计划，以及根据参考 PPT 提炼写法或视觉规则而非直接套用模板的任务。负责章节组织、结果页事实表述、图文对应、可行性与进度安排；中文文案终检条件依赖 humanizer-zh，缺失时通过 akira Router 与 Skiloom 处理能力缺口。
+description: 用于创建、改写或审阅科研与学术类 PPT 的结构、页面文案和版式逻辑；适用于研究汇报、论文汇报、答辩、组会、研究计划，以及根据参考 PPT 提炼写法或视觉规则而非直接套用模板的任务。负责章节组织、结果页事实表述、图文对应、可行性与进度安排；中文文案可按需调用 humanizer-zh 做额外语言 QA，但不构成交付门禁。
 ---
 
 # 科研 PPT 内容与编排 Skill
@@ -127,18 +127,18 @@ description: 用于创建、改写或审阅科研与学术类 PPT 的结构、�
 
 正文不要重复图中已经非常清楚的轴标题、图例和所有类别名称。只提取需要听众记住的差异和数字。
 
-## 七、中文文字终检与 `humanizer-zh` 依赖
+## 七、中文文字终检与可选 `humanizer-zh` QA
 
-中文 PPT 文案完成后，必须使用 `humanizer-zh` 再执行一次语言终检。`humanizer-zh` 是本 Skill 的显式按需依赖，不属于 Akira first-party，也不进入 Lattice 默认 bootstrap。
+中文 PPT 文案必须先由本 Skill 自身完成事实、术语、证据强度、结果/解释边界和基础语言终检；`humanizer-zh` 只作为可选的第二层语言 QA，不属于 Akira first-party，也不进入 Lattice 默认 bootstrap。未安装或未调用 Humanizer 不构成交付 blocker。
 
-进入本步骤时按以下顺序处理：
+需要额外处理翻译腔、机械排比、空泛大词、宣传式收束、过度连接词或段落节奏时，再按以下顺序处理：
 
-1. 当前会话已经真实可用 `humanizer-zh` → 直接调用；
-2. 当前会话不可用 → 交给 `akira` Router，由它根据 `EXTERNAL-SOURCES.md` 使用 Skiloom 检查当前 Target 与候选 Package compatibility；
-3. Target 缺失且候选可被 Skiloom 接受 → 在用户明确授权后由 Skiloom 安装；
-4. upstream 当前不能通过 Skiloom admission，或用户不允许状态变化 → 明确记录“Humanizer 终检未执行”，不得使用旧 Akira installer 绕过标准，也不得把本 Skill 自己的规则冒充为已经执行过 `humanizer-zh`。
+1. 当前会话已经真实可用 `humanizer-zh` → 按窄调用契约使用；
+2. 当前会话不可用 → 交给 `akira` Router，根据 `EXTERNAL-SOURCES.md` 评估 `ai-zixun/humanizer-zh` 的正式 Release Candidate；
+3. Target 缺失且用户明确授权 → 由 Skiloom 安装；
+4. 用户不允许安装或当前不需要额外语言 QA → 跳过 Humanizer，继续完成科研 PPT，不得把缺失升级成 blocker。
 
-调用 `humanizer-zh` 时只使用它的模式识别与语言清理能力。不得因为其通用写作建议而新增第一人称、个人观点、幽默、情绪、轶事、新例子、新事实或更强的科学结论；科研材料的 canonical content、学术语体与证据边界始终优先。
+调用 `humanizer-zh` 时只使用它的中性模式识别与语言清理能力。不得启用作者声线 / Voice Adoption，也不得新增第一人称、个人观点、幽默、情绪、轶事、新例子、新事实或更强的科学结论；科研材料的 canonical content、学术语体与证据边界始终优先。
 
 重点清理：
 
@@ -164,7 +164,7 @@ Humanizer 只能改善表达，不改变研究事实、数值、统计结果、�
 7. **证据边界**：普通结果页是否混入机制、因果、传播、适应等解释；
 8. **文字密度**：结果页是否控制在 1–3 条主要结果；
 9. **模板污染**：是否带入参考稿的校徽、示例文字、示例图片或无关结构；
-10. **Humanizer**：中文文字是否已经由显式依赖 `humanizer-zh` 完成终检；若因未获安装许可而未执行，是否明确披露；
+10. **可选 Humanizer QA**：若本次实际调用了 `humanizer-zh`，是否只执行中性语言清理且未改变事实、术语、数字、限定条件或证据强度；未调用时不构成交付缺口；
 11. **进度真实性**：完成、进行中、计划是否互不冲突；
 12. **可读性**：图中文字和正文在投影场景下是否足够大；
 13. **论文来源可追溯性**：若是论文 / 文献汇报，关键结果页是否能回到原 Figure / Table / Supplement 或已核验阅读记录，作者解释与我们的 Critical Audit 是否明确分开；

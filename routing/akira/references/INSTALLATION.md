@@ -21,7 +21,7 @@ CLI 不可用时停止安装、更新、移除、同步、修复与恢复操作�
 Akira 区分两类 Skiloom Target：
 
 - `user`：跨项目基础能力与通用交付能力；Lattice bootstrap、`akira`、`browser-access` 以及 Catalog 明确标成 `user` 的通用 Package 使用这一层。
-- `workspace`：项目专属专业工作流；Matt Engineering、Research series 与 Review series 必须从目标项目根目录安装到这一层。
+- `workspace`：项目专属专业工作流；Matt Engineering、Research series、Review series 与 Akira Knowledge 必须从目标项目 / Vault 对应工作目录安装到这一层。
 
 具体 Target path 由 Skiloom CLI 根据 scope 与当前工作目录解析，不由 Akira 自己创建或写死。
 

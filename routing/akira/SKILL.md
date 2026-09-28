@@ -22,7 +22,7 @@ compatibility: Skill 生命周期动作要求 Skiloom CLI >= 0.8.15，并要求�
 skiloom status --scope <user|workspace> --json
 ```
 
-`workspace` scope 必须从目标项目根目录执行；Matt、Research 与 Review 不得把用户级 Target 当作项目 Target 的替代品。
+`workspace` scope 必须从目标项目 / Vault 对应工作目录执行；Matt、Research、Review 与 Knowledge 不得把用户级 Target 当作项目 Target 的替代品。
 
 不要通过扫描目录、读取旧 `~/.agents/akira-skills.json` 或检查旧 `~/.agents/sources/` 来推断安装状态。
 
@@ -35,7 +35,7 @@ skiloom status --scope <user|workspace> --json
 - 软件工程 → `ask-akira`，默认 `workspace`
 - Research series → `akira-research`，默认 `workspace`
 - Review series → `akira-review`，默认 `workspace`
-- Knowledge → `akira-knowledge`，默认 `user`
+- Knowledge → `akira-knowledge`，默认 `workspace`
 
 不要在 Router 中手工枚举这些入口的完整子 Skill 集合。完整 dependency closure 只由各 Package 的 `skiloom-package.toml` 与 Skiloom resolver 决定。
 
