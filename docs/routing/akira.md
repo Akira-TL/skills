@@ -4,9 +4,9 @@
 
 ## 主要路由
 
-- 软件工程：入口 `akira-tl/matt-skills/ask-akira`，Primary Router 为 `ask-akira`。
-- Research series：入口 `akira-tl/akira-research-skills/akira-research`。
-- Review series：入口 `akira-tl/akira-research-skills/akira-review`。
+- 软件工程：入口 `akira-tl/matt-skills/ask-akira`，Primary Router 为 `ask-akira`，默认安装到当前项目 `workspace` Target。
+- Research series：入口 `akira-tl/akira-research-skills/akira-research`，默认安装到当前科研项目 `workspace` Target。
+- Review series：入口 `akira-tl/akira-research-skills/akira-review`，默认安装到当前评议/科研项目 `workspace` Target。
 - Knowledge：入口 `akira-tl/akira-knowledge-skills/akira-knowledge`，当前已 available。
 - 浏览器、Word、科研/学术 PPT、Guard、Agent 执行适配：选择 `akira-tl/skills/<skill-name>` 单一 Package。
 - 外部能力：先通过 Skiloom discovery 获取候选，再按来源、副作用与数据边界审计。
@@ -17,19 +17,21 @@
 
 `akira` 的生命周期动作要求 Skiloom CLI，并在可用时加载 Skiloom Router / specialist。当前 Skiloom Router 由 Lattice 以显式 Git source 先行 bootstrap；这一前置条件记录在 `routing/akira/DEPENDENCIES.md`，不使用会在 fresh Target 触发 Release resolution 失败的跨仓 `*` dependency。
 
-当前 Target 状态通过：
+当前 Target 状态按 Catalog 登记的默认 scope 查询：
 
 ```text
-skiloom status --scope user --json
+skiloom status --scope <user|workspace> --json
 ```
+
+Matt、Research 与 Review 的 `workspace` scope 必须从目标项目根目录执行；不得因为用户级已经安装同名 Package 就跳过项目级安装。
 
 获取。不得再用旧 `~/.agents/akira-skills.json`、`~/.agents/sources/` 或软链接存在性推断安装事实。
 
 当前 first-party 仓暂以 Git `main` 作为 source mode。典型安装流程：
 
 ```text
-skiloom install <coordinate> --git main --scope user --plan --json
-skiloom install <coordinate> --git main --scope user --yes --json
+skiloom install <coordinate> --git main --scope <catalog-scope> --plan --json
+skiloom install <coordinate> --git main --scope <catalog-scope> --yes --json
 ```
 
 第一条只生成 Candidate plan；第二条要求用户已经明确授权该状态变化。dependency closure、exact source、Store、Target ownership 与 reconciliation 全部由 Skiloom 负责。

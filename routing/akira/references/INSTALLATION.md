@@ -18,19 +18,20 @@ CLI 不可用时停止安装、更新、移除、同步、修复与恢复操作�
 
 ## 2. Target 与状态事实
 
-Lattice 的默认 Skill Target 使用 Skiloom 的用户级 scope：
+Akira 区分两类 Skiloom Target：
+
+- `user`：跨项目基础能力与通用交付能力；Lattice bootstrap、`akira`、`browser-access` 以及 Catalog 明确标成 `user` 的通用 Package 使用这一层。
+- `workspace`：项目专属专业工作流；Matt Engineering、Research series 与 Review series 必须从目标项目根目录安装到这一层。
+
+具体 Target path 由 Skiloom CLI 根据 scope 与当前工作目录解析，不由 Akira 自己创建或写死。
+
+检查状态时使用 Catalog 登记的 scope：
 
 ```text
---scope user
+skiloom status --scope <user|workspace> --json
 ```
 
-在当前 Skiloom Host mapping 中，该默认 Target 解析到用户级 Agent Skills Target；具体路径由 Skiloom CLI 解析，不由 Akira 写死或管理。
-
-检查状态：
-
-```text
-skiloom status --scope user --json
-```
+对 `workspace` scope，命令必须在目标项目根目录执行。不得因为用户级 Target 已经安装同名专业 Package，就把它视为当前项目已经配置完成。
 
 需要更完整诊断时加载 `skiloom-doctor` 并使用公开 doctor 命令。
 
@@ -41,7 +42,7 @@ skiloom status --scope user --json
 从 Catalog 得到入口 Package coordinate 后，先生成计划。当前 first-party 仓尚以 Git `main` 作为正式 source mode：
 
 ```text
-skiloom install <coordinate> --git main --scope user --plan --json
+skiloom install <coordinate> --git main --scope <catalog-scope> --plan --json
 ```
 
 读取 `SKILOOM-CLI-V1`，根据任务至少检查 direct requirements、exact sources、packages、dependency edges、source deltas、projections、renames、detached-content risks 与 warnings。
@@ -53,7 +54,7 @@ Skiloom resolver 负责递归 dependency closure。Akira 不再展开 `--skill` 
 只有用户已明确授权该状态变化后才提交：
 
 ```text
-skiloom install <coordinate> --git main --scope user --yes --json
+skiloom install <coordinate> --git main --scope <catalog-scope> --yes --json
 ```
 
 `--json` 不是授权；`--yes` 也不授权独立风险边界，例如 Release retarget 或 import merge。相关情况必须遵守 `skiloom-manage` 的专门规则。
@@ -92,8 +93,10 @@ Akira 不再：
 
 当前 Akira first-party 仓尚未全部提供可供默认 resolver 使用的正式 Release，因此 Catalog 明确使用 Git `main`。例如：
 
+例如 Research series 必须从科研项目根目录使用 workspace scope：
+
 ```text
-skiloom install akira-tl/akira-research-skills/akira-research --git main --scope user --plan --json
+skiloom install akira-tl/akira-research-skills/akira-research --git main --scope workspace --plan --json
 ```
 
 未来完成 Release 发布后，可以把 source policy 切换到 version / Release resolution；Package coordinate 与 dependency graph 不因此回退到手写 bundle。

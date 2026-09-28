@@ -16,11 +16,13 @@ compatibility: Skill 生命周期动作要求 Skiloom CLI >= 0.8.15，并要求�
 
 需要新增能力、确认当前 Target 状态或执行生命周期动作时，读取 [`references/CATALOG.md`](references/CATALOG.md)。Catalog 只负责把“需求”映射到入口 Package coordinate、Primary Router / Owner 与当前 source mode；它不维护依赖闭包。
 
-当前 Target 的安装事实由 Skiloom Registry / Target state 决定。需要确认时使用：
+当前 Target 的安装事实由 Skiloom Registry / Target state 决定。先从 Catalog 读取该入口 Package 的默认 scope，再在对应 Target 查询：
 
 ```text
-skiloom status --scope user --json
+skiloom status --scope <user|workspace> --json
 ```
+
+`workspace` scope 必须从目标项目根目录执行；Matt、Research 与 Review 不得把用户级 Target 当作项目 Target 的替代品。
 
 不要通过扫描目录、读取旧 `~/.agents/akira-skills.json` 或检查旧 `~/.agents/sources/` 来推断安装状态。
 
@@ -30,10 +32,10 @@ skiloom status --scope user --json
 
 单一通用能力选择对应单一 Package。持续专业工作选择该产品的 Primary Router Package：
 
-- 软件工程 → `ask-akira`
-- Research series → `akira-research`
-- Review series → `akira-review`
-- Knowledge → `akira-knowledge`
+- 软件工程 → `ask-akira`，默认 `workspace`
+- Research series → `akira-research`，默认 `workspace`
+- Review series → `akira-review`，默认 `workspace`
+- Knowledge → `akira-knowledge`，默认 `user`
 
 不要在 Router 中手工枚举这些入口的完整子 Skill 集合。完整 dependency closure 只由各 Package 的 `skiloom-package.toml` 与 Skiloom resolver 决定。
 
@@ -44,7 +46,7 @@ skiloom status --scope user --json
 对尚未接受的能力先走公开 Candidate 操作。当前 first-party Package 尚以 Git `main` 作为 source mode 时，使用：
 
 ```text
-skiloom install <coordinate> --git main --scope user --plan --json
+skiloom install <coordinate> --git main --scope <catalog-scope> --plan --json
 ```
 
 读取 `SKILOOM-CLI-V1` 结构化结果，至少核对 direct requirement、exact source revision、Candidate Package / dependency graph、source delta、projection / activation name、warning 与 compatibility risk。
@@ -58,7 +60,7 @@ skiloom install <coordinate> --git main --scope user --plan --json
 获得明确授权后：
 
 ```text
-skiloom install <coordinate> --git main --scope user --yes --json
+skiloom install <coordinate> --git main --scope <catalog-scope> --yes --json
 ```
 
 更新、移除、同步、修复、恢复、重命名、detach / rebind / forget 等动作统一加载并遵守 `skiloom-manage`，使用对应公开 CLI。
