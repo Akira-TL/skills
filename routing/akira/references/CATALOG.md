@@ -76,6 +76,17 @@ Repository coordinate：`akira-tl/akira-research-skills`
 
 `akira-knowledge` 是项目级 / Vault 级长期知识工作流，必须从目标知识项目或 Obsidian Vault 对应工作目录安装到 `workspace` Target；不得进入用户级 `~/.agents/skills`。`akira-knowledge` 负责长期知识管理入口；`knowledge-capture`、`knowledge-curate`、`knowledge-maintain` 与 `knowledge-retrieve` 的闭包由 Skiloom dependency graph 自动解析。
 
+## Akira Video
+
+- Repository coordinate：`akira-tl/akira-video-skills`
+- Status：available
+- 入口 Package：`akira-tl/akira-video-skills/akira-video`
+- Primary Router：`akira-video`
+- Source mode：Git `main`
+- Default scope：`workspace`
+
+`akira-video` 是项目级 AI 视频制作工作流。它维护项目根目录的 `VIDEO.md` 与 `video/` 制作内容，按当前任务路由视频脚本、复用素材、镜头、一次性生成包、审片和整片后期；小说、章节或其他上游内容仍由原 owning Skill / 项目文件拥有。完整核心闭包由 `akira-video` 的 Package dependency graph 自动解析，广告等可选领域能力按真实项目需要单独增加。
+
 ## 快速选择
 
 | 当前需求 | 入口 Package | scope |
@@ -91,6 +102,7 @@ Repository coordinate：`akira-tl/akira-research-skills`
 | 科研项目 | `akira-tl/akira-research-skills/akira-research` | `workspace` |
 | 学术评议 | `akira-tl/akira-research-skills/akira-review` | `workspace` |
 | 长期知识管理 | `akira-tl/akira-knowledge-skills/akira-knowledge` | `workspace` |
+| AI 视频制作 | `akira-tl/akira-video-skills/akira-video` | `workspace` |
 
 ## 生命周期边界
 

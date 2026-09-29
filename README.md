@@ -2,7 +2,7 @@
 
 Akira 的通用 Agent Skills 与能力 Router 仓库。
 
-本仓库不是所有 Akira 产品能力的集合。高内聚产品族独立维护：科研工作流位于 `akira-research-skills`，软件工程主流程位于 `Akira-TL/matt-skills`，长期知识位于 `akira-knowledge-skills`；本仓库保留跨领域通用能力和 `akira` Router。
+本仓库不是所有 Akira 产品能力的集合。高内聚产品族独立维护：科研工作流位于 `akira-research-skills`，软件工程主流程位于 `Akira-TL/matt-skills`，长期知识位于 `akira-knowledge-skills`，AI 视频制作位于 `akira-video-skills`；本仓库保留跨领域通用能力和 `akira` Router。
 
 ## 结构
 
@@ -27,6 +27,7 @@ skiloom-repo.toml                  # Skiloom repository discovery
 - **Matt Engineering**：`Akira-TL/matt-skills`，Primary Router 为 `ask-akira`。
 - **Akira Research**：`Akira-TL/akira-research-skills`，包含平级的 `akira-research` 与 `akira-review`。
 - **Akira Knowledge**：`Akira-TL/akira-knowledge-skills`，Primary Router 为 `akira-knowledge`。
+- **Akira Video**：`Akira-TL/akira-video-skills`，Primary Router 为 `akira-video`。
 
 `routing/akira/references/CATALOG.md` 只维护需求 → 入口 Package coordinate / Owner / source mode；依赖闭包由各 Package 的 `skiloom-package.toml` 维护。
 

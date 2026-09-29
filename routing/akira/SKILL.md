@@ -1,6 +1,6 @@
 ---
 name: akira
-description: 判断当前项目缺少哪类 Akira / Matt / Research / Knowledge 能力并选择最小入口 Package；当开始新项目、当前任务需要尚未可用的 Skill、用户询问应安装什么能力，或需要安装、更新、移除与诊断 Skill 时使用。
+description: 判断当前项目缺少哪类 Akira / Matt / Research / Knowledge / Video 能力并选择最小入口 Package；当开始新项目、当前任务需要尚未可用的 Skill、用户询问应安装什么能力，或需要安装、更新、移除与诊断 Skill 时使用。
 compatibility: Skill 生命周期动作要求 Skiloom CLI >= 0.8.15，并要求目标已建立 Skiloom accepted state；Akira 不提供私有 installer fallback。
 ---
 
@@ -36,6 +36,7 @@ skiloom status --scope <user|workspace> --json
 - Research series → `akira-research`，默认 `workspace`
 - Review series → `akira-review`，默认 `workspace`
 - Knowledge → `akira-knowledge`，默认 `workspace`
+- AI 视频制作 → `akira-video`，默认 `workspace`
 
 不要在 Router 中手工枚举这些入口的完整子 Skill 集合。完整 dependency closure 只由各 Package 的 `skiloom-package.toml` 与 Skiloom resolver 决定。
 
@@ -81,7 +82,7 @@ first-party 能力不足时读取 [`references/EXTERNAL-SOURCES.md`](references/
 
 状态变化成功后，只确认所需入口 Package 已成为 Target 的 accepted projection，然后立即交给 Catalog 中记录的 Primary Router / Owner。
 
-`akira` 不复制 Research、Review、Matt 或 Knowledge 的内部方法，也不根据 Catalog 推测其依赖关系。新的能力缺口重新从第 1 步判断。
+`akira` 不复制 Research、Review、Matt、Knowledge 或 Video 的内部方法，也不根据 Catalog 推测其依赖关系。新的能力缺口重新从第 1 步判断。
 
 ## 7. 内置 Guard
 
