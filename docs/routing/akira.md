@@ -8,7 +8,7 @@
 - Research series：入口 `akira-tl/akira-research-skills/akira-research`，默认安装到当前科研项目 `workspace` Target。
 - Review series：入口 `akira-tl/akira-research-skills/akira-review`，默认安装到当前评议/科研项目 `workspace` Target。
 - Knowledge：入口 `akira-tl/akira-knowledge-skills/akira-knowledge`，当前已 available，默认安装到目标知识项目 / Vault 对应工作目录的 `workspace` Target。
-- AI 视频制作：入口 `akira-tl/akira-video-skills/akira-video`，默认安装到当前视频项目的 `workspace` Target。
+- AI 视频制作：入口 `akira-tl/akira-video-skills/akira-video`，默认安装到当前视频项目的 `workspace` Target；入口负责定位 / 初始化 `video/Vxxx_*` 后交给 `video-production`，具体制作结构继续由 Video 产品仓维护。
 - 浏览器、Word、科研/学术 PPT、Guard、Agent 执行适配：选择 `akira-tl/skills/<skill-name>` 单一 Package。
 - 外部能力：先通过 Skiloom discovery 获取候选，再按来源、副作用与数据边界审计。
 
