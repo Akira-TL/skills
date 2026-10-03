@@ -85,7 +85,7 @@ Repository coordinate：`akira-tl/akira-research-skills`
 - Source mode：Git `main`
 - Default scope：`workspace`
 
-`akira-video` 是项目级 AI 视频制作入口。它在当前项目的 `video/` 下定位或初始化目标 `Vxxx`（当前单支视频目录直接为 `video/Vxxx_<human-label>/`），随后交给 `video-production` 连续推进；具体共享对象、Generation、生成批次、审片与后期结构由 `akira-video-skills` 自己维护，Catalog 不复制产品正文。小说、章节或其他上游内容仍由原 owning Skill / 项目文件拥有。完整核心闭包由 `akira-video` 的 Package dependency graph 自动解析，广告等可选领域能力按真实项目需要单独增加。
+`akira-video` 是项目级 AI 视频制作入口。它在当前项目的 `video/` 下定位或初始化目标视频（正式目录使用 `video/Vxxx_中文描述/`，不使用裸编号目录），随后交给 `video-production` 连续推进；具体 Material、Scene / Shot、Batch、审片与后期结构由 `akira-video-skills` 自己维护，Catalog 不复制产品正文。小说、章节或其他上游内容仍由原 owning Skill / 项目文件拥有。完整核心闭包由 `akira-video` 的 Package dependency graph 自动解析，广告等可选领域能力按真实项目需要单独增加。
 
 ## 快速选择
 
