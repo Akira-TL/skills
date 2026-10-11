@@ -106,6 +106,10 @@ productivity/browser-access/REFERENCE.md
 
 ## 运行时文件
 
+## 自动化错误契约
+
+命令失败统一返回 `ok: false`、`error_code`、`message` 与 `context`，退出码为 2；旧 `error` 字段保留兼容。`--compact` 只改变 JSON 排版。调用方按错误码判断失败类型，不解析自然语言或标准错误输出。参数错误同样返回 JSON；目标不存在与匹配歧义分别为 `TARGET_NOT_FOUND`、`TARGET_AMBIGUOUS`，连接失败为 `CDP_UNREACHABLE`，页面表达式异常为 `JS_EXCEPTION`。
+
 主运行规则：
 
 ```text

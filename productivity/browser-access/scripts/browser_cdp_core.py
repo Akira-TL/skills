@@ -35,6 +35,15 @@ BLANK_URLS = {"", "about:blank", "chrome://newtab/", "chrome://new-tab-page/"}
 class BrowserCdpError(RuntimeError):
     """Base error for deterministic browser/CDP failures."""
 
+    def __init__(self, message: str, *, code: str = "INVALID_ARGUMENT", context: dict[str, Any] | None = None):
+        super().__init__(message)
+        self.code = code
+        self.context = context or {}
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"ok": False, "error_code": self.code, "message": str(self),
+                "context": self.context, "error": str(self)}
+
 
 class TargetSelectionError(BrowserCdpError):
     """Raised when a page target cannot be selected unambiguously."""
@@ -62,7 +71,7 @@ def http_json(endpoint: str, path: str, *, method: str = "GET", timeout: float =
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError) as exc:
-        raise BrowserCdpError(f"CDP HTTP request failed: {method} {url}: {exc}") from exc
+        raise BrowserCdpError(f"CDP HTTP request failed: {method} {url}: {exc}", code="CDP_UNREACHABLE") from exc
 
 
 def probe_version(endpoint: str, *, timeout: float = 1.5) -> dict[str, Any] | None:
@@ -103,7 +112,7 @@ def _meaningful_page(target: dict[str, Any]) -> bool:
 def select_target(targets: Iterable[dict[str, Any]], selector: str | None) -> dict[str, Any]:
     pages = page_targets(targets)
     if not pages:
-        raise TargetSelectionError("No page target is available in the Agent Chrome instance")
+        raise TargetSelectionError("No page target is available in the Agent Chrome instance", code="TARGET_NOT_FOUND")
 
     if selector:
         needle = selector.casefold()
@@ -122,11 +131,11 @@ def select_target(targets: Iterable[dict[str, Any]], selector: str | None) -> di
         if not matches:
             raise TargetSelectionError(
                 f"Target selector {selector!r} matched no page. Available pages: "
-                + json.dumps([target_view(item) for item in pages], ensure_ascii=False)
+                + json.dumps([target_view(item) for item in pages], ensure_ascii=False), code="TARGET_NOT_FOUND"
             )
         raise TargetSelectionError(
             f"Target selector {selector!r} is ambiguous. Matches: "
-            + json.dumps([target_view(item) for item in matches], ensure_ascii=False)
+            + json.dumps([target_view(item) for item in matches], ensure_ascii=False), code="TARGET_AMBIGUOUS"
         )
 
     meaningful = [item for item in pages if _meaningful_page(item)]
@@ -137,7 +146,7 @@ def select_target(targets: Iterable[dict[str, Any]], selector: str | None) -> di
     raise TargetSelectionError(
         "Multiple page targets are open; pass --target with an ID prefix, unique title fragment, "
         "or unique URL fragment. Available pages: "
-        + json.dumps([target_view(item) for item in pages], ensure_ascii=False)
+        + json.dumps([target_view(item) for item in pages], ensure_ascii=False), code="TARGET_AMBIGUOUS"
     )
 
 
@@ -165,7 +174,7 @@ class CdpClient:
                 suppress_origin=True,
             )
         except Exception as exc:
-            raise BrowserCdpError(f"Cannot connect to CDP WebSocket {self.websocket_url}: {exc}") from exc
+            raise BrowserCdpError(f"Cannot connect to CDP WebSocket {self.websocket_url}: {exc}", code="CDP_UNREACHABLE") from exc
         return self
 
     def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
@@ -175,24 +184,30 @@ class CdpClient:
 
     def call(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         if self._ws is None:
-            raise BrowserCdpError("CDP WebSocket is not connected")
+            raise BrowserCdpError("CDP WebSocket is not connected", code="CDP_UNREACHABLE")
         message_id = self._next_id
         self._next_id += 1
         payload: dict[str, Any] = {"id": message_id, "method": method}
         if params:
             payload["params"] = params
-        self._ws.send(json.dumps(payload, ensure_ascii=False))
+        try:
+            self._ws.send(json.dumps(payload, ensure_ascii=False))
+        except Exception as exc:
+            raise BrowserCdpError(f"CDP send failed: {method}", code="CDP_UNREACHABLE") from exc
+        deadline = time.monotonic() + self.timeout
         while True:
+            if time.monotonic() >= deadline:
+                raise BrowserCdpError(f"CDP response deadline exceeded: {method}", code="CDP_UNREACHABLE")
             try:
                 incoming = json.loads(self._ws.recv())
             except Exception as exc:
-                raise BrowserCdpError(f"Failed while waiting for CDP response to {method}: {exc}") from exc
+                raise BrowserCdpError(f"Failed while waiting for CDP response to {method}: {exc}", code="CDP_UNREACHABLE") from exc
             if incoming.get("id") != message_id:
                 if isinstance(incoming.get("method"), str):
                     self._events.append(incoming)
                 continue
             if "error" in incoming:
-                raise CdpProtocolError(f"{method} failed: {incoming['error']}")
+                raise CdpProtocolError(f"{method} failed: {incoming['error']}", code="CDP_PROTOCOL_ERROR")
             result = incoming.get("result", {})
             return result if isinstance(result, dict) else {"value": result}
 
@@ -237,7 +252,15 @@ class CdpClient:
             exception = details.get("exception") if isinstance(details, dict) else None
             description = exception.get("description") if isinstance(exception, dict) else None
             text = details.get("text") if isinstance(details, dict) else None
-            raise CdpProtocolError(description or text or f"JavaScript evaluation failed: {details}")
+            message = description or text or f"JavaScript evaluation failed: {details}"
+            marker = re.search(r"BROWSER_ERROR:(\{[^\n]+\})", message)
+            if marker:
+                try:
+                    failure = json.loads(marker.group(1))
+                    raise BrowserCdpError(failure["message"], code=failure["error_code"], context=failure.get("context", {}))
+                except (json.JSONDecodeError, KeyError):
+                    pass
+            raise CdpProtocolError(message, code="JS_EXCEPTION")
         remote = result.get("result", {})
         if not isinstance(remote, dict):
             return remote
@@ -252,7 +275,7 @@ def require_browser(endpoint: str, *, timeout: float) -> dict[str, Any]:
     version = probe_version(endpoint, timeout=min(timeout, 2.0))
     if version is None:
         raise BrowserCdpError(
-            f"Agent Chrome CDP is not reachable at {endpoint}. Run `ensure` or verify the adapter endpoint."
+            f"Agent Chrome CDP is not reachable at {endpoint}. Run `ensure` or verify the adapter endpoint.", code="CDP_UNREACHABLE"
         )
     return version
 

@@ -46,6 +46,10 @@ from browser_cdp_core import (
     wait_ready,
 )
 
+class JsonArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        raise BrowserCdpError(message, code="INVALID_ARGUMENT")
+
 def add_target_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--target",
@@ -54,7 +58,7 @@ def add_target_argument(parser: argparse.ArgumentParser) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = JsonArgumentParser(
         description="Fast deterministic control surface for browser-access's WSL -> Windows Chrome CDP adapter"
     )
     parser.add_argument("--endpoint", help=f"CDP HTTP endpoint (default: {DEFAULT_ENDPOINT})")
@@ -401,14 +405,17 @@ def dispatch(args: argparse.Namespace) -> Any:
 
 def main() -> int:
     parser = build_parser()
-    args = parser.parse_args()
     try:
+        args = parser.parse_args()
         if args.command != "profiles":
             args.browser = resolve_profile(args.profile, args.config, args.endpoint, args.user_data_dir, args.profile_directory)
             args.endpoint = args.browser.endpoint
         emit(dispatch(args), compact=args.compact)
     except BrowserCdpError as exc:
-        emit({"ok": False, "error": str(exc)}, compact=args.compact)
+        emit(exc.as_dict(), compact="--compact" in sys.argv)
+        return 2
+    except (OSError, ValueError) as exc:
+        emit(BrowserCdpError(str(exc), code="IO_ERROR" if isinstance(exc, OSError) else "INVALID_ARGUMENT").as_dict(), compact="--compact" in sys.argv)
         return 2
     return 0
 
