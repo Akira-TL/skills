@@ -33,7 +33,7 @@ uv run <absolute-script-path> --endpoint http://localhost:9223 --user-data-dir '
 uv run <absolute-script-path> --endpoint http://localhost:9223 --user-data-dir 'C:\Users\Akira\.agent-browser\chrome-profile' ensure
 ```
 
-`--profile-directory` 是该专用数据目录内的 Chrome 配置子目录，默认 `Default`；它不表示用户日常 Chrome 的配置选择器。自定义目录禁止复用默认 Agent 目录和本地 `9222` 端口。自动启动只支持带明确端口的本地 HTTP 地址，并为含空格的 Windows 路径保留参数引号。
+`--profile-directory` 是该专用数据目录内的 Chrome 配置子目录，默认 `Default`；它不表示用户日常 Chrome 的配置选择器。自定义目录禁止复用默认 Agent 目录、其子目录和本地 `9222` 端口，也拒绝 Windows 根目录与无效路径。自动启动只支持带明确端口的本地 HTTP 地址，并为含空格的 Windows 路径保留参数引号。
 
 `status` 只探测与核验，不启动 Chrome。自定义目录的页面命令在复用实例前通过 `Browser.getBrowserCommandLine` 核对数据目录和配置子目录；新启动的实例会带 `--enable-automation`。不匹配或无法核验时拒绝控制，不关闭、替换或重启已有实例。旧默认实例保持可连接，返回的 `profileVerified: false` 表示身份未经核验；仅设置连接地址时也不把其他端口的身份报告成 `agent-browser`。[Chrome 调试协议中的核验方法](https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/pdl/domains/Browser.pdl)
 
@@ -51,7 +51,7 @@ uv run <absolute-script-path> --profile chatgpt ensure
 uv run <absolute-script-path> --profile chatgpt tabs
 ```
 
-示例目录应替换为目标机器上已确认的专用目录。`chatgpt` 是本地配置名称，不是日常 Chrome 的“ChatGPT”配置，也不表示已登录 ChatGPT。`profile-save` 和 `profiles` 都不连接或启动浏览器；保存时必须显式提供目录与端口，同名、同连接地址或同数据目录会被拒绝，不覆盖已有配置。保存采用锁文件与原子替换；写入失败时保留原文件。
+示例目录应替换为目标机器上已确认的专用目录。`chatgpt` 是本地配置名称，不是日常 Chrome 的“ChatGPT”配置，也不表示已登录 ChatGPT。`profile-save` 和 `profiles` 都不连接或启动浏览器；保存时必须显式提供目录与端口，同名、同连接地址或相同／互相嵌套的数据目录会被拒绝，不覆盖已有配置。保存采用锁文件与原子替换；写入失败时保留原文件。
 
 未传 `--profile` 时继续使用内置 `agent-browser`；`--profile agent-browser` 也选择同一默认配置，不读取命名配置文件。该内置配置不能被保存、覆盖或改成另一套配置。未知名称或格式错误只影响显式选择命名配置的操作，不静默回退到默认实例。`--profile` 与目录、连接地址参数不能混用，以免部分覆盖导致串用配置。
 

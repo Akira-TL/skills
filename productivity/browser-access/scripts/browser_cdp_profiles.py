@@ -49,8 +49,10 @@ def validate_profiles(profiles: tuple[NamedProfile, ...]) -> None:
             raise BrowserCdpError(f"Named profile {profile.name!r} requires a dedicated user_data_dir")
         key = endpoint_key(profile.config.endpoint)
         normalized = normalized_directory(directory)
-        if profile.name in names or key in endpoints or normalized in directories:
-            raise BrowserCdpError(f"Profile {profile.name!r} duplicates a name, endpoint or data directory")
+        overlaps = any(normalized == other or normalized.startswith(other + "\\") or
+                       other.startswith(normalized + "\\") for other in directories)
+        if profile.name in names or key in endpoints or overlaps:
+            raise BrowserCdpError(f"Profile {profile.name!r} duplicates a name/endpoint or shares an overlapping data directory")
         names.add(profile.name)
         endpoints.add(key)
         directories.add(normalized)

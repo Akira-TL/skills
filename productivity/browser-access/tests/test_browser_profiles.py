@@ -63,6 +63,8 @@ class DedicatedProfileTests(unittest.TestCase):
             r"C:\Users\Akira\AppData\Local\Google\Chrome\User Data",
             r"C:\Users\Akira\AppData\Local\Google\Chrome\User Data\Profile 7",
             r"C:\Users\Akira\.agent-browser\profile",
+            r"C:\Users\Akira\.agent-browser\profile\nested",
+            r"C:\Users\Akira\.agent-browser\profile.",
         ):
             with self.subTest(directory=directory), self.assertRaises(BrowserCdpError):
                 lifecycle.config_from_options("http://localhost:9223", directory, None)
@@ -82,6 +84,15 @@ class DedicatedProfileTests(unittest.TestCase):
                                   ("http://localhost:9223", "../Profile 7")):
             with self.subTest(endpoint=endpoint, profile=profile), self.assertRaises(BrowserCdpError):
                 lifecycle.config_from_options(endpoint, self.config.user_data_dir, profile)
+
+    def test_empty_explicit_options_and_invalid_windows_paths_are_rejected(self) -> None:
+        for endpoint, profile in (("", "Default"), ("http://localhost:9223\n", "Default"),
+                                  ("http://localhost:9223", ""), ("http://localhost:9223", "Default.")):
+            with self.subTest(endpoint=endpoint, profile=profile), self.assertRaises(BrowserCdpError):
+                lifecycle.config_from_options(endpoint, self.config.user_data_dir, profile)
+        for directory in ("C:\\", r"C:\Agent\name.", r"C:\Agent\name*", r"C:\Agent "):
+            with self.subTest(directory=directory), self.assertRaises(BrowserCdpError):
+                lifecycle.config_from_options("http://localhost:9223", directory, None)
 
     def test_verified_existing_instance_is_reused_without_launch(self) -> None:
         with patch.object(lifecycle, "probe_version", return_value=self.version), \
@@ -181,6 +192,8 @@ class NamedProfileTests(unittest.TestCase):
             ("chatgpt", lifecycle.BrowserConfig(endpoint="http://localhost:9224", user_data_dir=r"C:\Agent\Second")),
             ("second", lifecycle.BrowserConfig(endpoint="http://127.0.0.1:9223", user_data_dir=r"C:\Agent\Second")),
             ("second", lifecycle.BrowserConfig(endpoint="http://localhost:9224", user_data_dir=r"c:/agent data/chatgpt")),
+            ("second", lifecycle.BrowserConfig(endpoint="http://localhost:9224", user_data_dir=r"C:\Agent Data\ChatGPT\nested")),
+            ("second", lifecycle.BrowserConfig(endpoint="http://localhost:9224", user_data_dir=r"C:\Agent Data")),
         ):
             with self.subTest(name=name, config=config), self.assertRaises(BrowserCdpError):
                 profiles.save_profile(name, config, self.path)

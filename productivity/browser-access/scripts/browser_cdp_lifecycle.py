@@ -34,11 +34,14 @@ def validate_config(config: BrowserConfig) -> None:
         port = parsed.port
     except ValueError as exc:
         raise BrowserCdpError(f"Invalid CDP endpoint: {config.endpoint}") from exc
-    if (parsed.scheme not in {"http", "https"} or not parsed.hostname or
+    if (re.search(r"[\x00-\x20]", config.endpoint) or
+            parsed.scheme not in {"http", "https"} or not parsed.hostname or
             parsed.username or parsed.password or parsed.path not in {"", "/"} or
             parsed.query or parsed.fragment or port == 0):
         raise BrowserCdpError("CDP endpoint must be an HTTP(S) origin without credentials, path, query or fragment")
-    if not re.fullmatch(r"[^\\/\x00-\x1f\".][^\\/\x00-\x1f\"]*", config.profile_directory):
+    if (not config.profile_directory or config.profile_directory in {".", ".."} or
+            re.search(r'[\\/\x00-\x1f\"<>:|?*]', config.profile_directory) or
+            config.profile_directory.endswith((".", " "))):
         raise BrowserCdpError("--profile-directory must be a single Chrome profile directory name")
     if config.user_data_dir is None:
         if config.profile_directory != "Default":
@@ -48,9 +51,13 @@ def validate_config(config: BrowserConfig) -> None:
     if not re.match(r"^[A-Za-z]:[\\/]", path) or re.search(r'[\x00-\x1f\"]', path):
         raise BrowserCdpError("--user-data-dir must be an absolute Windows path without control characters or double quotes")
     normalized = normalized_directory(path)
+    _, tail = ntpath.splitdrive(normalized)
+    components = tail.strip("\\").split("\\")
+    if tail == "\\" or any(part.endswith((".", " ")) or re.search(r'[<>:|?*]', part) for part in components):
+        raise BrowserCdpError("--user-data-dir must be a dedicated directory with valid Windows path components")
     if re.search(r"\\google\\chrome\\user data(?:\\|$)", normalized):
         raise BrowserCdpError("Daily Chrome data directories are outside browser-access's dedicated configuration scope")
-    if normalized.endswith(r"\.agent-browser\profile"):
+    if re.search(r"\\\.agent-browser\\profile(?:\\|$)", normalized):
         raise BrowserCdpError("The default Agent directory is reserved; omit configuration options to use agent-browser")
     if parsed.hostname in {"localhost", "127.0.0.1", "::1"} and port == 9222:
         raise BrowserCdpError("Port 9222 is reserved for agent-browser; use a separate port for a dedicated configuration")
@@ -61,9 +68,9 @@ def config_from_options(endpoint: str | None, user_data_dir: str | None,
     if user_data_dir is not None and endpoint is None:
         raise BrowserCdpError("A custom --user-data-dir requires an explicit independent --endpoint")
     config = BrowserConfig(
-        endpoint=endpoint or DEFAULT_ENDPOINT,
+        endpoint=endpoint if endpoint is not None else DEFAULT_ENDPOINT,
         user_data_dir=user_data_dir,
-        profile_directory=profile_directory or "Default",
+        profile_directory=profile_directory if profile_directory is not None else "Default",
         identity=ntpath.basename(ntpath.normpath(user_data_dir)) if user_data_dir else
                  (PROFILE_IDENTITY if endpoint is None or endpoint.rstrip("/") == DEFAULT_ENDPOINT else None),
     )
@@ -102,7 +109,7 @@ $paths = @(
 $chrome = $paths | Select-Object -First 1
 if (-not $chrome) { throw 'Chrome executable not found in known Windows locations' }
 '''.strip() + f'''
-$profile = [IO.Path]::GetFullPath({directory})
+$profile = [IO.Path]::GetFullPath({directory}).TrimEnd('\\')
 $daily = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Google\\Chrome\\User Data'))
 if ($profile.TrimEnd('\\') -ieq $daily.TrimEnd('\\') -or $profile.StartsWith($daily.TrimEnd('\\') + '\\', [StringComparison]::OrdinalIgnoreCase)) {{
   throw 'Daily Chrome data directories are outside the dedicated adapter scope'
