@@ -84,6 +84,12 @@ class LiveTests(unittest.TestCase):
             self.assertIn('last_observed',caught.exception.context)
             self.assertIn('mutation_count',caught.exception.context)
 
+    def test_dom_stability_tracks_changes_between_checks(self):
+        with self.page() as page:
+            page.evaluate("setTimeout(()=>{document.querySelector('#status').textContent='临时';setTimeout(()=>document.querySelector('#status').textContent='初始',20)},40)")
+            result=page.execute('wait',dom_stable='#status',stable_ms=100,poll=0.2,timeout=1)
+            self.assertGreaterEqual(result['elapsedSeconds'],0.15)
+
     def test_error_evidence_screenshot_and_bounded_snapshot(self):
         with tempfile.TemporaryDirectory() as folder,self.page() as page:
             output=Path(folder)/'element.png'

@@ -33,23 +33,23 @@ def wait_condition(page: Any, kind: str, options: dict[str, Any]) -> dict[str, A
     observer_key = '__browserAccessWait_'+uuid.uuid4().hex
     key_js = json.dumps(observer_key)
     within_js = json.dumps(within)
+    observation = observation_expression(selector,within,options.get('attributes'))
+    projection=f"JSON.stringify(({observation}).map(item=>({{text:item.text,attributes:item.attributes,visible:item.visible}})))"
     # Observe the document so a scoped container's replacement is observable too.
-    page.evaluate(f"""(() => {{const key={key_js};const slot={{count:0,wake:null}};
+    page.evaluate(f"""(() => {{const key={key_js};const project=()=>{projection};const slot={{count:0,wake:null,signature:project(),lastChange:performance.now()}};
  const observer=new MutationObserver(records=>{{const root={within_js}?document.querySelector({within_js}):document;
  const count=records.filter(r=>!root||r.target===root||root.contains(r.target)||[...r.addedNodes,...r.removedNodes].some(n=>n===root||n.contains?.(root))).length;
- slot.count+=count;if(count && slot.wake) slot.wake();}});
+ slot.count+=count;const signature=project();if(signature!==slot.signature){{slot.signature=signature;slot.lastChange=performance.now();}}if(count && slot.wake) slot.wake();}});
  observer.observe(document,{{subtree:true,childList:true,characterData:true,attributes:true}});
  slot.observer=observer;globalThis[key]=slot;return true;}})()""")
     started = time.monotonic()
-    observation = observation_expression(selector,within,options.get('attributes'))
     baseline = options.get('baseline')
     last: Any = None
     mutation_count = 0
     transitions: list[str] = []
-    stable_since = started
-    previous = None
     try:
         initial = page.evaluate(observation)
+        if kind=='transition':transitions.append('\n'.join(item['text'] for item in initial))
         if baseline is None:
             baseline = [item['identity'] for item in initial]
         elif not isinstance(baseline,list):
@@ -73,10 +73,8 @@ def wait_condition(page: Any, kind: str, options: dict[str, Any]) -> dict[str, A
                 met=bool(new)
                 if met: last=new
             elif kind=='stable':
-                signature=json.dumps([{key:item[key] for key in ('text','attributes','visible')} for item in last],ensure_ascii=False)
-                if signature!=previous:
-                    previous,stable_since=signature,time.monotonic()
-                met=bool(last) and (time.monotonic()-stable_since)*1000>=float(options.get('stable_ms',500))
+                stable_for=float(page.evaluate(f'performance.now()-globalThis[{key_js}].lastChange'))
+                met=bool(last) and stable_for>=float(options.get('stable_ms',500))
             elif kind=='transition':
                 if not transitions or transitions[-1]!=value:
                     transitions.append(value)
