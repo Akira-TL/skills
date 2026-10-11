@@ -1,11 +1,16 @@
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'scripts'))
 from browser_runtime.waits import wait_condition
 from browser_cdp_core import BrowserCdpError
 
 class WaitTests(unittest.TestCase):
+    def setUp(self):
+        observer=patch('browser_runtime.waits.observation_expression',return_value='OBSERVE')
+        observer.start()
+        self.addCleanup(observer.stop)
     class Peer:
         timeout=1
         def __init__(self):self.expressions=[]
@@ -13,7 +18,7 @@ class WaitTests(unittest.TestCase):
             self.expressions.append(expression)
             if '?.count||0' in expression:return 7
             if expression=='false':return False
-            if 'return [...root.querySelectorAll' in expression:return []
+            if expression=='OBSERVE':return []
             return True
     def test_timeout_contains_observation_and_mutation_count(self):
         peer=self.Peer()
@@ -26,7 +31,7 @@ class WaitTests(unittest.TestCase):
     def test_new_element_uses_baseline_identity(self):
         peer=self.Peer()
         original=peer.evaluate
-        peer.evaluate=lambda expression,**kwargs: [{'identity':2,'text':'new'}] if 'return [...root.querySelectorAll' in expression else original(expression,**kwargs)
+        peer.evaluate=lambda expression,**kwargs: [{'identity':2,'text':'new'}] if expression=='OBSERVE' else original(expression,**kwargs)
         result=wait_condition(peer,'new',{'selector':'.message','baseline':[1]})
         self.assertEqual(result['value'][0]['identity'],2)
     def test_initial_state_mismatch_is_explicit(self):
