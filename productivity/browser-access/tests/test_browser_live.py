@@ -196,3 +196,14 @@ class LiveTests(unittest.TestCase):
         self.assertEqual(rows[1]['error_code'],'ELEMENT_NOT_FOUND')
         self.assertEqual(rows[2]['result']['state']['value'],'JSONL输入')
         self.assertTrue(rows[3]['ok'])
+
+    def test_focus_and_diagnostic_guards_are_consistent(self):
+        script=Path(__file__).resolve().parents[1]/'scripts'/'browser_cdp.py'
+        completed=subprocess.run(['uv','run',str(script),'--compact','--endpoint',ENDPOINT,'focus','--target',self.target['id'],'--expected-url',URL+'#different'],text=True,capture_output=True,timeout=30)
+        self.assertNotEqual(completed.returncode,0)
+        self.assertEqual(json.loads(completed.stdout)['error_code'],'TARGET_LOCK_VIOLATION')
+        with self.page() as page:
+            self.assertTrue(page.execute('focus')['focused'])
+            with self.assertRaises(BrowserCdpError):page.execute('snapshot',selector='.variant')
+            result=page.execute('snapshot',selector='.variant',within='#message-two',expect_text='U1',expect_role='button')
+            self.assertEqual(result['text'],'U1')

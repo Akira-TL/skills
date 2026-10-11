@@ -26,7 +26,7 @@ from browser_runtime.waits import wait_condition, observation_expression
 from browser_runtime.upload import upload_files
 from browser_runtime.actions import pointer_click, type_text, fill_native
 from browser_runtime.dom import SelectorGuard, dom_expression, scope_expression
-from browser_session import BrowserSession, locked_page, serve_session
+from browser_session import TargetLock, BrowserSession, locked_page, serve_session
 from browser_cdp_profiles import DEFAULT_CONFIG_PATH, load_profiles, resolve_profile, save_profile
 from browser_cdp_core import (
     DEFAULT_ENDPOINT,
@@ -216,7 +216,7 @@ def build_parser() -> argparse.ArgumentParser:
         risky.add_argument("--evidence-on-error",action="store_true")
     for scoped in (click_parser,type_parser,fill_parser,upload_parser,inspect_parser,text_parser,wait_parser,network_parser):
         scoped.add_argument("--within", help="unique ancestor selector")
-    for guarded in (click_parser,type_parser,fill_parser,upload_parser):
+    for guarded in (click_parser,type_parser,fill_parser,upload_parser,screenshot_parser,snapshot_parser,artifact_parser):
         guarded.add_argument("--expect-text", help="exact normalized visible text")
         guarded.add_argument("--expect-role", help="ARIA or native role")
         guarded.add_argument("--expect-count", type=int, default=1)
@@ -247,16 +247,21 @@ def command_open(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_focus(args: argparse.Namespace) -> dict[str, Any]:
-    target = selected_target(args.browser, args.target, timeout=args.timeout)
-    version = require_browser(args.endpoint, timeout=args.timeout)
-    with browser_client(version, timeout=args.timeout) as client:
-        client.call("Target.activateTarget", {"targetId": target["id"]})
-    return {"focused": True, "target": target_view(target)}
+    target=selected_target(args.browser,args.target,timeout=args.timeout)
+    with locked_page(args,target) as page:
+        page.call("Page.bringToFront")
+    return {"focused":True,"target":target_view(target)}
 
 
 def command_navigate(args: argparse.Namespace) -> dict[str, Any]:
     target = selected_target(args.browser, args.target, timeout=args.timeout)
+    if any(getattr(args,key,None) for key in ("expected_url","expected_origin","expected_title_regex")):
+        TargetLock(str(target["id"]),args.expected_url or str(target["url"]),args.expected_origin,args.expected_title_regex).validate(target)
     with page_client(target, timeout=args.timeout) as client:
+        if args.expected_url:
+            actual=client.evaluate("location.href")
+            if actual!=args.expected_url:
+                raise BrowserCdpError("Page changed before explicit navigation",code="TARGET_LOCK_VIOLATION",context={"expected_url":args.expected_url,"actual_url":actual})
         client.call("Page.enable")
         nav = client.call("Page.navigate", {"url": args.url})
         ready = wait_ready(client, timeout=args.timeout)
@@ -351,14 +356,14 @@ def dispatch(args: argparse.Namespace) -> Any:
     if args.command in {"resolve-artifact","browser-fetch"}:
         target=selected_target(args.browser,args.target,timeout=args.timeout)
         with locked_page(args,target) as page:
-            result=resolve_artifact(page,args.selector,SelectorGuard(within=args.within)) if args.command=="resolve-artifact" else browser_fetch(page,args.url,max_bytes=args.max_bytes,timeout=args.timeout)
+            result=resolve_artifact(page,args.selector,SelectorGuard.from_options(vars(args))) if args.command=="resolve-artifact" else browser_fetch(page,args.url,max_bytes=args.max_bytes,timeout=args.timeout)
         return {"target":target_view(target),**result}
     if args.command in {"screenshot","snapshot"}:
         from browser_runtime.evidence import screenshot, snapshot
         target=selected_target(args.browser,args.target,timeout=args.timeout)
         with locked_page(args,target) as page:
-            if args.command=="screenshot":result=screenshot(page,args.output,args.selector,SelectorGuard(within=args.within))
-            else:result=snapshot(page,args.selector,SelectorGuard(within=args.within),max_chars=args.max_chars)
+            if args.command=="screenshot":result=screenshot(page,args.output,args.selector,SelectorGuard.from_options(vars(args)))
+            else:result=snapshot(page,args.selector,SelectorGuard.from_options(vars(args)),max_chars=args.max_chars)
         return {"target":target_view(target),**result}
     if args.command == "profiles":
         if any(option is not None for option in (args.profile, args.endpoint, args.user_data_dir, args.profile_directory)):

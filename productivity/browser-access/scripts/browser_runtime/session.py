@@ -177,6 +177,9 @@ class BrowserSession:
             raise
 
     def _execute(self, op: str, options: dict[str, Any]) -> dict[str, Any]:
+        if op=="focus":
+            self.call("Page.bringToFront")
+            return {"focused":True,"target":target_view(self.target)}
         if op in {"network","resolve-artifact","browser-fetch"}:
             from browser_runtime.network import observe_network, resolve_artifact, browser_fetch
             from browser_runtime.dom import SelectorGuard
