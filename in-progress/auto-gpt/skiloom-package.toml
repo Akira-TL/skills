@@ -1,0 +1,4 @@
+schema = 1
+
+[dependencies]
+"akira-tl/skills/browser-access" = "*"
