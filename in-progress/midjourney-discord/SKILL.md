@@ -1,6 +1,6 @@
 ---
 name: midjourney-discord
-description: 通过用户已授权、已登录且可见的 Discord 浏览器会话操作 Midjourney Bot。用于 Codex/Agent 需要在指定 Discord 频道执行只读命令、提交 /imagine、等待任务、解析消息、精确处理 U/V/Remix 等组件状态、获取原图 URL 或下载结果时。必须依赖 browser-access，并锁定用户明确授权的频道。
+description: 通过用户已授权、已登录且可见的 Discord 浏览器会话操作 Midjourney Bot。用于 Codex/Agent 需要在指定 Discord 频道上传单图/多图参考、提交纯文本或带图 /imagine、等待与解析任务、精确处理 U/V/Remix、收集任务树图片并下载结果时。必须依赖 browser-access，并锁定用户明确授权的频道。
 ---
 
 # Midjourney Discord
@@ -17,7 +17,7 @@ Midjourney 未向普通订阅用户提供可与会员额度等价复用的公共
 2. **复用 Browser Grant**：如果当前对话没有对该浏览器/Profile 的明确授权，先按 `browser-access` 的 Browser Grant 规则询问。换 Profile、换浏览器或扩大控制范围时重新授权。
 3. **不触碰凭据**：不得导出 Discord token、Cookie、Authorization header 或 Midjourney 会话凭据。
 4. **账号设置默认只读**：`/settings` 只允许读取当前状态；`/prefer`、模式切换、隐私设置、订阅操作等会改变账号行为的命令只有用户明确要求时才另行处理，不由本 CLI 泛化执行。
-5. **生成动作必须来自用户意图**：`imagine`、U/V、reroll、upscale、vary、zoom、animate 都会产生外部动作或消耗额度；只有用户已经要求生成/继续处理时执行。
+5. **生成动作必须来自用户意图**：图片上传、`imagine`、U/V、reroll、upscale、vary、zoom、animate 都会产生外部可见动作或消耗额度；只有用户已经要求上传/生成/继续处理时执行。
 6. **识别 Remix modal**：Remix Mode 开启时，`V1`–`V4`、`Vary (Subtle)`、`Vary (Strong)` 可能先弹出 `Remix Prompt`。CLI 必须返回 modal 状态；只有调用方显式传 `--accept-remix` 或 `--remix-prompt` 才继续提交。
 7. **不把复杂模态动作伪装成完成**：`Vary (Region)`、`Custom Zoom` 等需要区域选择或额外参数的动作不在通用 `action` 支持列表中。遇到这类按钮，回到 browser-access 做专门交互或交给用户。
 8. **保护已有 modal**：执行任何新的 Midjourney 组件动作前先检查页面是否已有 `Remix Prompt`。如果已有，拒绝点击其他按钮，使用 `remix inspect/submit/cancel` 处理当前对话框，防止把用户或其他任务的 modal 误归因给当前动作。
@@ -63,17 +63,34 @@ uv run <skill>/scripts/mj_discord.py --channel-url "$URL" command settings
 
 这些命令会真实调用 Midjourney Bot，但不会修改账号设置。
 
-### 3. 生图
+### 3. 上传参考图与生图
+
+独立上传本地参考图并取得 Discord CDN URL：
+
+```bash
+uv run <skill>/scripts/mj_discord.py --channel-url "$URL" upload \
+  ./ref1.png ./ref2.jpg
+```
+
+带本地参考图调用 `/imagine`：
 
 ```bash
 uv run <skill>/scripts/mj_discord.py --channel-url "$URL" imagine \
-  'cinematic product shot, soft studio light --ar 16:9'
+  'cinematic product shot, soft studio light --ar 16:9' \
+  --image ./ref1.png \
+  --image ./ref2.jpg
+```
+
+CLI 会先把参考图作为同一条 Discord 附件消息上传，等待附件 URL 落地，再将这些 URL 与文本 Prompt 一起提交给 Midjourney。纯文本生图继续支持：
+
+```bash
+... imagine 'prompt'
 ```
 
 默认等待任务完成。需要仅提交不等待时：
 
 ```bash
-... imagine 'prompt' --no-wait
+... imagine 'prompt' --image ./ref.png --no-wait
 ```
 
 返回 JSON 中保存：
@@ -144,7 +161,23 @@ uv run <skill>/scripts/mj_discord.py --channel-url "$URL" action \
 
 CLI 不会把动作前就存在的 modal 当作当前动作产生的 modal；这种情况下会拒绝新的组件点击。
 
-### 6. 下载原图
+### 6. 收集并下载任务树图片
+
+对一次根生成及其后续 U/V/Upscale 等结果做统一收集：
+
+```bash
+uv run <skill>/scripts/mj_discord.py --channel-url "$URL" collect \
+  --message-id chat-messages-...
+```
+
+`collect` 会按根 Prompt 的稳定文本签名关联当前 Discord DOM 中可见的同任务结果，并返回每条消息的 `result_type`、`message_id` 与所有 Discord attachment URL。下载全部可见结果：
+
+```bash
+uv run <skill>/scripts/mj_discord.py --channel-url "$URL" download-all \
+  --message-id chat-messages-... --output ./outputs/
+```
+
+下载单条消息仍可使用：
 
 ```bash
 uv run <skill>/scripts/mj_discord.py --channel-url "$URL" download \
@@ -157,9 +190,11 @@ uv run <skill>/scripts/mj_discord.py --channel-url "$URL" download \
 
 1. 运行 `doctor`。
 2. 如需了解当前账号状态，运行 `command info`；只有需要确认模型/风格默认值时运行 `command settings`。
-3. 运行 `imagine` 并保存 `message_id`。
-4. 根据返回按钮决定是否执行 `action`。
-5. 对选定结果运行 `download`。
+3. 有本地参考图时直接用 `imagine --image ...`；CLI 会自动完成上传与 CDN URL 拼接。保存返回的根 `message_id`。
+4. Agent 可先读取根 grid；需要单图时根据选择执行 U1–U4 或其他 `action`。
+5. 运行 `collect` 获取当前任务树全部可见图片结果；需要本地文件时运行 `download-all`。
 6. 需要多个素材时，以任务队列逐个调用，不依赖 Discord 页面视觉顺序。
 
 如果生成文本出现未在输入 Prompt 中提供的参数，例如 `--niji 7`、`--s 750`，把它视为账号当前默认设置的可观察结果；不要自行修改，除非用户明确要求。
+
+当前主链路已覆盖：本地单图/多图上传 → Discord CDN URL → 带图 `/imagine` → grid → U/V/Upscale/Remix → `collect` → `download-all`。`Vary (Region)`、`Custom Zoom`、`/blend` 专用 Slash Command 与账号设置修改仍保持显式边界。

@@ -178,7 +178,7 @@ Array.from(document.querySelectorAll('li[id^="chat-messages-"]')).slice(-80).map
     const emoji = b.querySelector('img[alt]')?.getAttribute('alt') || '';
     return text || emoji;
   }).filter(Boolean),
-  original_urls: Array.from(e.querySelectorAll('a.originalLink[href], a[data-role="img"][href]'))
+  original_urls: Array.from(e.querySelectorAll('a[href*="cdn.discordapp.com/attachments/"]'))
     .map(a => a.href),
   image_urls: Array.from(e.querySelectorAll('img'))
     .filter(img => img.alt === '图片' || img.alt === 'Image')
@@ -563,13 +563,13 @@ def extract_prompt(text: str) -> str | None:
             continue
         if line in {"Midjourney Bot", "已验证 APP"}:
             continue
-        if "http://" in line or "https://" in line:
-            continue
         if any(token in line for token in separators):
             for separator in separators:
                 if separator in line:
                     line = line.split(separator, 1)[0].rstrip()
                     break
+            line = re.sub(r"https?://\S+", " ", line)
+            line = re.sub(r"\s+", " ", line).strip()
             if len(line) >= 8:
                 return line
     return None

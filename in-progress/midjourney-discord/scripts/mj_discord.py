@@ -16,6 +16,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from mj_discord_core import *  # noqa: F403
+from mj_discord_media import collect_related, download_all, imagine_with_images, upload_images
 
 
 def submit_remix_dialog(
@@ -546,8 +547,17 @@ def build_parser() -> argparse.ArgumentParser:
     command_parser = sub.add_parser("command", help="Run a read-only Midjourney slash command.")
     command_parser.add_argument("command_name", choices=sorted(READ_ONLY_COMMANDS))
 
-    imagine_parser = sub.add_parser("imagine", help="Submit /imagine.")
+    upload_parser = sub.add_parser("upload", help="Upload reference images to the locked Discord channel.")
+    upload_parser.add_argument("files", nargs="+", help="Local image paths to upload in one Discord message.")
+
+    imagine_parser = sub.add_parser("imagine", help="Submit /imagine, optionally with uploaded reference images.")
     imagine_parser.add_argument("prompt")
+    imagine_parser.add_argument(
+        "--image",
+        action="append",
+        default=[],
+        help="Local reference image path. Repeat for multiple images.",
+    )
     imagine_parser.add_argument("--no-wait", action="store_true")
 
     recent_parser = sub.add_parser("recent", help="Return recent Midjourney messages.")
@@ -581,11 +591,28 @@ def build_parser() -> argparse.ArgumentParser:
     remix_submit.add_argument("--no-wait", action="store_true")
     remix_sub.add_parser("cancel")
 
+    collect_parser = sub.add_parser(
+        "collect",
+        help="Collect all visible Midjourney image results related to one root job.",
+    )
+    locate = collect_parser.add_mutually_exclusive_group(required=True)
+    locate.add_argument("--message-id")
+    locate.add_argument("--contains")
+
     download_parser = sub.add_parser("download", help="Download the original Discord attachment.")
     locate = download_parser.add_mutually_exclusive_group(required=True)
     locate.add_argument("--message-id")
     locate.add_argument("--contains")
     download_parser.add_argument("--output", required=True)
+
+    download_all_parser = sub.add_parser(
+        "download-all",
+        help="Download all visible image attachments related to one root Midjourney job.",
+    )
+    locate = download_all_parser.add_mutually_exclusive_group(required=True)
+    locate.add_argument("--message-id")
+    locate.add_argument("--contains")
+    download_all_parser.add_argument("--output", required=True, help="Output directory.")
 
     return parser
 
@@ -605,16 +632,22 @@ def main(argv: list[str] | None = None) -> int:
             result = doctor(args)
         elif args.subcommand == "command":
             result = invoke_read_only(args)
+        elif args.subcommand == "upload":
+            result = upload_images(args)
         elif args.subcommand == "imagine":
-            result = imagine(args)
+            result = imagine_with_images(args) if args.image else imagine(args)
         elif args.subcommand == "recent":
             result = recent(args)
         elif args.subcommand == "action":
             result = action(args)
         elif args.subcommand == "remix":
             result = remix_command(args)
+        elif args.subcommand == "collect":
+            result = collect_related(args)
         elif args.subcommand == "download":
             result = download(args)
+        elif args.subcommand == "download-all":
+            result = download_all(args)
         else:
             raise AssertionError(args.subcommand)
         emit(result)

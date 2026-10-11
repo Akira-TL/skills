@@ -11,6 +11,8 @@ assert SPEC and SPEC.loader
 MJ = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MJ)
 
+import mj_discord_media as MEDIA
+
 
 class MjDiscordPureTests(unittest.TestCase):
     def test_normalize_url(self):
@@ -67,6 +69,18 @@ class MjDiscordPureTests(unittest.TestCase):
         self.assertEqual(
             MJ.prompt_signature(text),
             "single matte white ceramic sphere --ar 1:1 --v 8.2",
+        )
+
+    def test_prompt_signature_image_prompt_strips_urls(self):
+        text = (
+            "Midjourney Bot\n"
+            "https://s.mj.run/abc https://s.mj.run/def "
+            "a clean abstract icon --ar 1:1 --s 750 --v 8.2 - @elaine "
+            "(Open on website for full quality)"
+        )
+        self.assertEqual(
+            MJ.prompt_signature(text),
+            "a clean abstract icon --ar 1:1 --s 750 --v 8.2",
         )
 
     def test_prompt_signature_variation(self):
@@ -132,6 +146,22 @@ class MjDiscordPureTests(unittest.TestCase):
         self.assertEqual(args.prompt, "replacement prompt")
         self.assertTrue(args.no_wait)
 
+    def test_upload_parser_accepts_multiple_files(self):
+        parser = MJ.build_parser()
+        args = parser.parse_args([
+            "--channel-url", "https://discord.com/channels/1/2",
+            "upload", "a.png", "b.webp",
+        ])
+        self.assertEqual(args.files, ["a.png", "b.webp"])
+
+    def test_imagine_parser_accepts_multiple_images(self):
+        parser = MJ.build_parser()
+        args = parser.parse_args([
+            "--channel-url", "https://discord.com/channels/1/2",
+            "imagine", "prompt", "--image", "a.png", "--image", "b.png",
+        ])
+        self.assertEqual(args.image, ["a.png", "b.png"])
+
     def test_remix_parser_cancel(self):
         parser = MJ.build_parser()
         args = parser.parse_args([
@@ -144,6 +174,32 @@ class MjDiscordPureTests(unittest.TestCase):
         self.assertIn("Your info -", MJ.READ_ONLY_COMPLETION_MARKERS["info"])
         self.assertIn("GETTING STARTED?", MJ.READ_ONLY_COMPLETION_MARKERS["help"])
         self.assertIn("Adjust your settings here.", MJ.READ_ONLY_COMPLETION_MARKERS["settings"])
+
+    def test_classify_midjourney_message_grid_and_selected(self):
+        self.assertEqual(
+            MEDIA.classify_midjourney_message({
+                "text": "prompt - @elaine",
+                "buttons": ["U1", "U2", "U3", "U4"],
+                "original_urls": ["https://cdn.discordapp.com/a.webp"],
+            }),
+            "grid",
+        )
+        self.assertEqual(
+            MEDIA.classify_midjourney_message({
+                "text": "prompt - Image #2 @elaine",
+                "buttons": ["Vary (Subtle)"],
+                "original_urls": ["https://cdn.discordapp.com/a.png"],
+            }),
+            "selected_image",
+        )
+
+    def test_url_filename_decodes_attachment_name(self):
+        self.assertEqual(
+            MEDIA._url_filename(
+                "https://cdn.discordapp.com/attachments/1/2/ref%20image.png?x=1"
+            ),
+            "ref image.png",
+        )
 
     def test_default_filename(self):
         url = "https://cdn.discordapp.com/attachments/1/2/output.webp?x=1"
