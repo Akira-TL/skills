@@ -256,6 +256,16 @@ uv run <script-path> type '#q1' '示例'
 
 ## 8. 日期控件
 
+### 可解释异步等待
+
+`wait` 保留选择器、文本、网址片段和表达式条件，并新增 `--dom-stable <选择器> --stable-ms 500`。稳定条件比较数量、可见文本和指定属性，要求至少一个元素存在；`--attribute` 可重复指定观测属性。
+
+`elements --selector '.message' --within '#messages'` 返回有界元素观测及身份。动作前保留 `identity` 数组，再用 `wait-new --selector '.message' --baseline '[1,2]'` 等待真正新增元素。省略数组时以等待启动时的元素为基准；已经出现的结果需要使用动作前的数组。
+
+`wait-transition --selector '#status' --initial-text '正在发送' --until-expression 'value === "完成"'` 记录初始、途中和完成文本，表达式可读 `value` 和 `observed`。若要求经过特定途中状态，可重复使用 `--intermediate-text`；轮次之间短暂出现的文本可能无法捕获，不应把极短状态作为完成前提。`wait-mutation --within '#preview' --until-expression '<表达式>'` 要求范围内先发生变化，再满足完成条件。
+
+等待在页面安装 `MutationObserver`，变化时立即唤醒，定时器兼容无 DOM 变化的条件，并在完成或失败后清理。需要把触发与等待结合时，传 `--click` 和可选 `--click-within`，先安装观察与基线，再使用真实点击。超时返回 `WAIT_TIMEOUT`，`context` 包含条件、`elapsed`、`last_observed`、`mutation_count` 和文本变化记录。会话中使用相同操作名与下划线参数，`timeout` 按请求指定秒数。
+
 对只读日期输入框，首选点击页面日期选择器。如果必须直接设置，应在设置后验证站点是否接受：
 
 ```javascript

@@ -154,6 +154,13 @@ class BrowserSession:
         return result
 
     def _execute(self, op: str, options: dict[str, Any]) -> dict[str, Any]:
+        if op in {"wait","wait-new","wait-transition","wait-mutation","elements"}:
+            from browser_runtime.waits import wait_condition, observation_expression
+            if op == "elements":
+                return {"target":target_view(self.target),"value":self.evaluate(observation_expression(options["selector"],options.get("within"),options.get("attributes")))}
+            kind={"wait-new":"new","wait-transition":"transition","wait-mutation":"mutation"}.get(op,"stable" if options.get("dom_stable") else "condition")
+            if options.get("dom_stable"): options["selector"]=options["dom_stable"]
+            return {"target":target_view(self.target),**wait_condition(self,kind,options)}
         if op == "upload":
             from browser_runtime.upload import upload_files
             from browser_runtime.dom import SelectorGuard

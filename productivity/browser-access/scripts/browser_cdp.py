@@ -21,6 +21,7 @@ sys.dont_write_bytecode = True
 from browser_cdp_lifecycle import (
     BrowserConfig, browser_status, ensure_browser, ensure_then_targets, selected_target,
 )
+from browser_runtime.waits import wait_condition, observation_expression
 from browser_runtime.upload import upload_files
 from browser_runtime.actions import pointer_click, type_text, fill_native
 from browser_runtime.dom import SelectorGuard, dom_expression, scope_expression
@@ -161,11 +162,33 @@ def build_parser() -> argparse.ArgumentParser:
     condition.add_argument("--text")
     condition.add_argument("--url-contains")
     condition.add_argument("--expression")
+    condition.add_argument("--dom-stable",metavar="SELECTOR")
     wait_parser.add_argument("--poll", type=float, default=0.25, help="poll interval in seconds")
 
     session_parser = sub.add_parser("session", help="one locked page WebSocket; stdin/stdout JSONL requests")
     add_target_argument(session_parser)
 
+    new_parser=sub.add_parser("wait-new",help="wait for elements absent from an identity baseline")
+    transition_parser=sub.add_parser("wait-transition",help="observe text states until a predicate completes")
+    mutation_parser=sub.add_parser("wait-mutation",help="wait for a scoped DOM mutation and optional expression")
+    elements_parser=sub.add_parser("elements",help="read bounded element identities for a wait baseline")
+    for observer in (new_parser,transition_parser,mutation_parser,elements_parser):
+        add_target_argument(observer)
+        observer.add_argument("--selector",required=observer in (new_parser,transition_parser,elements_parser))
+        observer.add_argument("--within")
+        observer.add_argument("--attribute",action="append",dest="attributes")
+    new_parser.add_argument("--baseline",help="JSON array of identities captured before the action")
+    transition_parser.add_argument("--initial-text")
+    transition_parser.add_argument("--intermediate-text",action="append",default=[])
+    transition_parser.add_argument("--until-expression",required=True,help="completion expression with observed and value in scope")
+    mutation_parser.add_argument("--until-expression")
+    for waiting in (wait_parser,new_parser,transition_parser,mutation_parser):
+        if waiting is not wait_parser: waiting.add_argument("--poll",type=float,default=0.1)
+        waiting.add_argument("--stable-ms",type=float,default=500)
+        waiting.add_argument("--click",help="trigger click after installing observer and baseline")
+        waiting.add_argument("--click-within")
+        waiting.add_argument("--allow-submit",action="store_true")
+    wait_parser.add_argument("--attribute",action="append",dest="attributes")
     for scoped in (click_parser,type_parser,fill_parser,upload_parser,inspect_parser,text_parser,wait_parser,network_parser):
         scoped.add_argument("--within", help="unique ancestor selector")
     for guarded in (click_parser,type_parser,fill_parser,upload_parser):
@@ -303,37 +326,16 @@ def command_upload(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_wait(args: argparse.Namespace) -> dict[str, Any]:
-    target = selected_target(args.browser, args.target, timeout=args.timeout)
-    if args.selector is not None:
-        expression = f"!!document.querySelector({json.dumps(args.selector, ensure_ascii=False)})"
-        condition = {"selector": args.selector}
-    elif args.text is not None:
-        expression = f"(document.body?.innerText || '').includes({json.dumps(args.text, ensure_ascii=False)})"
-        condition = {"text": args.text}
-    elif args.url_contains is not None:
-        expression = f"location.href.includes({json.dumps(args.url_contains, ensure_ascii=False)})"
-        condition = {"urlContains": args.url_contains}
-    else:
-        expression = args.expression
-        condition = {"expression": args.expression}
-    started = time.monotonic()
-    deadline = started + args.timeout
-    last: Any = None
-    with locked_page(args, target) as client:
-        while time.monotonic() < deadline:
-            last = client.evaluate(expression)
-            if bool(last):
-                return {
-                    "met": True,
-                    "elapsedSeconds": round(time.monotonic() - started, 3),
-                    "condition": condition,
-                    "target": target_view(target),
-                    "value": last,
-                }
-            time.sleep(max(0.05, args.poll))
-    raise BrowserCdpError(
-        f"Condition was not met within {args.timeout:g}s: {json.dumps(condition, ensure_ascii=False)}; last value={last!r}"
-    )
+    target=selected_target(args.browser,args.target,timeout=args.timeout)
+    kind={"wait-new":"new","wait-transition":"transition","wait-mutation":"mutation"}.get(args.command,"stable" if getattr(args,"dom_stable",None) else "condition")
+    options=vars(args).copy()
+    if getattr(args,"baseline",None):
+        options["baseline"]=json.loads(args.baseline)
+    if getattr(args,"dom_stable",None):
+        options["selector"]=args.dom_stable
+    with locked_page(args,target) as page:
+        result=wait_condition(page,kind,options)
+    return {"target":target_view(target),**result}
 
 
 def dispatch(args: argparse.Namespace) -> Any:
@@ -382,8 +384,10 @@ def dispatch(args: argparse.Namespace) -> Any:
         return command_fill(args)
     if args.command == "upload":
         return command_upload(args)
-    if args.command == "wait":
+    if args.command in {"wait","wait-new","wait-transition","wait-mutation"}:
         return command_wait(args)
+    if args.command == "elements":
+        return command_eval_like(args,observation_expression(args.selector,args.within,args.attributes))
     raise BrowserCdpError(f"Unsupported command: {args.command}")
 
 

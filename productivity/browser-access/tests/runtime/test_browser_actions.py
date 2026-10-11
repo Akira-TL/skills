@@ -3,7 +3,7 @@ import sys
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'scripts'))
 from browser_runtime.actions import pointer_click, type_text
 from browser_cdp_core import BrowserCdpError
 from browser_runtime.dom import SelectorGuard

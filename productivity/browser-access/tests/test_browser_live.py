@@ -69,3 +69,17 @@ class LiveTests(unittest.TestCase):
             self.assertEqual(caught.exception.code,'FILE_CONSTRAINT_VIOLATION')
             result=page.execute('upload',selector='.file',within='#upload-two',files=[str(first),str(second)])
             self.assertEqual(result['state']['count'],2)
+
+    def test_wait_transitions_new_elements_stability_and_timeout(self):
+        with self.page() as page:
+            baseline=page.execute('elements',selector='#messages > div')['value']
+            transition=page.execute('wait-transition',selector='#status',initial_text='初始',until_expression="value==='完成'",click='#progress',timeout=2,poll=0.02)
+            self.assertIn('完成',transition['transitions'])
+            result=page.execute('wait-new',selector='#messages > div',baseline=[item['identity'] for item in baseline],timeout=1)
+            self.assertEqual(result['value'][0]['id'],'new-message')
+            self.assertTrue(page.execute('wait',dom_stable='#status',stable_ms=80,timeout=1)['met'])
+            with self.assertRaises(BrowserCdpError) as caught:
+                page.execute('wait-mutation',within='#status',until_expression='false',timeout=0.1)
+            self.assertEqual(caught.exception.code,'WAIT_TIMEOUT')
+            self.assertIn('last_observed',caught.exception.context)
+            self.assertIn('mutation_count',caught.exception.context)
