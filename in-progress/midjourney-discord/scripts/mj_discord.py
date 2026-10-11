@@ -7,6 +7,8 @@ import os
 import subprocess
 import sys
 import time
+
+sys.dont_write_bytecode = True
 import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse
