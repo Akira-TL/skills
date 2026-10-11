@@ -3,6 +3,9 @@ import io
 import json
 import sys
 import unittest
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -104,3 +107,12 @@ class SessionTests(unittest.TestCase):
         client._ws = socket
         self.assertEqual(client.call('test'),{'answer':42})
         self.assertEqual(len(client._events),1)
+
+    def test_public_module_import_does_not_write_payload_bytecode(self):
+        source=Path(__file__).resolve().parents[2]/'scripts'
+        with tempfile.TemporaryDirectory() as folder:
+            payload=Path(folder)/'payload'
+            shutil.copytree(source,payload,ignore=shutil.ignore_patterns('__pycache__'))
+            code=f"import sys;sys.path.insert(0,{str(payload)!r});import browser_session"
+            subprocess.run(['uv','run','--no-project','python','-B','-c',code],check=True,capture_output=True,text=True)
+            self.assertEqual(list(payload.rglob('*.pyc')),[])

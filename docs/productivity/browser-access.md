@@ -148,6 +148,8 @@ DOM 稳定等待在页面变化回调中比较目标投影，记录最后变化�
 
 文本等待遵循 `within` 范围，范围变化等待回传该容器自身的有界观测；选择器等待可加 `--visible` 要求实际可见。超时保留有界 DOM 观测，同时保留原条件结果。
 
+直接导入官方 `browser_session` Python 接口时，调用方在导入前设置 `sys.dont_write_bytecode = True`，或以 `PYTHONDONTWRITEBYTECODE=1`／`python -B` 启动，确保入口模块自身也不向 Skiloom Store 投影写入字节码。入口同时关闭后续内部模块的字节码写入；CLI 无需额外参数。
+
 ## 运行时文件
 
 主运行规则：

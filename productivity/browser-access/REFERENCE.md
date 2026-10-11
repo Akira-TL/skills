@@ -20,6 +20,8 @@
 
 ### 页面长连接与目标锁定
 
+Python 调用方从 Skiloom Store 投影导入时，先设置 `sys.dont_write_bytecode = True`，或在 `uv run` 的进程环境设置 `PYTHONDONTWRITEBYTECODE=1`，使入口及内部模块都不写字节码；也可使用 `uv run --with websocket-client python -B <调用方脚本>`。官方 CLI 自行禁用内部模块缓存，无需调用方补参数。
+
 连续操作可运行 `uv run <script-path> session --target <完整ID> --expected-url <准确网址>`，每行输入 `{"id":1,"op":"inspect"}`，每行输出 `{"id":1,"ok":true,"result":...}`。命令错误保留原 ID 并返回统一错误对象；损坏请求的 ID 无法读取时为 `null`。结束标准输入即断开连接，保留浏览器。基础操作包括 `inspect`、`text`、`title`、`eval`、`call`；参数使用对应命令的下划线名称，不读取标准输入表达式。
 
 也可导入同目录 `browser_session.BrowserSession`，在上下文管理器内调用 `execute(op, **options)`、`evaluate` 或 `call`；`focus` 使用锁定页面的 `Page.bringToFront` 激活。Python 调用方必须先履行 Skill 的浏览器选择、授权和专用配置核验；模块只连接，不启动浏览器。CLI 会先履行已有配置核验。截图、快照和资源解析也接受 `within`、`expect_text`、`expect_role`、`expect_count` 等元素约束。
