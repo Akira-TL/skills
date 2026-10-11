@@ -270,6 +270,10 @@ el.dispatchEvent(new Event('change', { bubbles: true }));
 
 ## 9. 文件上传与跨系统路径
 
+`upload 'input[type=file]' '/tmp/中文 图片(1).png' --within '#attachment-area' --check-only` 返回完整预检；去掉 `--check-only` 才设置文件。`--predicate 'el.accept.includes("image")'` 可消歧隐藏输入，默认不按 DOM 顺序挑选。单文件输入收到多个路径返回 `FILE_CONSTRAINT_VIOLATION`，缺文件返回 `FILE_NOT_FOUND`，设置后回读不一致返回 `UPLOAD_VERIFICATION_FAILED`。页面额外大小限制用 `--max-file-bytes`、`--max-total-bytes` 表达，不能从 `accept` 推断大小。
+
+路径转换依据浏览器的 `navigator.platform`，在 WSL 控制 Linux 浏览器时保留 Linux 路径；控制 Windows 浏览器时转换，并先核验本地文件。无法核验远程 Windows 路径时拒绝。结果 `state.files` 包含浏览器读到的 `name`、`size`、`type`；`input_rebuilt` 和 `current_input` 说明设置后是否重建。上层仍需等待预览、传输完成和消息落地，不把 CDP 设置成功当作服务器已收到。
+
 优先使用 CLI 的 `upload`。在 WSL 下传入存在的 Linux 路径时，脚本会在需要时转换为 Windows Chrome 可访问路径；也可以直接传入明确的 Windows 路径。
 
 先通过 `inspect` 或必要的 `eval` 确认 `input[type=file]` 是否存在，以及：

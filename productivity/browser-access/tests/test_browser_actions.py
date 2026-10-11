@@ -4,9 +4,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from browser_actions import pointer_click, type_text
+from browser_runtime.actions import pointer_click, type_text
 from browser_cdp_core import BrowserCdpError
-from browser_dom import SelectorGuard
+from browser_runtime.dom import SelectorGuard
 
 
 class ActionTests(unittest.TestCase):
@@ -21,7 +21,7 @@ class ActionTests(unittest.TestCase):
 
     def test_replaced_on_press_cancels_release_outside_page(self):
         peer=self.Peer()
-        with patch('browser_actions.prepare_point',return_value={'x':10,'y':20}), patch('browser_actions.assert_same',side_effect=[None,BrowserCdpError('changed',code='ELEMENT_CHANGED_DURING_ACTION')]):
+        with patch('browser_runtime.actions.prepare_point',return_value={'x':10,'y':20}), patch('browser_runtime.actions.assert_same',side_effect=[None,BrowserCdpError('changed',code='ELEMENT_CHANGED_DURING_ACTION')]):
             with self.assertRaises(BrowserCdpError) as caught:
                 pointer_click(peer,'#button')
         self.assertEqual(caught.exception.code,'ELEMENT_CHANGED_DURING_ACTION')
@@ -30,7 +30,7 @@ class ActionTests(unittest.TestCase):
 
     def test_occlusion_before_press_never_presses(self):
         peer=self.Peer()
-        with patch('browser_actions.prepare_point',return_value={'x':10,'y':20}),patch('browser_actions.assert_same',side_effect=BrowserCdpError('blocked',code='ELEMENT_OCCLUDED')):
+        with patch('browser_runtime.actions.prepare_point',return_value={'x':10,'y':20}),patch('browser_runtime.actions.assert_same',side_effect=BrowserCdpError('blocked',code='ELEMENT_OCCLUDED')):
             with self.assertRaises(BrowserCdpError):
                 pointer_click(peer,'#button')
         self.assertEqual([p['type'] for _,p in peer.calls],['mouseMoved'])
@@ -39,7 +39,7 @@ class ActionTests(unittest.TestCase):
         peer=self.Peer()
         state={'value':'wrong','focused':True,'identity':1,'aria_invalid':'true'}
         peer.evaluate=lambda *a,**k:state
-        with patch('browser_actions.pointer_click',return_value={'interaction':{}}):
+        with patch('browser_runtime.actions.pointer_click',return_value={'interaction':{}}):
             with self.assertRaises(BrowserCdpError) as caught:
                 type_text(peer,'#editor','expected',SelectorGuard())
         self.assertEqual(caught.exception.code,'INPUT_VERIFICATION_FAILED')
@@ -47,7 +47,7 @@ class ActionTests(unittest.TestCase):
     def test_focus_failure_sends_no_keys(self):
         peer=self.Peer()
         peer.evaluate=lambda *a,**k:{'focused':False}
-        with patch('browser_actions.pointer_click',return_value={'interaction':{}}):
+        with patch('browser_runtime.actions.pointer_click',return_value={'interaction':{}}):
             with self.assertRaises(BrowserCdpError) as caught:
                 type_text(peer,'#editor','expected')
         self.assertEqual(caught.exception.code,'FOCUS_FAILED')

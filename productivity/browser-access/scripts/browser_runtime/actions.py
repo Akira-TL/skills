@@ -5,7 +5,7 @@ import json
 from typing import Any
 
 from browser_cdp_core import BrowserCdpError, replace_focused_text
-from browser_dom import SelectorGuard, dom_expression, state_expression
+from browser_runtime.dom import SelectorGuard, dom_expression, state_expression
 
 
 def prepare_point(page: Any, selector: str, guard: SelectorGuard, *, allow_submit: bool = False,

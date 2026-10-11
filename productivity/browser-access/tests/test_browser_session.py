@@ -39,8 +39,8 @@ class SessionTests(unittest.TestCase):
     def setUp(self):
         self.peer = FakePage()
         self.targets = [TARGET.copy(), {**TARGET,'id':'two','url':'https://example.org/channel/2'}]
-        self.patches = [patch('browser_session.list_targets', side_effect=lambda *a, **k:self.targets),
-                        patch('browser_session.page_client', return_value=self.peer)]
+        self.patches = [patch('browser_runtime.session.list_targets', side_effect=lambda *a, **k:self.targets),
+                        patch('browser_runtime.session.page_client', return_value=self.peer)]
         for item in self.patches:
             item.start()
             self.addCleanup(item.stop)

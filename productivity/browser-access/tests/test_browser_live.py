@@ -1,5 +1,7 @@
 """Opt-in real Chromium tests; started exclusively by browser_fixture.sh."""
 import os
+import base64
+import tempfile
 import sys
 import unittest
 import urllib.request
@@ -49,3 +51,21 @@ class LiveTests(unittest.TestCase):
             self.assertEqual(page.execute('type',selector='.field',value='modal',within='#modal')['state']['value'],'modal')
             page.execute('click',selector='.close',within='#modal')
             self.assertTrue(page.evaluate("document.querySelector('#modal').hidden"))
+
+    def test_upload_single_multi_and_rebuilt_hidden_input(self):
+        with tempfile.TemporaryDirectory() as folder, self.page() as page:
+            data=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=')
+            first=Path(folder)/'中文 图片(1).png'
+            second=Path(folder)/'图片(2).png'
+            first.write_bytes(data);second.write_bytes(data)
+            result=page.execute('upload',selector='.file',within='#upload-one',files=[str(first)])
+            self.assertTrue(result['input_rebuilt'])
+            self.assertEqual(result['state']['names'],[first.name])
+            result=page.execute('upload',selector='.file',within='#upload-one',files=[str(second)])
+            self.assertEqual(result['state']['names'],[second.name])
+            self.assertEqual(page.evaluate("document.querySelector('#preview').textContent"),second.name)
+            with self.assertRaises(BrowserCdpError) as caught:
+                page.execute('upload',selector='.file',within='#upload-one',files=[str(first),str(second)])
+            self.assertEqual(caught.exception.code,'FILE_CONSTRAINT_VIOLATION')
+            result=page.execute('upload',selector='.file',within='#upload-two',files=[str(first),str(second)])
+            self.assertEqual(result['state']['count'],2)

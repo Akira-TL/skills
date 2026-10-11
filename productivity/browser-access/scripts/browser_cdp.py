@@ -21,8 +21,9 @@ sys.dont_write_bytecode = True
 from browser_cdp_lifecycle import (
     BrowserConfig, browser_status, ensure_browser, ensure_then_targets, selected_target,
 )
-from browser_actions import pointer_click, type_text, fill_native
-from browser_dom import SelectorGuard, dom_expression, scope_expression
+from browser_runtime.upload import upload_files
+from browser_runtime.actions import pointer_click, type_text, fill_native
+from browser_runtime.dom import SelectorGuard, dom_expression, scope_expression
 from browser_session import BrowserSession, locked_page, serve_session
 from browser_cdp_profiles import DEFAULT_CONFIG_PATH, load_profiles, resolve_profile, save_profile
 from browser_cdp_core import (
@@ -149,6 +150,9 @@ def build_parser() -> argparse.ArgumentParser:
     add_target_argument(upload_parser)
     upload_parser.add_argument("selector")
     upload_parser.add_argument("files", nargs="+")
+    upload_parser.add_argument("--check-only",action="store_true")
+    upload_parser.add_argument("--max-file-bytes",type=int)
+    upload_parser.add_argument("--max-total-bytes",type=int)
 
     wait_parser = sub.add_parser("wait", help="wait until a selector, text, URL fragment, or JavaScript expression becomes true")
     add_target_argument(wait_parser)
@@ -292,24 +296,10 @@ def command_fill(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_upload(args: argparse.Namespace) -> dict[str, Any]:
-    target = selected_target(args.browser, args.target, timeout=args.timeout)
-    files = [chrome_file_path(value) for value in args.files]
-    with locked_page(args, target) as client:
-        client.call("DOM.enable")
-        document = client.call("DOM.getDocument", {"depth": 1, "pierce": True})
-        root = document.get("root", {})
-        node_id = root.get("nodeId") if isinstance(root, dict) else None
-        if not isinstance(node_id, int):
-            raise CdpProtocolError("DOM.getDocument did not return a root nodeId")
-        query = client.call("DOM.querySelector", {"nodeId": node_id, "selector": args.selector})
-        file_node_id = query.get("nodeId")
-        if not isinstance(file_node_id, int) or file_node_id == 0:
-            raise CdpProtocolError(f"No element matches upload selector {args.selector!r}")
-        client.call("DOM.setFileInputFiles", {"nodeId": file_node_id, "files": files})
-        state = client.evaluate(
-            f"(() => {{ const el=document.querySelector({json.dumps(args.selector, ensure_ascii=False)}); return el ? {{count:el.files?.length || 0, names:[...(el.files || [])].map(f=>f.name)}} : null; }})()"
-        )
-    return {"uploaded": True, "target": target_view(target), "files": files, "state": state}
+    target=selected_target(args.browser,args.target,timeout=args.timeout)
+    with locked_page(args,target) as page:
+        result=upload_files(page,args.selector,args.files,SelectorGuard.from_options(vars(args)),check_only=args.check_only,max_file_bytes=args.max_file_bytes,max_total_bytes=args.max_total_bytes)
+    return {"target":target_view(target),**result}
 
 
 def command_wait(args: argparse.Namespace) -> dict[str, Any]:
