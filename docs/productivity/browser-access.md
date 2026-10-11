@@ -73,6 +73,8 @@ Profile directory: %USERPROFILE%\.agent-browser\profile
 
 `status` 只检查，不启动 Chrome；自定义目录的页面命令会核验实例实际启动参数，不匹配或不能核验时停止。新启动的实例带 `--enable-automation` 以支持核验，旧默认实例保持兼容，`profileVerified` 明确表示是否完成身份核验。脚本不会关闭或替换已有浏览器，也不修改默认配置。
 
+自动启动前在 Windows 上检查所选端口是否能绑定回环地址；端口被占用或被系统保留时提前报错，不打开一个无法连接的窗口，不静默换端口。示例端口须按目标机器的实际可用情况选择；检查通过后仍会验证实际调试连接。
+
 Chrome 136 起，远程调试需要非标准数据目录；选择日常目录中的 `Profile 7` 不能消除该限制，适配器自动启动会拒绝日常 Chrome 数据目录。[Chrome 官方说明](https://developer.chrome.com/blog/remote-debugging-port)
 
 该 adapter 提供确定性命令行界面（Command-Line Interface, CLI）：

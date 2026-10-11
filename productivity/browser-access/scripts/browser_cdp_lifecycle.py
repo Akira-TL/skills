@@ -100,6 +100,7 @@ def launch_command(config: BrowserConfig) -> str:
     directory = powershell_literal(config.user_data_dir) if config.user_data_dir else \
         "(Join-Path $env:USERPROFILE '.agent-browser\\profile')"
     return r'''
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new()
 $ErrorActionPreference = 'Stop'
 $paths = @(
   (Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'),
@@ -113,6 +114,23 @@ $profile = [IO.Path]::GetFullPath({directory}).TrimEnd('\\')
 $daily = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Google\\Chrome\\User Data'))
 if ($profile.TrimEnd('\\') -ieq $daily.TrimEnd('\\') -or $profile.StartsWith($daily.TrimEnd('\\') + '\\', [StringComparison]::OrdinalIgnoreCase)) {{
   throw 'Daily Chrome data directories are outside the dedicated adapter scope'
+}}
+$portAvailable = $false
+foreach ($address in @([Net.IPAddress]::Loopback, [Net.IPAddress]::IPv6Loopback)) {{
+  $listener = [Net.Sockets.TcpListener]::new($address, {parsed.port})
+  try {{
+    $listener.Server.ExclusiveAddressUse = $true
+    $listener.Start()
+    $portAvailable = $true
+    break
+  }} catch {{
+    # Chrome also tries IPv6 loopback if IPv4 cannot bind.
+  }} finally {{
+    $listener.Stop()
+  }}
+}}
+if (-not $portAvailable) {{
+  throw 'CDP port {parsed.port} cannot bind on Windows loopback; it may be occupied or reserved. Chrome was not launched. Select an available port explicitly.'
 }}
 Start-Process -FilePath $chrome -ArgumentList @(
   '--remote-debugging-address=127.0.0.1',

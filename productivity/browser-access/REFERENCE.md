@@ -35,6 +35,8 @@ uv run <absolute-script-path> --endpoint http://localhost:9223 --user-data-dir '
 
 `--profile-directory` 是该专用数据目录内的 Chrome 配置子目录，默认 `Default`；它不表示用户日常 Chrome 的配置选择器。自定义目录禁止复用默认 Agent 目录、其子目录和本地 `9222` 端口，也拒绝 Windows 根目录与无效路径。自动启动只支持带明确端口的本地 HTTP 地址，并为含空格的 Windows 路径保留参数引号。
 
+自动启动前会在 Windows 上实际尝试绑定所选端口的 IPv4／IPv6 回环地址，再立即释放测试监听器；两者都不可用时直接报错，不启动 Chrome，也不自动换端口。没有进程占用不代表端口可用：Windows 排除的端口范围也会拒绝绑定，示例中的 `9223` 并非所有机器都可用。检查与真正启动之间仍可能发生端口竞争，因此启动后继续以实际 CDP 连接结果为准。
+
 `status` 只探测与核验，不启动 Chrome。自定义目录的页面命令在复用实例前通过 `Browser.getBrowserCommandLine` 核对数据目录和配置子目录；新启动的实例会带 `--enable-automation`。不匹配或无法核验时拒绝控制，不关闭、替换或重启已有实例。旧默认实例保持可连接，返回的 `profileVerified: false` 表示身份未经核验；仅设置连接地址时也不把其他端口的身份报告成 `agent-browser`。[Chrome 调试协议中的核验方法](https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/pdl/domains/Browser.pdl)
 
 ### 1.1 保存与选择专用命名配置
