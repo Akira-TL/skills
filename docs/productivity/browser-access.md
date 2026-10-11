@@ -122,6 +122,8 @@ productivity/browser-access/REFERENCE.md
 
 `screenshot` 使用原生 `Page.captureScreenshot`，支持整页可视区域或元素裁剪；`snapshot` 返回有界 HTML、位置、可见性、祖先 ID 和子控件。高风险动作可开启 `--evidence-on-error`，在连接断开前把截图、可见文本、有界控件、目标、控制台错误与动作元数据写入系统临时 `browser-evidence/`。证据采集不读取 Cookie 或浏览器存储，过滤敏感字段和网址查询参数，并在失败截图中暂时模糊输入区。页面已失去锁定或关闭时只保存可安全取得的元数据和采集错误，避免截取另一个页面。证据路径随原错误回传，证据失败不改变原错误类型。
 
+`network` 保留旧捕获参数，增加 `capture`、`wait-request`、`wait-response`、`wait-idle`，按网址正则和响应状态判断。会话从建立起启用网络观察，未完成请求与活动时间跨操作保留，等待空闲不会漏掉上一动作尚未完成的请求；返回安全的请求方法、状态、类型、长度与时间，不返回请求头或正文。`resolve-artifact` 从指定元素解析资源 URL、文件名与类型提示；只有资源确实依赖浏览器会话时才用有大小与超时限制的 `browser-fetch` 保存到系统临时文件。浏览器不执行 Discord 或 Midjourney 业务关联。
+
 ## 运行时文件
 
 主运行规则：

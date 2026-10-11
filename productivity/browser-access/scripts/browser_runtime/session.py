@@ -74,8 +74,10 @@ class BrowserSession:
         try:
             self.client.call("Page.enable")
             self.client.call("Runtime.enable")
+            self.client.call("Network.enable")
             frame = self._frame()
             self.frame_id, self.loader_id = str(frame["id"]), str(frame.get("loaderId", ""))
+            self.client.event_listener = self._on_event
             self.check()
         except BaseException:
             self.client.__exit__(None, None, None)
@@ -89,6 +91,15 @@ class BrowserSession:
     def _frame(self) -> dict[str, Any]:
         assert self.client
         return self.client.call("Page.getFrameTree")["frameTree"]["frame"]
+
+    def _on_event(self, event: dict[str, Any]) -> None:
+        params=event.get('params',{})
+        if not self.lock:
+            return
+        changed=event.get('method')=='Page.navigatedWithinDocument' and params.get('frameId')==self.frame_id and params.get('url')!=self.lock.expected_url
+        navigated=event.get('method')=='Page.frameNavigated' and params.get('frame',{}).get('id')==self.frame_id and params['frame'].get('loaderId')!=self.loader_id
+        if changed or navigated:
+            self.violation=BrowserCdpError('Navigation occurred during the locked session',code='NAVIGATION_DETECTED')
 
     def check(self, *, discover: bool = False) -> None:
         if self.violation:
@@ -133,7 +144,11 @@ class BrowserSession:
         # Enforce the URL again in the same JS task as the caller's expression.
         guard = json.dumps(self.lock.expected_url)
         wrapped = f"(() => {{ if(location.href !== {guard}) throw new Error('BROWSER_ERROR:' + JSON.stringify({{error_code:'TARGET_LOCK_VIOLATION',message:'Page URL changed',context:{{actual_url:location.href}}}})); return (0,eval)({json.dumps(expression)}); }})()"
-        result = self.client.evaluate(wrapped, await_promise=await_promise)
+        try:
+            result = self.client.evaluate(wrapped, await_promise=await_promise)
+        except BrowserCdpError:
+            self.check()
+            raise
         self.check()
         return result
 
@@ -161,6 +176,13 @@ class BrowserSession:
             raise
 
     def _execute(self, op: str, options: dict[str, Any]) -> dict[str, Any]:
+        if op in {"network","resolve-artifact","browser-fetch"}:
+            from browser_runtime.network import observe_network, resolve_artifact, browser_fetch
+            from browser_runtime.dom import SelectorGuard
+            if op=="network":result=observe_network(self,options)
+            elif op=="resolve-artifact":result=resolve_artifact(self,options["selector"],SelectorGuard.from_options(options))
+            else:result=browser_fetch(self,options["url"],max_bytes=options.get("max_bytes",20*1024*1024),timeout=options.get("timeout",self.timeout))
+            return {"target":target_view(self.target),**result}
         if op in {"screenshot","snapshot"}:
             from browser_runtime.evidence import screenshot, snapshot
             from browser_runtime.dom import SelectorGuard

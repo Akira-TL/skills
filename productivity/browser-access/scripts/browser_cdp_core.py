@@ -159,6 +159,27 @@ class CdpClient:
         self._next_id = 1
         self._ws: Any | None = None
         self._events: list[dict[str, Any]] = []
+        self._network_requests: dict[str, str] = {}
+        self._network_activity: dict[str, float] = {}
+        self.event_listener: Any = None
+
+    def _record_event(self, incoming: dict[str, Any]) -> None:
+        self._events.append(incoming)
+        self._events = self._events[-2000:]
+        params = incoming.get("params", {})
+        method = incoming.get("method")
+        request_id = str(params.get("requestId", ""))
+        url = str(params.get("request", params.get("response", {})).get("url", ""))
+        if method == "Network.requestWillBeSent":
+            self._network_requests[request_id] = url
+        elif method in {"Network.loadingFinished", "Network.loadingFailed"}:
+            url = self._network_requests.pop(request_id, "")
+        if url and str(method).startswith("Network."):
+            self._network_activity[url] = time.monotonic()
+            if len(self._network_activity) > 2000:
+                self._network_activity.pop(next(iter(self._network_activity)))
+        if self.event_listener:
+            self.event_listener(incoming)
 
     def __enter__(self) -> "CdpClient":
         try:
@@ -204,7 +225,7 @@ class CdpClient:
                 raise BrowserCdpError(f"Failed while waiting for CDP response to {method}: {exc}", code="CDP_UNREACHABLE") from exc
             if incoming.get("id") != message_id:
                 if isinstance(incoming.get("method"), str):
-                    self._events.append(incoming)
+                    self._record_event(incoming)
                 continue
             if "error" in incoming:
                 raise CdpProtocolError(f"{method} failed: {incoming['error']}", code="CDP_PROTOCOL_ERROR")
@@ -230,7 +251,7 @@ class CdpClient:
                 except Exception as exc:
                     raise BrowserCdpError(f"Failed while collecting CDP events: {exc}") from exc
                 if isinstance(incoming, dict) and isinstance(incoming.get("method"), str):
-                    self._events.append(incoming)
+                    self._record_event(incoming)
         finally:
             self._ws.settimeout(old_timeout)
         events = self._events
@@ -630,6 +651,7 @@ def summarize_network_events(events: Iterable[dict[str, Any]], *, url_contains: 
                     "url": url,
                     "method": request.get("method"),
                     "resourceType": params.get("type"),
+                    "requestTimestamp": params.get("timestamp"),
                 }
             )
         elif method == "Network.responseReceived":
@@ -651,6 +673,9 @@ def summarize_network_events(events: Iterable[dict[str, Any]], *, url_contains: 
                     "mimeType": response.get("mimeType"),
                     "contentType": response_header(headers, "content-type"),
                     "contentDisposition": response_header(headers, "content-disposition"),
+                    "contentLength": response_header(headers, "content-length"),
+                    "responseTimestamp": params.get("timestamp"),
+                    "timing": response.get("timing"),
                 }
             )
     return [records[request_id] for request_id in order]

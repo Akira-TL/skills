@@ -21,6 +21,7 @@ sys.dont_write_bytecode = True
 from browser_cdp_lifecycle import (
     BrowserConfig, browser_status, ensure_browser, ensure_then_targets, selected_target,
 )
+from browser_runtime.network import observe_network, resolve_artifact, browser_fetch
 from browser_runtime.waits import wait_condition, observation_expression
 from browser_runtime.upload import upload_files
 from browser_runtime.actions import pointer_click, type_text, fill_native
@@ -120,6 +121,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     network_parser = sub.add_parser("network", help="capture request/response metadata around a click or navigation")
     add_target_argument(network_parser)
+    network_parser.add_argument("mode",nargs="?",choices=("capture","wait-response","wait-request","wait-idle"),default="capture")
+    network_parser.add_argument("--url-regex")
+    network_parser.add_argument("--status",default="2xx")
+    network_parser.add_argument("--idle-ms",type=float,default=500)
     trigger = network_parser.add_mutually_exclusive_group()
     trigger.add_argument("--click", metavar="SELECTOR", help="click this element after Network.enable")
     trigger.add_argument("--navigate", metavar="URL", help="navigate after Network.enable")
@@ -189,6 +194,15 @@ def build_parser() -> argparse.ArgumentParser:
         waiting.add_argument("--click-within")
         waiting.add_argument("--allow-submit",action="store_true")
     wait_parser.add_argument("--attribute",action="append",dest="attributes")
+    artifact_parser=sub.add_parser("resolve-artifact",help="resolve an element's resource URL and filename")
+    fetch_parser=sub.add_parser("browser-fetch",help="bounded fetch in the authorized page, saved to OS temp")
+    add_target_argument(artifact_parser)
+    artifact_parser.add_argument("selector")
+    artifact_parser.add_argument("--within")
+    add_target_argument(fetch_parser)
+    fetch_parser.add_argument("url")
+    fetch_parser.add_argument("--max-bytes",type=int,default=20*1024*1024)
+    fetch_parser.add_argument("--evidence-on-error",action="store_true")
     screenshot_parser=sub.add_parser("screenshot",help="capture a page or selected element as PNG")
     snapshot_parser=sub.add_parser("snapshot",help="return bounded HTML and geometry without credential attributes")
     for diagnostic in (screenshot_parser,snapshot_parser):
@@ -285,26 +299,10 @@ def command_call(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_network(args: argparse.Namespace) -> dict[str, Any]:
-    target = selected_target(args.browser, args.target, timeout=args.timeout)
-    trigger_result: Any = None
-    with locked_page(args, target) as client:
-        client.call("Network.enable")
-        if args.click:
-            trigger_result = pointer_click(client,args.click,SelectorGuard(within=args.within),allow_submit=args.allow_submit)
-        elif args.navigate:
-            client.call("Page.enable")
-            trigger_result = client.call("Page.navigate", {"url": args.navigate})
-        events = client.collect_events(max(0.0, args.duration))
-    records = summarize_network_events(events, url_contains=args.url_contains)
-    max_results = max(0, int(args.max_results))
-    return {
-        "target": target_view(target),
-        "trigger": trigger_result,
-        "eventCount": len(events),
-        "recordCount": len(records),
-        "returnedRecordCount": min(len(records), max_results),
-        "records": records[:max_results],
-    }
+    target=selected_target(args.browser,args.target,timeout=args.timeout)
+    with locked_page(args,target) as page:
+        result=observe_network(page,vars(args))
+    return {"target":target_view(target),**result}
 
 
 def command_click(args: argparse.Namespace) -> dict[str, Any]:
@@ -349,6 +347,11 @@ def command_wait(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def dispatch(args: argparse.Namespace) -> Any:
+    if args.command in {"resolve-artifact","browser-fetch"}:
+        target=selected_target(args.browser,args.target,timeout=args.timeout)
+        with locked_page(args,target) as page:
+            result=resolve_artifact(page,args.selector,SelectorGuard(within=args.within)) if args.command=="resolve-artifact" else browser_fetch(page,args.url,max_bytes=args.max_bytes,timeout=args.timeout)
+        return {"target":target_view(target),**result}
     if args.command in {"screenshot","snapshot"}:
         from browser_runtime.evidence import screenshot, snapshot
         target=selected_target(args.browser,args.target,timeout=args.timeout)

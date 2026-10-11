@@ -191,6 +191,14 @@ expires_at
 
 ## 5. 页面勘察表达式
 
+### 网络条件与资源原语
+
+旧 `network --duration 3 --click '#download'` 继续可用；显式 `network capture` 等价。`network wait-response --url-regex '/upload' --status 2xx --click '#send'` 先启用观察再触发点击，等待匹配响应；状态也可为 `200,201`。`network wait-request` 等待请求开始，`network wait-idle --url-regex '/upload' --idle-ms 500` 要求匹配范围内没有未完成请求且在指定时间内无活动。会话建立时即启用网络域，支持先执行输入／点击再等待；单次 CLI 只能观察连接期间和显式触发之后的请求，不能追溯连接前发生的请求。缓存响应、重定向与失败结束按 CDP 事件处理。[Network 官方协议](https://chromedevtools.github.io/devtools-protocol/tot/Network/)
+
+输出只含安全元数据：网址、方法、状态、媒体类型、内容长度与时间；不返回 Cookie、Authorization、其他原始请求头或请求正文。事件与结果有数量边界。超时同样为 `WAIT_TIMEOUT`，带最后观测和未完成请求数量。
+
+`resolve-artifact '#result a' --within '#message-123'` 从 `data-safe-src`、`currentSrc`、`href`、`src` 或 `data` 提取真实资源，回传网址、来源页、类型提示和建议文件名。调用方优先使用普通 HTTP 传输；网址必须依赖当前浏览器会话时，`browser-fetch '<网址>' --max-bytes 20971520` 在页面中获取并保存到系统临时文件，回传绝对路径、大小与媒体类型。该命令执行读取，不提取或保存浏览器凭据。
+
 普通勘察先使用 CLI 的 `inspect`；只需要正文时使用 `text`。下面表达式用于 `eval` 的站点特定补充，不应再包装成独立脚本。
 
 读取可见正文：

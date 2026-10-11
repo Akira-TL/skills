@@ -100,3 +100,15 @@ class LiveTests(unittest.TestCase):
             for file in directory.glob('*.json'):
                 self.assertNotIn('TOP_SECRET',file.read_text())
             self.assertNotIn('TOP_SECRET',(directory/'visible-text.txt').read_text())
+
+    def test_network_predicates_and_artifacts(self):
+        with self.page() as page:
+            result=page.execute('network',mode='wait-response',url_regex='/asset\\.png$',status='2xx',click='#request',timeout=2)
+            self.assertEqual(result['records'][0]['status'],200)
+            self.assertNotIn('headers',result['records'][0])
+            self.assertTrue(page.execute('network',mode='wait-idle',url_regex='/asset',idle_ms=50,timeout=1)['met'])
+            artifact=page.execute('resolve-artifact',selector='#artifact')
+            self.assertEqual(artifact['suggested_filename'],'结果.png')
+            fetched=page.execute('browser-fetch',url=artifact['url'],max_bytes=1000)
+            self.assertTrue(Path(fetched['output']).read_bytes().startswith(b'\x89PNG'))
+            Path(fetched['output']).unlink()
