@@ -15,6 +15,14 @@ class SelectorGuard:
     allow_multiple: bool = False
     predicate: str | None = None
 
+    def __post_init__(self) -> None:
+        from browser_cdp_core import BrowserCdpError
+        if type(self.expect_count) is not int or self.expect_count < 1:
+            raise BrowserCdpError("expect_count must be a positive integer")
+        for value in (self.within,self.expect_text,self.expect_role,self.predicate):
+            if value is not None and not isinstance(value,str):
+                raise BrowserCdpError("Selector guard values must be strings")
+
     @classmethod
     def from_options(cls, options: dict[str, Any]) -> SelectorGuard:
         return cls(**{key: options[key] for key in cls.__dataclass_fields__ if key in options})

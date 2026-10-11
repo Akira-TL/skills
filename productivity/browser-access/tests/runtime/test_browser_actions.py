@@ -52,3 +52,23 @@ class ActionTests(unittest.TestCase):
                 type_text(peer,'#editor','expected')
         self.assertEqual(caught.exception.code,'FOCUS_FAILED')
         self.assertEqual(peer.calls,[])
+
+    def test_focus_lost_after_delete_blocks_insert_text(self):
+        peer=self.Peer()
+        active={'value':'old','focused':True,'identity':1,'aria_invalid':None}
+        peer.evaluate=lambda *a,**k:active.copy()
+        original=peer.call
+        def lose_focus(method,params):
+            result=original(method,params)
+            if params.get('key')=='Backspace':active['focused']=False
+            return result
+        peer.call=lose_focus
+        with patch('browser_runtime.actions.pointer_click',return_value={'interaction':{}}):
+            with self.assertRaises(BrowserCdpError) as caught:
+                type_text(peer,'#editor','secret')
+        self.assertEqual(caught.exception.code,'FOCUS_FAILED')
+        self.assertFalse(any(method=='Input.insertText' for method,_ in peer.calls))
+
+    def test_invalid_verification_and_count_are_rejected(self):
+        with self.assertRaises(BrowserCdpError):SelectorGuard(expect_count=0)
+        with self.assertRaises(BrowserCdpError):type_text(self.Peer(),'#editor','text',verify='typo')

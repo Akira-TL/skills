@@ -75,6 +75,8 @@ def pointer_click(page: Any, selector: str, guard: SelectorGuard | None = None, 
 
 def type_text(page: Any, selector: str, value: str, guard: SelectorGuard | None = None,
               *, verify: str = 'exact') -> dict[str, Any]:
+    if verify not in {'exact','contains','none'}:
+        raise BrowserCdpError('Unknown input verification mode')
     guard = guard or SelectorGuard()
     before = page.evaluate(state_expression(selector,guard))
     click = pointer_click(page,selector,guard,require_text=True)
@@ -84,7 +86,13 @@ def type_text(page: Any, selector: str, value: str, guard: SelectorGuard | None 
     # Text guards apply before editing; identity/focus apply afterwards.
     after_guard = SelectorGuard(within=guard.within,expect_role=guard.expect_role,
                                 expect_count=guard.expect_count,allow_multiple=guard.allow_multiple)
-    replace_focused_text(page,value)
+    class FocusedInput:
+        def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+            current=page.evaluate(state_expression(selector,after_guard))
+            if not current['focused'] or current['identity']!=focused['identity']:
+                raise BrowserCdpError('Input focus or target changed before keyboard event',code='FOCUS_FAILED',context={'state':current})
+            return page.call(method,params)
+    replace_focused_text(FocusedInput(),value)
     state = page.evaluate(state_expression(selector,after_guard))
     matched = state['value'] == value if verify=='exact' else value in state['value'] if verify=='contains' else True
     if not matched or not state['focused'] or state['identity'] != focused['identity'] or state['aria_invalid']=='true':
