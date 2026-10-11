@@ -11,14 +11,14 @@ from browser_runtime.dom import DOM_HELPERS
 
 
 def observation_expression(selector: str | None, within: str | None = None,
-                           attributes: list[str] | None = None) -> str:
+                           attributes: list[str] | None = None, identity_attribute: str | None = None) -> str:
     selector_js = json.dumps(selector)
     within_js = json.dumps(within)
     attrs_js = json.dumps(attributes or ['class','aria-busy','aria-invalid','data-state'])
     return f"""(() => {{ {DOM_HELPERS}
  const within={within_js}, selector={selector_js};let root=document;
  if(within){{const roots=[...document.querySelectorAll(within)]; if(roots.length>1) fail('ELEMENT_AMBIGUOUS','Wait scope is ambiguous'); if(!roots.length) return [];root=roots[0];}}
- return [...root.querySelectorAll(selector||'body')].slice(0,100).map(el=>({{identity:identity(el),id:el.id,text:(el.innerText||el.textContent||'').slice(0,1000),visible:visible(el),attributes:Object.fromEntries({attrs_js}.map(name=>[name,el.getAttribute(name)]))}}));
+ return [...root.querySelectorAll(selector||'body')].slice(0,100).map(el=>({{identity:{json.dumps(identity_attribute)} && el.getAttribute({json.dumps(identity_attribute)}) ? 'attribute:'+{json.dumps(identity_attribute)}+':'+el.getAttribute({json.dumps(identity_attribute)}) : identity(el),id:el.id,text:(el.innerText||el.textContent||'').slice(0,1000),visible:visible(el),attributes:Object.fromEntries({attrs_js}.map(name=>[name,el.getAttribute(name)]))}}));
 }})()"""
 
 
@@ -33,7 +33,7 @@ def wait_condition(page: Any, kind: str, options: dict[str, Any]) -> dict[str, A
     observer_key = '__browserAccessWait_'+uuid.uuid4().hex
     key_js = json.dumps(observer_key)
     within_js = json.dumps(within)
-    observation = observation_expression(selector,within,options.get('attributes'))
+    observation = observation_expression(selector,within,options.get('attributes'),options.get('identity_attribute'))
     projection=f"JSON.stringify(({observation}).map(item=>({{text:item.text,attributes:item.attributes,visible:item.visible}})))"
     # Observe the document so a scoped container's replacement is observable too.
     page.evaluate(f"""(() => {{const key={key_js};const project=()=>{projection};const slot={{count:0,wake:null,signature:project(),lastChange:performance.now()}};

@@ -192,7 +192,7 @@ class BrowserSession:
         if op in {"wait","wait-new","wait-transition","wait-mutation","elements"}:
             from browser_runtime.waits import wait_condition, observation_expression
             if op == "elements":
-                return {"target":target_view(self.target),"value":self.evaluate(observation_expression(options["selector"],options.get("within"),options.get("attributes")))}
+                return {"target":target_view(self.target),"value":self.evaluate(observation_expression(options["selector"],options.get("within"),options.get("attributes"),options.get("identity_attribute")))}
             kind={"wait-new":"new","wait-transition":"transition","wait-mutation":"mutation"}.get(op,"stable" if options.get("dom_stable") else "condition")
             if options.get("dom_stable"): options["selector"]=options["dom_stable"]
             return {"target":target_view(self.target),**wait_condition(self,kind,options)}

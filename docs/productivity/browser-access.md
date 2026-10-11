@@ -128,6 +128,8 @@ productivity/browser-access/REFERENCE.md
 
 DOM 稳定等待在页面变化回调中比较目标投影，记录最后变化时间，避免轮次之间的变化被遗漏。文本状态记录从触发动作前的初始状态开始。
 
+虚拟列表复用同一个 DOM 节点时，可在 `elements` 与 `wait-new` 两端指定同一 `identity_attribute`，例如 `id` 或站点现有的消息属性；身份属性变化也会被视为新的匹配。默认仍按实际元素对象身份判断。
+
 ## 运行时文件
 
 主运行规则：

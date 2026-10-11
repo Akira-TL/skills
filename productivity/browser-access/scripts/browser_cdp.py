@@ -182,6 +182,7 @@ def build_parser() -> argparse.ArgumentParser:
         observer.add_argument("--selector",required=observer in (new_parser,transition_parser,elements_parser))
         observer.add_argument("--within")
         observer.add_argument("--attribute",action="append",dest="attributes")
+        observer.add_argument("--identity-attribute",help="semantic DOM identity, such as id or data-message-id")
     new_parser.add_argument("--baseline",help="JSON array of identities captured before the action")
     transition_parser.add_argument("--initial-text")
     transition_parser.add_argument("--intermediate-text",action="append",default=[])
@@ -407,7 +408,7 @@ def dispatch(args: argparse.Namespace) -> Any:
     if args.command in {"wait","wait-new","wait-transition","wait-mutation"}:
         return command_wait(args)
     if args.command == "elements":
-        return command_eval_like(args,observation_expression(args.selector,args.within,args.attributes))
+        return command_eval_like(args,observation_expression(args.selector,args.within,args.attributes,args.identity_attribute))
     raise BrowserCdpError(f"Unsupported command: {args.command}")
 
 

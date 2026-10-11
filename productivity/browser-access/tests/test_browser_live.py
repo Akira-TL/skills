@@ -90,6 +90,14 @@ class LiveTests(unittest.TestCase):
             result=page.execute('wait',dom_stable='#status',stable_ms=100,poll=0.2,timeout=1)
             self.assertGreaterEqual(result['elapsedSeconds'],0.15)
 
+    def test_new_semantic_identity_on_reused_node(self):
+        with self.page() as page:
+            page.evaluate("document.querySelector('#messages').innerHTML='<div id=old-message>旧</div>'")
+            baseline=page.execute('elements',selector='#messages > div',identity_attribute='id')['value']
+            page.evaluate("setTimeout(()=>document.querySelector('#old-message').id='replacement-message',100)")
+            result=page.execute('wait-new',selector='#messages > div',identity_attribute='id',baseline=[r['identity'] for r in baseline],timeout=1)
+            self.assertEqual(result['value'][0]['id'],'replacement-message')
+
     def test_error_evidence_screenshot_and_bounded_snapshot(self):
         with tempfile.TemporaryDirectory() as folder,self.page() as page:
             output=Path(folder)/'element.png'
