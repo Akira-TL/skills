@@ -207,3 +207,11 @@ class LiveTests(unittest.TestCase):
             with self.assertRaises(BrowserCdpError):page.execute('snapshot',selector='.variant')
             result=page.execute('snapshot',selector='.variant',within='#message-two',expect_text='U1',expect_role='button')
             self.assertEqual(result['text'],'U1')
+
+    def test_password_fingerprints_do_not_expose_value(self):
+        with self.page() as page:
+            page.evaluate("document.body.insertAdjacentHTML('afterbegin','<input id=fixture-password type=password value=PASSWORD_SENTINEL>')")
+            result=page.execute('snapshot',selector='#fixture-password')
+            self.assertNotIn('PASSWORD_SENTINEL',str(result))
+            result=page.execute('click',selector='#fixture-password')
+            self.assertEqual(result['interaction']['text'],'[redacted]')

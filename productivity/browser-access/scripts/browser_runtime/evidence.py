@@ -19,7 +19,8 @@ SENSITIVE = re.compile(r'cookie|authorization|password|passwd|token|secret|csrf|
 
 def redact(value: Any) -> Any:
     if isinstance(value,dict):
-        return {key:('[redacted]' if SENSITIVE.search(key) else redact(item)) for key,item in value.items() if key not in {'headers','postData'}}
+        sensitive_control=str(value.get('type','')).casefold()=='password' or bool(SENSITIVE.search(str(value.get('id',''))+' '+str(value.get('name',''))))
+        return {key:('[redacted]' if SENSITIVE.search(key) or (sensitive_control and key in {'text','value'}) else redact(item)) for key,item in value.items() if key not in {'headers','postData'}}
     if isinstance(value,list):
         return [redact(item) for item in value[:100]]
     if isinstance(value,str):

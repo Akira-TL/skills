@@ -23,3 +23,7 @@ class EvidenceTests(unittest.TestCase):
             self.assertIsNone(capture_evidence(object(),'click',{},error,0.1))
         self.assertEqual(error.code,'ELEMENT_NOT_FOUND')
         self.assertIn('evidence_capture_error',error.context)
+
+    def test_sensitive_control_identity_redacts_ordinary_value_keys(self):
+        value=redact({'fingerprint':{'name':'access-token','value':'PRIVATE_VALUE','text':'PRIVATE_VALUE'}})
+        self.assertNotIn('PRIVATE_VALUE',str(value))

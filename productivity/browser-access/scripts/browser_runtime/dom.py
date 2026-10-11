@@ -34,11 +34,11 @@ const storeKey = Symbol.for('browser-access.element-identities');
 const identities = globalThis[storeKey] ||= {nodes:new WeakMap(), next:1};
 const identity = el => { if(!identities.nodes.has(el)) identities.nodes.set(el,identities.next++); return identities.nodes.get(el); };
 const visible = el => {const r=el.getBoundingClientRect(), s=getComputedStyle(el); return s.display!=='none' && s.visibility!=='hidden' && s.visibility!=='collapse' && r.width>0 && r.height>0;};
-const text = el => (['INPUT','TEXTAREA','SELECT'].includes(el.tagName) ? el.value : (el.innerText ?? el.textContent ?? '')).trim();
+const text = el => el.type==='password' ? '[redacted]' : (['INPUT','TEXTAREA','SELECT'].includes(el.tagName) ? el.value : (el.innerText ?? el.textContent ?? '')).trim();
 const role = el => el.getAttribute('role') || ({BUTTON:'button',TEXTAREA:'textbox',SELECT:'combobox',A:el.href?'link':''}[el.tagName]) || (el.isContentEditable?'textbox':el.tagName==='INPUT'?({checkbox:'checkbox',radio:'radio'}[el.type]||'textbox'):'');
 const ancestors = el => {const out=[]; for(let p=el.parentElement;p && out.length<12;p=p.parentElement) if(p.id) out.push(p.id); return out;};
 const fingerprint = el => {const r=el.getBoundingClientRect(); return {identity:identity(el),tag:el.tagName,id:el.id||'',name:el.name||'',type:el.type||'',contenteditable:!!el.isContentEditable,text:text(el).slice(0,300),aria_label:el.getAttribute('aria-label'),role:role(el),ancestor_ids:ancestors(el),rect:{x:r.x,y:r.y,width:r.width,height:r.height},href:location.href};};
-const state = el => ({...fingerprint(el),value:el.isContentEditable?el.innerText:(el.value??el.innerText??''),focused:document.activeElement===el||el.contains(document.activeElement),contenteditable:el.isContentEditable,aria_invalid:el.getAttribute('aria-invalid'),disabled:!!el.disabled});
+const state = el => ({...fingerprint(el),value:el.type==='password'?'[redacted]':el.isContentEditable?el.innerText:(el.value??el.innerText??''),focused:document.activeElement===el||el.contains(document.activeElement),contenteditable:el.isContentEditable,aria_invalid:el.getAttribute('aria-invalid'),disabled:!!el.disabled});
 const select = (selector, guard, mode='visible') => {
   let root=document;
   if(guard.within){const roots=[...document.querySelectorAll(guard.within)]; if(roots.length!==1) fail(roots.length?'ELEMENT_AMBIGUOUS':'ELEMENT_NOT_FOUND','Scope must match exactly one ancestor',{within:guard.within,count:roots.length}); root=roots[0];}
