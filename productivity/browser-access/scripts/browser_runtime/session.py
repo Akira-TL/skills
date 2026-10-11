@@ -99,7 +99,8 @@ class BrowserSession:
         changed=event.get('method')=='Page.navigatedWithinDocument' and params.get('frameId')==self.frame_id and params.get('url')!=self.lock.expected_url
         navigated=event.get('method')=='Page.frameNavigated' and params.get('frame',{}).get('id')==self.frame_id and params['frame'].get('loaderId')!=self.loader_id
         if changed or navigated:
-            self.violation=BrowserCdpError('Navigation occurred during the locked session',code='NAVIGATION_DETECTED')
+            actual_url=params.get('url') or params.get('frame',{}).get('url')
+            self.violation=BrowserCdpError('Navigation occurred during the locked session',code='TARGET_LOCK_VIOLATION' if actual_url!=self.lock.expected_url else 'NAVIGATION_DETECTED',context={'expected_url':self.lock.expected_url,'actual_url':actual_url})
 
     def check(self, *, discover: bool = False) -> None:
         if self.violation:

@@ -6,6 +6,7 @@ import sys
 import unittest
 import urllib.request
 from pathlib import Path
+from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from browser_cdp_core import BrowserCdpError, http_json
 from browser_session import BrowserSession
@@ -20,7 +21,10 @@ class LiveTests(unittest.TestCase):
         from browser_cdp_core import page_client, wait_ready
         with page_client(self.target,timeout=5) as client:
             wait_ready(client,timeout=5)
-        self.addCleanup(lambda:urllib.request.urlopen(ENDPOINT+'/json/close/'+self.target['id']).close())
+        self.addCleanup(self.close_target)
+    def close_target(self):
+        if any(t.get('id')==self.target['id'] for t in http_json(ENDPOINT,'/json/list')):
+            urllib.request.urlopen(ENDPOINT+'/json/close/'+self.target['id']).close()
     def page(self):
         return BrowserSession(ENDPOINT,target=self.target['id'],expected_url=URL,timeout=5)
     def test_scoped_click_ambiguity_overlay_and_scroll(self):
@@ -126,3 +130,29 @@ class LiveTests(unittest.TestCase):
             fetched=page.execute('browser-fetch',url=artifact['url'],max_bytes=1000)
             self.assertTrue(Path(fetched['output']).read_bytes().startswith(b'\x89PNG'))
             Path(fetched['output']).unlink()
+
+    def test_hundred_read_write_actions_use_one_connection(self):
+        import websocket
+        with patch('websocket.create_connection',wraps=websocket.create_connection) as connect:
+            with self.page() as page:
+                for index in range(100):
+                    if index%10==0:page.execute('type',selector='#editor',value=f'输入 {index}')
+                    result=page.execute('eval',expression="document.querySelector('#editor').value")
+                    self.assertEqual(result['target']['id'],self.target['id'])
+                self.assertEqual(connect.call_count,1)
+    def test_navigation_and_closed_target_fail_closed(self):
+        with self.page() as page:
+            page.client.evaluate("location.hash='other-channel'")
+            with self.assertRaises(BrowserCdpError) as caught:page.execute('inspect')
+            self.assertEqual(caught.exception.code,'TARGET_LOCK_VIOLATION')
+            self.assertEqual(caught.exception.context['expected_url'],URL)
+        # Closing this target cannot bind a concurrently opened target.
+        second=http_json(ENDPOINT,'/json/new?'+URL,method='PUT')
+        self.addCleanup(lambda:urllib.request.urlopen(ENDPOINT+'/json/close/'+second['id']).close())
+        target=http_json(ENDPOINT,'/json/new?'+URL,method='PUT')
+        from browser_cdp_core import page_client,wait_ready
+        with page_client(target,timeout=5) as client:wait_ready(client,timeout=5)
+        with BrowserSession(ENDPOINT,target=target['id'],expected_url=URL) as page:
+            urllib.request.urlopen(ENDPOINT+'/json/close/'+target['id']).close()
+            with self.assertRaises(BrowserCdpError) as caught:page.execute('inspect')
+            self.assertEqual(caught.exception.code,'TARGET_LOCK_VIOLATION')
