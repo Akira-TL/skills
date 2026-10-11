@@ -85,7 +85,7 @@ def probe_version(endpoint: str, *, timeout: float = 1.5) -> dict[str, Any] | No
 def list_targets(endpoint: str, *, timeout: float = 5.0) -> list[dict[str, Any]]:
     value = http_json(endpoint, "/json/list", timeout=timeout)
     if not isinstance(value, list):
-        raise BrowserCdpError("CDP /json/list did not return a target list")
+        raise BrowserCdpError("CDP /json/list did not return a target list",code="CDP_PROTOCOL_ERROR")
     return [item for item in value if isinstance(item, dict)]
 
 
@@ -234,7 +234,7 @@ class CdpClient:
 
     def collect_events(self, duration: float) -> list[dict[str, Any]]:
         if self._ws is None:
-            raise BrowserCdpError("CDP WebSocket is not connected")
+            raise BrowserCdpError("CDP WebSocket is not connected",code="CDP_UNREACHABLE")
         try:
             import websocket  # type: ignore[import-not-found]
         except ImportError as exc:  # pragma: no cover
@@ -249,7 +249,7 @@ class CdpClient:
                 except websocket.WebSocketTimeoutException:
                     continue
                 except Exception as exc:
-                    raise BrowserCdpError(f"Failed while collecting CDP events: {exc}") from exc
+                    raise BrowserCdpError(f"Failed while collecting CDP events: {exc}",code="CDP_UNREACHABLE") from exc
                 if isinstance(incoming, dict) and isinstance(incoming.get("method"), str):
                     self._record_event(incoming)
         finally:
@@ -324,7 +324,7 @@ def wait_ready(client: CdpClient, *, timeout: float) -> str:
         if last_state == "complete":
             return last_state
         time.sleep(0.2)
-    raise BrowserCdpError(f"Timed out waiting for document.readyState=complete; last state={last_state!r}")
+    raise BrowserCdpError("Document readiness timed out",code="WAIT_TIMEOUT",context={"condition":"document.readyState=complete","elapsed":timeout,"last_observed":last_state,"mutation_count":0})
 
 
 def inspect_expression(text_limit: int, *, all_controls: bool = False) -> str:

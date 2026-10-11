@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -433,8 +434,11 @@ def main() -> int:
     except BrowserCdpError as exc:
         emit(exc.as_dict(), compact="--compact" in sys.argv)
         return 2
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, re.error) as exc:
         emit(BrowserCdpError(str(exc), code="IO_ERROR" if isinstance(exc, OSError) else "INVALID_ARGUMENT").as_dict(), compact="--compact" in sys.argv)
+        return 2
+    except Exception as exc:
+        emit(BrowserCdpError(str(exc),code="INTERNAL_ERROR").as_dict(),compact="--compact" in sys.argv)
         return 2
     return 0
 

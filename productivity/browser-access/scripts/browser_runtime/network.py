@@ -27,7 +27,8 @@ def observe_network(page: Any, options: dict[str, Any]) -> dict[str, Any]:
     if mode not in {'capture','wait-response','wait-request','wait-idle'}:
         raise BrowserCdpError('Unknown network mode')
     timeout=float(options.get('timeout',getattr(page,'timeout',15)))
-    pattern=re.compile(options.get('url_regex') or '.*')
+    try:pattern=re.compile(options.get('url_regex') or '.*')
+    except re.error as exc:raise BrowserCdpError('Invalid network URL regular expression',context={'pattern':options.get('url_regex')}) from exc
     status=str(options.get('status','2xx'))
     status_matches(None,status)
     duration=max(0,float(options.get('duration',3)))

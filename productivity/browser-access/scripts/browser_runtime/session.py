@@ -61,7 +61,8 @@ class BrowserSession:
 
     def __enter__(self) -> BrowserSession:
         if self.expected_title_regex:
-            re.compile(self.expected_title_regex)
+            try:re.compile(self.expected_title_regex)
+            except re.error as exc:raise BrowserCdpError("Invalid expected title regular expression") from exc
         if isinstance(self.selector, dict):
             self.target = self.selector
         else:
@@ -252,6 +253,8 @@ def serve_session(page: BrowserSession, source: TextIO, sink: TextIO, *, evidenc
             response = {"id": request_id, **exc.as_dict()}
         except (ValueError, KeyError, TypeError, OSError) as exc:
             response = {"id": request_id, **BrowserCdpError(str(exc)).as_dict()}
+        except Exception as exc:
+            response = {"id":request_id,**BrowserCdpError(str(exc),code="INTERNAL_ERROR").as_dict()}
         sink.write(json.dumps(response, ensure_ascii=False, separators=(",", ":")) + "\n")
         sink.flush()
 

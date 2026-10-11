@@ -7,6 +7,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 from browser_cdp_core import BrowserCdpError, CdpClient, select_target
 from browser_cdp import build_parser
+import browser_cdp
+from unittest.mock import patch
+from contextlib import redirect_stdout
+from io import StringIO
 
 
 class ErrorTests(unittest.TestCase):
@@ -41,3 +45,9 @@ class ErrorTests(unittest.TestCase):
         with self.assertRaises(BrowserCdpError) as caught:
             client.evaluate("test")
         self.assertEqual(caught.exception.code, "JS_EXCEPTION")
+
+    def test_unexpected_cli_error_is_still_compact_json(self):
+        output=StringIO()
+        with patch.object(sys,'argv',['browser_cdp.py','--compact','status']),patch.object(browser_cdp,'dispatch',side_effect=KeyError('unexpected')),redirect_stdout(output):
+            self.assertEqual(browser_cdp.main(),2)
+        self.assertEqual(json.loads(output.getvalue())['error_code'],'INTERNAL_ERROR')
