@@ -51,6 +51,7 @@ from browser_cdp_core import (
     target_state_expression,
     target_view,
     wait_ready,
+    validate_timeout,
 )
 
 class JsonArgumentParser(argparse.ArgumentParser):
@@ -423,6 +424,7 @@ def main() -> int:
     parser = build_parser()
     try:
         args = parser.parse_args()
+        args.timeout = validate_timeout(args.timeout)
         if args.command != "profiles":
             args.browser = resolve_profile(args.profile, args.config, args.endpoint, args.user_data_dir, args.profile_directory)
             args.endpoint = args.browser.endpoint

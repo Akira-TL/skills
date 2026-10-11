@@ -14,6 +14,7 @@ agents do not need to recreate WebSocket/CDP plumbing for each browser task.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import shutil
@@ -51,6 +52,16 @@ class TargetSelectionError(BrowserCdpError):
 
 class CdpProtocolError(BrowserCdpError):
     """Raised when Chrome returns a CDP protocol error or JavaScript exception."""
+
+
+def validate_timeout(value: float) -> float:
+    try:
+        timeout=float(value)
+    except (ValueError,TypeError) as exc:
+        raise BrowserCdpError("Timeout must be a positive finite number") from exc
+    if not math.isfinite(timeout) or timeout<=0:
+        raise BrowserCdpError("Timeout must be a positive finite number")
+    return timeout
 
 
 def emit(value: Any, *, compact: bool = False) -> None:
@@ -156,6 +167,7 @@ class CdpClient:
     timeout: float = 10.0
 
     def __post_init__(self) -> None:
+        self.timeout = validate_timeout(self.timeout)
         self._next_id = 1
         self._ws: Any | None = None
         self._events: list[dict[str, Any]] = []

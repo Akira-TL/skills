@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
-from browser_cdp_core import BrowserCdpError, CdpClient, select_target
+from browser_cdp_core import BrowserCdpError, CdpClient, select_target, validate_timeout
 from browser_cdp import build_parser
 import browser_cdp
 from unittest.mock import patch
@@ -51,3 +51,12 @@ class ErrorTests(unittest.TestCase):
         with patch.object(sys,'argv',['browser_cdp.py','--compact','status']),patch.object(browser_cdp,'dispatch',side_effect=KeyError('unexpected')),redirect_stdout(output):
             self.assertEqual(browser_cdp.main(),2)
         self.assertEqual(json.loads(output.getvalue())['error_code'],'INTERNAL_ERROR')
+
+    def test_nonfinite_or_nonpositive_timeout_never_starts_command(self):
+        for value in (0,-1,float('nan'),float('inf')):
+            with self.subTest(value=value),self.assertRaises(BrowserCdpError):validate_timeout(value)
+        output=StringIO()
+        with patch.object(sys,'argv',['browser_cdp.py','--compact','--timeout','nan','ensure']),patch.object(browser_cdp,'dispatch') as dispatch,redirect_stdout(output):
+            self.assertEqual(browser_cdp.main(),2)
+            dispatch.assert_not_called()
+        self.assertEqual(json.loads(output.getvalue())['error_code'],'INVALID_ARGUMENT')

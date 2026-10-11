@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 
 from browser_cdp_core import (
     BrowserCdpError, CdpClient, inspect_expression, list_targets, page_client,
-    select_target, target_view,
+    select_target, target_view, validate_timeout,
 )
 
 
@@ -51,7 +51,7 @@ class BrowserSession:
         self.expected_url = expected_url
         self.expected_origin = expected_origin
         self.expected_title_regex = expected_title_regex
-        self.timeout = timeout
+        self.timeout = validate_timeout(timeout)
         self.client: CdpClient | None = None
         self.lock: TargetLock | None = None
         self.target: dict[str, Any] = {}

@@ -150,6 +150,8 @@ DOM 稳定等待在页面变化回调中比较目标投影，记录最后变化�
 
 直接导入官方 `browser_session` Python 接口时，调用方在导入前设置 `sys.dont_write_bytecode = True`，或以 `PYTHONDONTWRITEBYTECODE=1`／`python -B` 启动，确保入口模块自身也不向 Skiloom Store 投影写入字节码。入口同时关闭后续内部模块的字节码写入；CLI 无需额外参数。
 
+连接与等待的超时必须是有限正数；零、负数、`NaN` 或无穷大在执行动作前返回 `INVALID_ARGUMENT`，不会进入无界等待。
+
 ## 运行时文件
 
 主运行规则：

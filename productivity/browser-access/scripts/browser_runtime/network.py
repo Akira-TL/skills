@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from browser_cdp_core import BrowserCdpError, summarize_network_events
+from browser_cdp_core import BrowserCdpError, summarize_network_events, validate_timeout
 from browser_runtime.dom import SelectorGuard, dom_expression
 
 
@@ -26,7 +26,7 @@ def observe_network(page: Any, options: dict[str, Any]) -> dict[str, Any]:
     mode=options.get('mode','capture')
     if mode not in {'capture','wait-response','wait-request','wait-idle'}:
         raise BrowserCdpError('Unknown network mode')
-    timeout=float(options.get('timeout',getattr(page,'timeout',15)))
+    timeout=validate_timeout(options.get('timeout',getattr(page,'timeout',15)))
     try:pattern=re.compile(options.get('url_regex') or '.*')
     except re.error as exc:raise BrowserCdpError('Invalid network URL regular expression',context={'pattern':options.get('url_regex')}) from exc
     status=str(options.get('status','2xx'))

@@ -6,7 +6,7 @@ import time
 import uuid
 from typing import Any
 
-from browser_cdp_core import BrowserCdpError
+from browser_cdp_core import BrowserCdpError, validate_timeout
 from browser_runtime.dom import DOM_HELPERS
 
 
@@ -23,9 +23,7 @@ def observation_expression(selector: str | None, within: str | None = None,
 
 
 def wait_condition(page: Any, kind: str, options: dict[str, Any]) -> dict[str, Any]:
-    timeout = float(options.get('timeout',getattr(page,'timeout',15)))
-    if timeout<=0:
-        raise BrowserCdpError('Wait timeout must be positive')
+    timeout = validate_timeout(options.get('timeout',getattr(page,'timeout',15)))
     poll = max(0.01,float(options.get('poll',0.1)))
     selector,within = options.get('selector'),options.get('within')
     if kind in {'new','transition','stable'} and not selector:
