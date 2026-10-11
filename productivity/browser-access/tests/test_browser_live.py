@@ -83,3 +83,20 @@ class LiveTests(unittest.TestCase):
             self.assertEqual(caught.exception.code,'WAIT_TIMEOUT')
             self.assertIn('last_observed',caught.exception.context)
             self.assertIn('mutation_count',caught.exception.context)
+
+    def test_error_evidence_screenshot_and_bounded_snapshot(self):
+        with tempfile.TemporaryDirectory() as folder,self.page() as page:
+            output=Path(folder)/'element.png'
+            self.assertGreater(page.execute('screenshot',selector='#editor',output=str(output))['bytes'],0)
+            self.assertTrue(output.read_bytes().startswith(b'\x89PNG'))
+            snapshot=page.execute('snapshot',selector='body',max_chars=50)
+            self.assertLessEqual(len(snapshot['outerHTML']),50)
+            page.evaluate("document.body.insertAdjacentHTML('beforeend','<input name=token value=TOP_SECRET>')")
+            with self.assertRaises(BrowserCdpError) as caught:
+                page.execute('click',selector='#missing',evidence_on_error=True)
+            directory=Path(caught.exception.context['evidence_dir'])
+            for name in ('meta.json','screenshot.png','visible-text.txt','controls.json','target.json','console-errors.json'):
+                self.assertTrue((directory/name).exists(),name)
+            for file in directory.glob('*.json'):
+                self.assertNotIn('TOP_SECRET',file.read_text())
+            self.assertNotIn('TOP_SECRET',(directory/'visible-text.txt').read_text())

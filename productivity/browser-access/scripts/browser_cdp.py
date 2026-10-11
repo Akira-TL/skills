@@ -189,6 +189,16 @@ def build_parser() -> argparse.ArgumentParser:
         waiting.add_argument("--click-within")
         waiting.add_argument("--allow-submit",action="store_true")
     wait_parser.add_argument("--attribute",action="append",dest="attributes")
+    screenshot_parser=sub.add_parser("screenshot",help="capture a page or selected element as PNG")
+    snapshot_parser=sub.add_parser("snapshot",help="return bounded HTML and geometry without credential attributes")
+    for diagnostic in (screenshot_parser,snapshot_parser):
+        add_target_argument(diagnostic)
+        diagnostic.add_argument("--selector",required=diagnostic is snapshot_parser)
+        diagnostic.add_argument("--within")
+    screenshot_parser.add_argument("--output",required=True)
+    snapshot_parser.add_argument("--max-chars",type=int,default=10000)
+    for risky in (click_parser,type_parser,fill_parser,upload_parser,wait_parser,new_parser,transition_parser,mutation_parser,network_parser,eval_parser,call_parser,session_parser):
+        risky.add_argument("--evidence-on-error",action="store_true")
     for scoped in (click_parser,type_parser,fill_parser,upload_parser,inspect_parser,text_parser,wait_parser,network_parser):
         scoped.add_argument("--within", help="unique ancestor selector")
     for guarded in (click_parser,type_parser,fill_parser,upload_parser):
@@ -339,6 +349,13 @@ def command_wait(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def dispatch(args: argparse.Namespace) -> Any:
+    if args.command in {"screenshot","snapshot"}:
+        from browser_runtime.evidence import screenshot, snapshot
+        target=selected_target(args.browser,args.target,timeout=args.timeout)
+        with locked_page(args,target) as page:
+            if args.command=="screenshot":result=screenshot(page,args.output,args.selector,SelectorGuard(within=args.within))
+            else:result=snapshot(page,args.selector,SelectorGuard(within=args.within),max_chars=args.max_chars)
+        return {"target":target_view(target),**result}
     if args.command == "profiles":
         if any(option is not None for option in (args.profile, args.endpoint, args.user_data_dir, args.profile_directory)):
             raise BrowserCdpError("profiles only accepts --config and output options")
@@ -401,7 +418,7 @@ def main() -> int:
         if args.command == "session":
             target = selected_target(args.browser, args.target, timeout=args.timeout)
             with locked_page(args, target) as page:
-                serve_session(page, sys.stdin, sys.stdout)
+                serve_session(page, sys.stdin, sys.stdout, evidence_on_error=args.evidence_on_error)
             return 0
         emit(dispatch(args), compact=args.compact)
     except BrowserCdpError as exc:

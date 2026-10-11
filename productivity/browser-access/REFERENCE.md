@@ -312,6 +312,14 @@ C:\Users\Akira\Downloads\evidence.zip
 
 ## 10. 文件按时间定位
 
+### 截图、快照与失败证据
+
+`screenshot --output /tmp/page.png` 截取可视区域，增加 `--selector '#modal' --within '#root'` 可裁剪元素。`snapshot --selector '#modal' --max-chars 10000` 返回有界 HTML、位置、计算可见性、祖先与子控件，移除脚本、隐藏凭据输入和敏感属性。输出图片来自 [`Page.captureScreenshot`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-captureScreenshot)。
+
+`click '#missing' --evidence-on-error` 等高风险命令在失败时生成系统临时证据目录；会话也可全局开启，或每行传 `evidence_on_error: true`。原错误的 `context.evidence_dir` 指向目录，包含 `meta.json`、`screenshot.png`、`visible-text.txt`、`controls.json`、`target.json`、`console-errors.json`。网址查询与片段、敏感键和认证文本被过滤；不采集 Cookie、浏览器存储、请求头或完整 DOM。失败截图临时模糊表单输入，然后恢复原样。截图仍包含页面其他可见内容，证据是本地临时诊断资料，不自动发送或长期存档。
+
+关闭、换页或失去锁定时不会为了凑齐证据控制另一个目标，`meta.capture_errors` 说明缺少哪些采集步骤。临时目录不可写等诊断失败通过 `evidence_capture_error` 回传，保留原动作错误码。
+
 当用户只记得“几个文件挨得比较近”时，可以先按修改时间列出下载目录，再由文件名、时间和大小交叉确认。
 
 PowerShell 示例：

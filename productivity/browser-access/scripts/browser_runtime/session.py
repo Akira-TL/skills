@@ -148,12 +148,25 @@ class BrowserSession:
         return events
 
     def execute(self, op: str, **options: Any) -> dict[str, Any]:
-        self.check(discover=True)
-        result = self._execute(op, options)
-        self.check()
-        return result
+        started=time.monotonic()
+        try:
+            self.check(discover=True)
+            result = self._execute(op, options)
+            self.check()
+            return result
+        except BrowserCdpError as exc:
+            if options.get("evidence_on_error"):
+                from browser_runtime.evidence import capture_evidence
+                exc.context["evidence_dir"]=capture_evidence(self,op,options,exc,time.monotonic()-started)
+            raise
 
     def _execute(self, op: str, options: dict[str, Any]) -> dict[str, Any]:
+        if op in {"screenshot","snapshot"}:
+            from browser_runtime.evidence import screenshot, snapshot
+            from browser_runtime.dom import SelectorGuard
+            guard=SelectorGuard.from_options(options)
+            result=screenshot(self,options["output"],options.get("selector"),guard) if op=="screenshot" else snapshot(self,options["selector"],guard,max_chars=options.get("max_chars",10000))
+            return {"target":target_view(self.target),**result}
         if op in {"wait","wait-new","wait-transition","wait-mutation","elements"}:
             from browser_runtime.waits import wait_condition, observation_expression
             if op == "elements":
@@ -194,7 +207,7 @@ class BrowserSession:
         return {"target": target_view(self.target), "value": value}
 
 
-def serve_session(page: BrowserSession, source: TextIO, sink: TextIO) -> None:
+def serve_session(page: BrowserSession, source: TextIO, sink: TextIO, *, evidence_on_error: bool = False) -> None:
     """Exactly one JSONL response per input line; command failures keep the stream open."""
     for line in source:
         request_id: Any = None
@@ -205,6 +218,7 @@ def serve_session(page: BrowserSession, source: TextIO, sink: TextIO) -> None:
             request_id = request.get("id")
             op = request.pop("op")
             request.pop("id", None)
+            request.setdefault("evidence_on_error",evidence_on_error)
             result = page.execute(op, **request)
             response = {"id": request_id, "ok": True, "result": result}
         except BrowserCdpError as exc:
@@ -228,4 +242,11 @@ def locked_page(args: Any, target: dict[str, Any]) -> Iterator[BrowserSession | 
                         expected_origin=getattr(args, "expected_origin", None),
                         expected_title_regex=getattr(args, "expected_title_regex", None)) as page:
         page.check(discover=True)
-        yield page
+        started=time.monotonic()
+        try:
+            yield page
+        except BrowserCdpError as exc:
+            if getattr(args,"evidence_on_error",False):
+                from browser_runtime.evidence import capture_evidence
+                exc.context["evidence_dir"]=capture_evidence(page,args.command,vars(args),exc,time.monotonic()-started)
+            raise
