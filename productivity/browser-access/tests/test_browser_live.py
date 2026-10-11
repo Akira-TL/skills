@@ -11,7 +11,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from browser_cdp_core import BrowserCdpError, http_json
 from browser_session import BrowserSession
 
-ENDPOINT='http://127.0.0.1:19322'
+ENDPOINT=os.environ.get('BROWSER_FIXTURE_ENDPOINT','http://127.0.0.1:19322')
 URL='http://127.0.0.1:19323/dynamic.html'
 
 @unittest.skipUnless(os.environ.get('BROWSER_LIVE_TESTS')=='1','set BROWSER_LIVE_TESTS=1 after browser_fixture.sh start')
@@ -73,6 +73,13 @@ class LiveTests(unittest.TestCase):
             self.assertEqual(caught.exception.code,'FILE_CONSTRAINT_VIOLATION')
             result=page.execute('upload',selector='.file',within='#upload-two',files=[str(first),str(second)])
             self.assertEqual(result['state']['count'],2)
+            for name in ('tiny.jpg','tiny.webp'):
+                source=Path(__file__).parent/'fixtures'/name
+                local=Path(folder)/('中文 空格(3)'+source.suffix)
+                local.write_bytes(source.read_bytes())
+                result=page.execute('upload',selector='.file',within='#upload-one',files=[str(local)])
+                self.assertEqual(result['state']['names'],[local.name])
+                self.assertEqual(result['state']['files'][0]['type'],'image/jpeg' if name.endswith('.jpg') else 'image/webp')
 
     def test_wait_transitions_new_elements_stability_and_timeout(self):
         with self.page() as page:

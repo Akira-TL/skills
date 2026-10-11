@@ -136,6 +136,8 @@ DOM 稳定等待在页面变化回调中比较目标投影，记录最后变化�
 
 运行主机不能把本地路径转换成 Windows 浏览器可访问路径时，上传在预检阶段明确拒绝，不向 Windows CDP 发送 POSIX 路径。
 
+跨系统夹具使用 `browser_fixture.sh start-windows|stop-windows` 建立和关闭独立 Windows 临时 Chrome。测试设置 `BROWSER_FIXTURE_ENDPOINT=http://127.0.0.1:19324`；WSL 文件转换、PNG／JPEG／WEBP、中文与空格括号文件名、多文件和同步重建输入均有真实浏览器验证。测试浏览器无登录资料，不使用日常配置；停止前按保存的进程身份核验测试目录。
+
 ## 运行时文件
 
 主运行规则：
