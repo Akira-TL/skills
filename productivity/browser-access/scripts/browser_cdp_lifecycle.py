@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import ntpath
 import re
-import shutil
 import subprocess
 import time
 import urllib.parse
@@ -14,6 +13,7 @@ from browser_cdp_core import (
     DEFAULT_ENDPOINT, PROFILE_IDENTITY, BrowserCdpError, browser_client,
     list_targets, probe_version, select_target,
 )
+from browser_cdp_windows import powershell_executable, read_windows_identity
 
 
 @dataclass(frozen=True)
@@ -78,14 +78,6 @@ def config_from_options(endpoint: str | None, user_data_dir: str | None,
     return config
 
 
-def _powershell_executable() -> str:
-    for name in ("powershell.exe", "pwsh.exe"):
-        path = shutil.which(name)
-        if path:
-            return path
-    raise BrowserCdpError("Windows PowerShell is unavailable; start the dedicated Chrome adapter manually")
-
-
 def powershell_literal(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
@@ -137,7 +129,6 @@ Start-Process -FilePath $chrome -ArgumentList @(
   '--remote-debugging-port={parsed.port}',
   ('"--user-data-dir=' + $profile + '"'),
   {powershell_literal('"--profile-directory=' + config.profile_directory + '"')},
-  '--enable-automation',
   '--no-first-run',
   'about:blank'
 )
@@ -149,7 +140,7 @@ def launch_windows_agent_chrome(config: BrowserConfig) -> str:
     command = launch_command(config)
     try:
         completed = subprocess.run(
-            [_powershell_executable(), "-NoProfile", "-NonInteractive", "-Command", command],
+            [powershell_executable(), "-NoProfile", "-NonInteractive", "-Command", command],
             check=True, capture_output=True, text=True, timeout=20,
         )
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
@@ -161,13 +152,26 @@ def launch_windows_agent_chrome(config: BrowserConfig) -> str:
 def verify_profile(config: BrowserConfig, version: dict[str, Any], *, timeout: float) -> bool:
     if config.user_data_dir is None:
         return False  # Preserve existing endpoint-only/default connections without claiming verified identity.
+    parsed = urllib.parse.urlsplit(config.endpoint)
+    if parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1", "::1"} and parsed.port:
+        identity = read_windows_identity(parsed.port, timeout=timeout)
+        browser_path = urllib.parse.urlsplit(str(version.get("webSocketDebuggerUrl", ""))).path
+        if (ntpath.basename(identity.executable).lower() != "chrome.exe" or
+                normalized_directory(identity.user_data_dir) != normalized_directory(config.user_data_dir) or
+                identity.profile_directory != config.profile_directory or
+                identity.debugging_port != parsed.port or
+                not browser_path.startswith("/devtools/browser/") or
+                len(browser_path) <= len("/devtools/browser/") or identity.browser_path != browser_path):
+            raise BrowserCdpError("The local CDP endpoint belongs to a different or unverifiable Chrome profile; refusing to control it")
+        return True
     try:
         with browser_client(version, timeout=timeout) as client:
             arguments = client.call("Browser.getBrowserCommandLine").get("arguments", [])
     except BrowserCdpError as exc:
         raise BrowserCdpError(
-            "Cannot verify the selected dedicated profile. Start that instance with --enable-automation; "
-            "the CLI will not replace or close an existing browser."
+            "Cannot verify the remote dedicated profile using Browser.getBrowserCommandLine; "
+            "that Chrome method requires --enable-automation. Local Windows profiles use process verification. "
+            "The CLI will not replace or close an existing browser."
         ) from exc
     if not isinstance(arguments, list) or not all(isinstance(item, str) for item in arguments):
         raise BrowserCdpError("Browser did not return valid command-line arguments for profile verification")

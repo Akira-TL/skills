@@ -37,7 +37,9 @@ uv run <absolute-script-path> --endpoint http://localhost:9223 --user-data-dir '
 
 自动启动前会在 Windows 上实际尝试绑定所选端口的 IPv4／IPv6 回环地址，再立即释放测试监听器；两者都不可用时直接报错，不启动 Chrome，也不自动换端口。没有进程占用不代表端口可用：Windows 排除的端口范围也会拒绝绑定，示例中的 `9223` 并非所有机器都可用。检查与真正启动之间仍可能发生端口竞争，因此启动后继续以实际 CDP 连接结果为准。
 
-`status` 只探测与核验，不启动 Chrome。自定义目录的页面命令在复用实例前通过 `Browser.getBrowserCommandLine` 核对数据目录和配置子目录；新启动的实例会带 `--enable-automation`。不匹配或无法核验时拒绝控制，不关闭、替换或重启已有实例。旧默认实例保持可连接，返回的 `profileVerified: false` 表示身份未经核验；仅设置连接地址时也不把其他端口的身份报告成 `agent-browser`。[Chrome 调试协议中的核验方法](https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/pdl/domains/Browser.pdl)
+`status` 只探测与核验，不启动 Chrome。本地自定义目录通过 Windows 调试端口的唯一 Chrome 进程核对实际目录、配置子目录和端口，并比较 Windows 与调用方看到的调试实例标识，防止误连到 WSL 同端口的其他服务。命令行使用 Windows 的 `CommandLineToArgvW` 解析；无法检查进程或任一项不匹配时拒绝控制，不降级为未核验连接，也不关闭、替换或重启已有实例。新启动的实例不再为核验添加 `--enable-automation`。旧默认实例保持可连接，返回的 `profileVerified: false` 表示身份未经核验；仅设置连接地址时也不把其他端口的身份报告成 `agent-browser`。[Windows 端口所有者查询](https://learn.microsoft.com/en-us/powershell/module/nettcpip/get-nettcpconnection)、[Windows 命令行解析](https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-commandlinetoargvw)
+
+远程或 HTTPS 地址无法通过本机 Windows 进程核验，仍使用 `Browser.getBrowserCommandLine`；该 Chrome 方法要求实例带 `--enable-automation`，适配器不会替远程实例追加参数或重启。若网站拒绝自动化浏览器登录，交给用户按网站支持的方式人工登录；不修改 `navigator.webdriver`、伪造浏览器身份或反复尝试认证绕过。[Chrome 调试协议](https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/pdl/domains/Browser.pdl)、[Google 支持的浏览器登录说明](https://support.google.com/accounts/answer/7675428?co=GENIE.Platform%3DDesktop&hl=en)
 
 ### 1.1 保存与选择专用命名配置
 
@@ -97,7 +99,6 @@ Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" -ArgumentL
   "--remote-debugging-port=9222",
   "--user-data-dir=$agentProfile",
   "--profile-directory=Default",
-  "--enable-automation",
   "https://example.com"
 )
 ```

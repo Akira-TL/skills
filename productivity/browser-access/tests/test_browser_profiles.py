@@ -15,12 +15,13 @@ import browser_cdp as cli
 import browser_cdp_lifecycle as lifecycle
 import browser_cdp_profiles as profiles
 from browser_cdp_core import BrowserCdpError
+from browser_cdp_windows import WindowsChromeIdentity
 
 
 class DedicatedProfileTests(unittest.TestCase):
     def setUp(self) -> None:
         self.config = lifecycle.BrowserConfig(
-            endpoint="http://localhost:9223",
+            endpoint="https://remote.example:9223",
             user_data_dir=r"C:\Users\Akira\.agent-browser\chrome-profile",
             identity="chrome-profile",
         )
@@ -50,7 +51,7 @@ class DedicatedProfileTests(unittest.TestCase):
         self.assertIn("'C:\\Agent Data\\O''Brien'", command)
         self.assertIn('\'"--profile-directory=Profile 2"\'', command)
         self.assertIn("('--user-data-dir", command.replace('"', ''))
-        self.assertIn("--enable-automation", command)
+        self.assertNotIn("--enable-automation", command)
         self.assertNotIn("--remote-debugging-port=9222", command)
 
     def test_custom_directory_cannot_silently_use_default_port(self) -> None:
@@ -148,6 +149,49 @@ class DedicatedProfileTests(unittest.TestCase):
         launch.assert_called_once_with(self.config)
         self.assertFalse(result["reused"])
         self.assertTrue(result["profileVerified"])
+
+
+class LocalIdentityTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.config = lifecycle.BrowserConfig(
+            endpoint="http://localhost:9333", user_data_dir=r"C:\Agent Data\ChatGPT",
+            identity="chatgpt",
+        )
+        self.version = {"webSocketDebuggerUrl": "ws://localhost:9333/devtools/browser/expected-id"}
+        self.identity = WindowsChromeIdentity(
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Agent Data\ChatGPT", "Default", 9333, "/devtools/browser/expected-id",
+        )
+
+    def test_local_instance_can_be_verified_without_automation_command(self) -> None:
+        with patch.object(lifecycle, "read_windows_identity", return_value=self.identity), \
+             patch.object(lifecycle, "browser_client") as client:
+            self.assertTrue(lifecycle.verify_profile(self.config, self.version, timeout=3))
+        client.assert_not_called()
+
+    def test_wrong_process_or_browser_instance_is_rejected(self) -> None:
+        from dataclasses import replace
+        for identity in (
+            replace(self.identity, user_data_dir=r"C:\Different"),
+            replace(self.identity, profile_directory="Profile 2"),
+            replace(self.identity, debugging_port=9222),
+            replace(self.identity, browser_path="/devtools/browser/other-id"),
+            replace(self.identity, executable=r"C:\Fake\server.exe"),
+            replace(self.identity, browser_path=""),
+            replace(self.identity, profile_directory=""),
+            replace(self.identity, user_data_dir=""),
+        ):
+            with self.subTest(identity=identity), \
+                 patch.object(lifecycle, "read_windows_identity", return_value=identity), \
+                 patch.object(lifecycle, "browser_client") as client, self.assertRaises(BrowserCdpError):
+                lifecycle.verify_profile(self.config, self.version, timeout=3)
+            client.assert_not_called()
+
+    def test_uninspectable_local_process_does_not_fall_back(self) -> None:
+        with patch.object(lifecycle, "read_windows_identity", side_effect=BrowserCdpError("not inspectable")), \
+             patch.object(lifecycle, "browser_client") as client, self.assertRaises(BrowserCdpError):
+            lifecycle.verify_profile(self.config, self.version, timeout=3)
+        client.assert_not_called()
 
 
 class NamedProfileTests(unittest.TestCase):

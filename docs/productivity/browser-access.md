@@ -71,7 +71,9 @@ Profile directory: %USERPROFILE%\.agent-browser\profile
 
 不传配置参数时，上述默认值保持不变。其他专用配置通过 `--endpoint` 与 `--user-data-dir` 显式指定独立端口和绝对 Windows 路径，配置子目录通过 `--profile-directory` 指定，默认 `Default`。仅传其他连接地址时可连接现有实例，但不会在新端口启动默认目录。
 
-`status` 只检查，不启动 Chrome；自定义目录的页面命令会核验实例实际启动参数，不匹配或不能核验时停止。新启动的实例带 `--enable-automation` 以支持核验，旧默认实例保持兼容，`profileVerified` 明确表示是否完成身份核验。脚本不会关闭或替换已有浏览器，也不修改默认配置。
+`status` 只检查，不启动 Chrome；本地自定义目录通过 Windows 端口所有者核对 Chrome 进程的实际目录、配置子目录和端口，再比对实际调试实例标识，不匹配或不能核验时停止。新启动的实例不再强制添加 `--enable-automation`；旧默认实例保持兼容，`profileVerified` 明确表示是否完成身份核验。远程实例保留 Chrome 调试协议的命令行核验方式。脚本不会关闭或替换已有浏览器，也不修改默认配置。
+
+登录兼容性不由配置名称保证。Google 可能拒绝自动化浏览器认证；出现此类提示时保留人工登录边界，按网站支持的方式处理，不伪造浏览器身份或修改页面的自动化标识。移除非必要启动参数也不代表保证登录成功。[Google 官方说明](https://support.google.com/accounts/answer/7675428?co=GENIE.Platform%3DDesktop&hl=en)
 
 自动启动前在 Windows 上检查所选端口是否能绑定回环地址；端口被占用或被系统保留时提前报错，不打开一个无法连接的窗口，不静默换端口。示例端口须按目标机器的实际可用情况选择；检查通过后仍会验证实际调试连接。
 
