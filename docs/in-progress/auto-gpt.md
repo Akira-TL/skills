@@ -22,4 +22,4 @@
 
 行为规则：[SKILL.md](../../in-progress/auto-gpt/SKILL.md)。浏览器机械步骤只在选择相应适配器时读取：[页面观察与单次动作](../../in-progress/auto-gpt/references/browser-operations.md)。依赖通过标准 `skiloom-package.toml` 声明 `browser-access`。
 
-当前属于 `in-progress` 技能；适用验证记录将分别区分真实任务观察、确定性机械测试和当前 Agent 的场景审计，不把一种证据当作所有分支都已真实复现。
+当前属于 `in-progress` 技能；[适用验证记录](auto-gpt-validation.md)分别区分真实任务观察、确定性机械测试和当前 Agent 的场景审计，不把一种证据当作所有分支都已真实复现。
