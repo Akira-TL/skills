@@ -22,7 +22,7 @@
 
 Python 调用方从 Skiloom Store 投影导入时，先设置 `sys.dont_write_bytecode = True`，或在 `uv run` 的进程环境设置 `PYTHONDONTWRITEBYTECODE=1`，使入口及内部模块都不写字节码；也可使用 `uv run --with websocket-client python -B <调用方脚本>`。官方 CLI 自行禁用内部模块缓存，无需调用方补参数。
 
-连续操作可运行 `uv run <script-path> session --target <完整ID> --expected-url <准确网址>`，每行输入 `{"id":1,"op":"inspect"}`，每行输出 `{"id":1,"ok":true,"result":...}`。命令错误保留原 ID 并返回统一错误对象；损坏请求的 ID 无法读取时为 `null`。结束标准输入即断开连接，保留浏览器。基础操作包括 `inspect`、`text`、`title`、`eval`、`call`；参数使用对应命令的下划线名称，不读取标准输入表达式。
+连续操作可运行 `uv run <script-path> session --target <完整ID> --expected-url <准确网址>`，每行输入 `{"id":1,"op":"inspect"}`，每行输出 `{"id":1,"ok":true,"result":...}`。命令错误保留原 ID 并返回统一错误对象；损坏请求的 ID 无法读取时为 `null`。结束标准输入即断开连接，保留浏览器。会话支持 CLI 的页面读取、焦点、交互、上传、等待、诊断、网络和资源操作；生命周期与显式导航使用会话外 CLI。参数使用对应命令的下划线名称，不读取标准输入表达式；`call` 的 `params` 直接提供 JSON 对象，不使用 CLI 的字符串包装。
 
 也可导入同目录 `browser_session.BrowserSession`，在上下文管理器内调用 `execute(op, **options)`、`evaluate` 或 `call`；`focus` 使用锁定页面的 `Page.bringToFront` 激活。Python 调用方必须先履行 Skill 的浏览器选择、授权和专用配置核验；模块只连接，不启动浏览器。CLI 会先履行已有配置核验。截图、快照和资源解析也接受 `within`、`expect_text`、`expect_role`、`expect_count` 等元素约束。
 
@@ -268,7 +268,7 @@ uv run <script-path> type '#q1' '示例'
 
 ### 可解释异步等待
 
-`wait` 保留选择器、文本、网址片段和表达式条件，并新增 `--dom-stable <选择器> --stable-ms 500`。稳定条件比较数量、可见文本和指定属性，要求至少一个元素存在；`--attribute` 可重复指定观测属性。
+`wait` 保留选择器、文本、网址片段和表达式条件；`--visible` 要求选择器实际可见，文本条件遵循 `--within`。新增 `--dom-stable <选择器> --stable-ms 500`。稳定条件比较数量、可见文本和指定属性，要求至少一个元素存在；`--attribute` 可重复指定观测属性。
 
 `elements --selector '.message' --within '#messages'` 返回有界元素观测及身份。动作前保留 `identity` 数组，再用 `wait-new --selector '.message' --baseline '[1,2]'` 等待真正新增元素。省略数组时以等待启动时的元素为基准；已经出现的结果需要使用动作前的数组。站点虚拟列表复用 DOM 节点时，在两次调用中使用相同的 `--identity-attribute id` 或现有消息身份属性；数组中会包含属性身份，节点复用但属性变化也能识别。属性为空时退回元素对象身份，不临时修改 DOM 打标记。
 

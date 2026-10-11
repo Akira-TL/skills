@@ -104,53 +104,53 @@ uv run <absolute-script-path> --profile chatgpt tabs
 productivity/browser-access/REFERENCE.md
 ```
 
-## 自动化错误契约
+## 页面会话与目标锁定
 
-命令失败统一返回 `ok: false`、`error_code`、`message` 与 `context`，退出码为 2；旧 `error` 字段保留兼容。`--compact` 只改变 JSON 排版。调用方按错误码判断失败类型，不解析自然语言或标准错误输出。参数错误同样返回 JSON；目标不存在与匹配歧义分别为 `TARGET_NOT_FOUND`、`TARGET_AMBIGUOUS`，连接失败为 `CDP_UNREACHABLE`，页面表达式异常为 `JS_EXCEPTION`。
+`session` 以逐行 JSON 请求和响应复用一个页面 WebSocket；也可通过 `browser_session.BrowserSession` 使用同一执行层。会话固定完整目标 ID、准确网址、主框架和文档加载身份，可增加来源和标题约束。每次操作核验目标存在，协议动作前后核验页面身份；焦点激活同样受约束。换址返回 `TARGET_LOCK_VIOLATION`，同网址重新加载返回 `NAVIGATION_DETECTED`。失败持续有效，即使短暂换页再返回，也不接管其他页面或自动导航恢复。
 
-## 固定页面与长连接
+单次 CLI 用 `--target` 和 `--expected-url` 延续准确范围。显式 `navigate` 可以核验原页面后执行调用方给出的新网址；旧的导航型网络捕获和网址等待保留语义。Python 调用方先履行浏览器授权、选择和配置核验，模块自身只连接，不启动浏览器。直接从 Skiloom 内容存储目录导入时，在导入前设置 `sys.dont_write_bytecode = True`，或使用 `PYTHONDONTWRITEBYTECODE=1`／`python -B`，保护入口模块自身不生成字节码；CLI 无需补参数。
 
-`session` 在一个页面 WebSocket 上处理逐行 JSON 请求，也提供 `browser_session.BrowserSession` Python 接口。会话建立时固定目标 ID、准确网址和主文档身份，可增加来源和标题正则约束。每次操作检查目标存在，动作前后检查网址与主框架；换址、关闭或同网址重新加载后停止，拒绝换页或自动恢复导航。单次 CLI 可以用 `--target` 和 `--expected-url` 保持同一约束；显式导航及旧的导航型等待仍保持兼容。详细调用契约见 `REFERENCE.md`。
+## 定位、点击与输入
 
-点击默认要求唯一可见目标。`--within` 限定唯一祖先，`--expect-text`、`--expect-role`、`--expect-count` 与可选元素谓词约束定位。滚动后等待动画帧再查询，读取元素身份、文本、角色、祖先 ID 与位置；移动后、按下后再次校验身份和命中点。按下期间目标被替换时在页面外释放鼠标并返回 `ELEMENT_CHANGED_DURING_ACTION`；遮挡返回 `ELEMENT_OCCLUDED`。点击自身关闭模态框允许作为正常结果。`type --verify exact|contains|none` 返回输入前后值、焦点、`aria-invalid` 与元素身份，默认准确核对；输入失败不会被当作成功。
+操作默认要求唯一可见目标。`--within` 限定唯一祖先，`--expect-text`、`--expect-role`、`--expect-count` 和可选元素谓词进一步约束；截图、快照和资源解析接受相同约束。滚动后等待一帧再重新定位，记录元素身份、文本、角色、祖先 ID 与位置，并在移动后、按下后重新检查身份和命中点。遮挡返回 `ELEMENT_OCCLUDED`；按下期间被替换时在页面外释放并返回 `ELEMENT_CHANGED_DURING_ACTION`。点击自身关闭模态框可以作为正常结果。
 
-本地夹具由 `scripts/browser_fixture.sh start|stop` 启停，使用无凭据临时 Chromium 配置，日志位于仓库 `logs/`。设置 `BROWSER_LIVE_TESTS=1` 后运行测试，覆盖作用域消歧、遮挡、滚动、按下时节点替换、富文本和模态框。
+`type --verify exact|contains|none` 返回输入前后值、焦点、可编辑状态和 `aria-invalid`，默认准确核对。每个键盘事件前检查焦点与元素身份，编辑事件导致焦点转移后停止发送文字。密码值在指纹与状态中遮盖。`fill` 保留为原生控件的兼容兜底，不直接改写富文本编辑器。
 
-上传返回预检信息与浏览器实际文件列表，核对数量、名称和大小，并报告文件类型。预检包含控件启用状态、`multiple`、`accept`、原文件列表、浏览器系统、转换路径、存在性和大小。可显式限制单文件或总大小。每次重新查询文件输入，仅在本次操作内使用远程对象引用；即使控件在同步 `change` 事件中被重建，也回读实际设置的原控件，下一次重新定位。选中文件与站点完成上传是两个状态，后者由等待和网络观察判断。
+## 上传与异步状态
 
-异步等待支持新增元素身份基线、文本状态转换、范围内 DOM 变化和数量／文本／属性稳定。页面的 `MutationObserver` 负责变化唤醒，定时器补充无 DOM 变化条件；操作结束清理观察器。可在观察器建立后触发点击，避免漏过快速变化。超时返回 `WAIT_TIMEOUT` 及条件、耗时、最后观测和变化次数；状态转换另返回观测到的文本序列。附件预览与消息落地由上层指定条件，不写入 Discord 业务规则。
+上传预检返回控件启用状态、`multiple`、`accept`、原文件列表、浏览器系统、转换路径、存在性和大小，可限制单文件或总大小。路径无法映射到 Windows 浏览器时提前拒绝。每次重新定位文件输入，仅在本次上传内保留远程引用；即使同步 `change` 事件重建控件，也回读实际设置的原控件，核对文件数量、名称和大小并报告类型。选中文件之后，继续通过等待和网络观察判断预览、传输完成和消息落地。
 
-`screenshot` 使用原生 `Page.captureScreenshot`，支持整页可视区域或元素裁剪；`snapshot` 返回有界 HTML、位置、可见性、祖先 ID 和子控件。高风险动作可开启 `--evidence-on-error`，在连接断开前把截图、可见文本、有界控件、目标、控制台错误与动作元数据写入系统临时 `browser-evidence/`。证据采集不读取 Cookie 或浏览器存储，过滤敏感字段和网址查询参数，并在失败截图中暂时模糊输入区。页面已失去锁定或关闭时只保存可安全取得的元数据和采集错误，避免截取另一个页面。证据路径随原错误回传，证据失败不改变原错误类型。
+等待支持元素身份基线、文本状态转换、范围内变化以及数量／文本／属性稳定。页面的 `MutationObserver` 负责变化唤醒和稳定时间记录，定时器兼容无 DOM 变化条件；结束时清理观察器。观察器建立后可触发真实点击，避免漏过快速变化。`elements` 和 `wait-new` 可使用相同的 `identity_attribute` 识别虚拟列表复用的节点；默认使用元素对象身份。文本等待遵循范围，选择器等待可加 `--visible`。超时回传条件、耗时、有界 DOM 观测、最后条件值、变化次数和文本变化记录。
 
-`network` 保留旧捕获参数，增加 `capture`、`wait-request`、`wait-response`、`wait-idle`，按网址正则和响应状态判断。会话从建立起启用网络观察，未完成请求与活动时间跨操作保留，等待空闲不会漏掉上一动作尚未完成的请求；返回安全的请求方法、状态、类型、长度与时间，不返回请求头或正文。`resolve-artifact` 从指定元素解析资源 URL、文件名与类型提示；只有资源确实依赖浏览器会话时才用有大小与超时限制的 `browser-fetch` 保存到系统临时文件。浏览器不执行 Discord 或 Midjourney 业务关联。
+## 诊断与资源
 
-输入的每个键盘事件之前都重新核验焦点与元素身份；若编辑事件导致焦点转移，不再向其他控件发送后续文字。接口也拒绝未知核验方式与非正整数的元素数量约束。
+`screenshot` 使用 `Page.captureScreenshot`，支持可视区域或元素裁剪；`snapshot` 返回有界 HTML、位置、可见性、祖先和子控件，移除凭据属性。`--evidence-on-error` 在连接断开前把截图、实际可见文本、有界控件、目标、控制台错误和动作元数据写入系统临时 `browser-evidence/`。采集排除隐藏文字与可编辑区内容，不读取 Cookie 或浏览器存储，过滤敏感值和网址查询参数，失败截图临时模糊输入区后恢复。锁定失效或关页时只保存可安全取得的元数据和采集错误，不截取另一页面；诊断失败保留原错误类型。
 
-DOM 稳定等待在页面变化回调中比较目标投影，记录最后变化时间，避免轮次之间的变化被遗漏。文本状态记录从触发动作前的初始状态开始。
+`network` 保留旧捕获参数，提供 `capture`、`wait-request`、`wait-response`、`wait-idle`，按网址正则与状态判断。会话建立时启用网络观察，未完成请求与活动时间跨操作保留。输出包含请求方法、状态、类型、长度和时间，不返回原始请求头或正文。`resolve-artifact` 解析指定元素的真实资源 URL、文件名和类型提示；资源依赖浏览器会话时，`browser-fetch` 在大小与超时约束下保存到系统临时文件。Discord、Midjourney 的业务关联由上层技能负责。
 
-虚拟列表复用同一个 DOM 节点时，可在 `elements` 与 `wait-new` 两端指定同一 `identity_attribute`，例如 `id` 或站点现有的消息属性；身份属性变化也会被视为新的匹配。默认仍按实际元素对象身份判断。
+## 错误与兼容性
 
-主框架换址事件返回 `TARGET_LOCK_VIOLATION`，附准确的预期与实际网址；同网址文档重新加载返回 `NAVIGATION_DETECTED`。事件监听使短暂换页再返回仍保持拒绝状态，即使网络事件队列后续被读取也不解除锁定失败。
+失败返回 `ok: false`、`error_code`、`message`、`context`，CLI 退出码为 2，旧 `error` 字段保留；会话逐行错误保留请求 ID 并继续处理后续行。`--compact` 只改变排版。调用方按错误码处理，不解析标准错误输出或堆栈。连接和等待超时必须为有限正数，非法参数在执行前拒绝。
 
-证据文本仅遍历当前页面实际可见的文本节点，排除隐藏内容和可编辑区域，不通过脱离文档的 DOM 副本提取隐藏文字。能够获取的元素指纹保留在动作元数据中。
+| 错误码 | 含义 |
+| --- | --- |
+| `CDP_UNREACHABLE` | 连接、传输或响应不可用 |
+| `TARGET_NOT_FOUND` / `TARGET_AMBIGUOUS` | 未找到页面或页面选择不唯一 |
+| `TARGET_LOCK_VIOLATION` / `NAVIGATION_DETECTED` | 固定身份变化或主文档重新加载 |
+| `ELEMENT_NOT_FOUND` / `ELEMENT_AMBIGUOUS` | 元素不存在或不满足唯一数量约束 |
+| `ELEMENT_NOT_VISIBLE` / `ELEMENT_OCCLUDED` | 元素不可见、禁用或命中点被遮挡 |
+| `ELEMENT_CHANGED_DURING_ACTION` | 指针动作期间元素被替换或变化 |
+| `FOCUS_FAILED` / `INPUT_VERIFICATION_FAILED` | 焦点或输入后条件失败 |
+| `FILE_NOT_FOUND` / `FILE_INPUT_AMBIGUOUS` | 文件不存在或隐藏文件输入不唯一 |
+| `FILE_CONSTRAINT_VIOLATION` / `UPLOAD_VERIFICATION_FAILED` | 文件约束或实际文件列表验证失败 |
+| `WAIT_TIMEOUT` / `JS_EXCEPTION` | 异步条件超时或页面表达式异常 |
+| `INVALID_ARGUMENT` / `INTERNAL_ERROR` | 非法调用或未预期的运行异常 |
 
-运行主机不能把本地路径转换成 Windows 浏览器可访问路径时，上传在预检阶段明确拒绝，不向 Windows CDP 发送 POSIX 路径。
+旧成功字段继续保留：控件类型、名称、ID、可编辑状态，等待的条件对象，以及网络捕获的 `trigger`。新增观测字段作为补充，单次 CLI 与会话使用相同作用域语义。具体命令与参数见 `--help`，调用示例和例外见 [实现参考](../../productivity/browser-access/REFERENCE.md)。
 
-跨系统夹具使用 `browser_fixture.sh start-windows|stop-windows` 建立和关闭独立 Windows 临时 Chrome。测试设置 `BROWSER_FIXTURE_ENDPOINT=http://127.0.0.1:19324`；WSL 文件转换、PNG／JPEG／WEBP、中文与空格括号文件名、多文件和同步重建输入均有真实浏览器验证。测试浏览器无登录资料，不使用日常配置；停止前按保存的进程身份核验测试目录。
+## 本地验证
 
-旧 CLI 的成功结果保留既有字段：点击位置与输入状态仍包含控件类型、名称、ID 和可编辑状态；普通等待的 `condition` 仍为条件对象，网络捕获仍返回 `trigger`。新增诊断与观测字段是补充。会话的范围内正文读取与单次 CLI 使用相同语义；真实子进程测试验证旧调用和连续 JSONL 请求。
-
-焦点激活也履行目标网址约束，通过锁定页面的 `Page.bringToFront` 完成。截图、快照与资源解析接受和点击一致的元素约束。显式导航使用准确网址约束时先校验原页面身份，之后执行调用方明确给出的新网址；不会作为锁定失败的自动恢复手段。
-
-无效网址或标题正则返回 `INVALID_ARGUMENT`；文档就绪超时同样返回 `WAIT_TIMEOUT`。命令入口对未预期的运行异常返回 `INTERNAL_ERROR`，会话保留请求 ID，避免调用方退回解析堆栈文本。
-
-密码控件的指纹与状态返回遮盖值，快照不会通过指纹重新泄露已从 HTML 移除的密码。证据中的嵌套控件对象也按控件类型与身份识别敏感值，过滤普通 `text`／`value` 字段中的凭据信息。
-
-文本等待遵循 `within` 范围，范围变化等待回传该容器自身的有界观测；选择器等待可加 `--visible` 要求实际可见。超时保留有界 DOM 观测，同时保留原条件结果。
-
-直接导入官方 `browser_session` Python 接口时，调用方在导入前设置 `sys.dont_write_bytecode = True`，或以 `PYTHONDONTWRITEBYTECODE=1`／`python -B` 启动，确保入口模块自身也不向 Skiloom Store 投影写入字节码。入口同时关闭后续内部模块的字节码写入；CLI 无需额外参数。
-
-连接与等待的超时必须是有限正数；零、负数、`NaN` 或无穷大在执行动作前返回 `INVALID_ARGUMENT`，不会进入无界等待。
+`scripts/browser_fixture.sh start|stop` 启停无凭据的 Linux Chromium 夹具，日志写仓库 `logs/`；设置 `BROWSER_LIVE_TESTS=1` 运行真实浏览器测试。`start-windows|stop-windows` 使用独立 Windows 临时配置，配合 `BROWSER_FIXTURE_ENDPOINT=http://127.0.0.1:19324` 验证 WSL 上传。夹具覆盖动态替换、隐藏输入、模态框、异步进度、遮挡、节点复用、网络和证据，不把 Discord 作为唯一测试来源；停止前核验保存的测试进程身份。
 
 ## 运行时文件
 
