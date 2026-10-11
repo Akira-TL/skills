@@ -84,6 +84,8 @@ Agent 可以导航到登录入口、选择机构入口、定位验证码区域�
 选择 WSL → Windows Chrome CDP adapter 后，`scripts/browser_cdp.py` 是任务级默认执行层。命令与参数以脚本 `--help` 为准，不在任务中重新实现连接、target 发现、CDP 消息 ID、请求/响应或 WebSocket 生命周期。
 
 - 常见页面动作直接调用脚本已有子命令；页面特定 DOM 逻辑通过它的 `eval` 执行。
+- 连续操作优先使用 `session` 的逐行 JSON 请求与响应，复用同一页面连接；建立时绑定完整目标 ID 与准确网址，可附加来源和标题约束。页面关闭、换址或主文档变化后停止，重新建立会话前核实用户允许的目标。单次命令使用 `--target` 与 `--expected-url` 延续同一范围。
+- 失败按 `error_code` 与 `context` 处理；不解析标准错误输出或自然语言推断类型。
 - `click` 使用 CDP 指针事件完成真实点击；文本输入默认使用 `type`，由真实点击取得焦点后通过 CDP 键盘编辑命令与 `Input.insertText` 输入。
 - `fill` 只作为原生 `input` / `textarea` / `select` 的 DOM 兼容兜底，不是普通表单的默认输入路径；`contenteditable` 不使用 `fill`。
 - 脚本没有专用子命令的 CDP 方法通过 `call` 调用；需要捕获请求/响应时优先使用 `network`。

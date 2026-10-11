@@ -21,6 +21,7 @@ sys.dont_write_bytecode = True
 from browser_cdp_lifecycle import (
     BrowserConfig, browser_status, ensure_browser, ensure_then_targets, selected_target,
 )
+from browser_session import BrowserSession, locked_page, serve_session
 from browser_cdp_profiles import DEFAULT_CONFIG_PATH, load_profiles, resolve_profile, save_profile
 from browser_cdp_core import (
     DEFAULT_ENDPOINT,
@@ -51,6 +52,9 @@ class JsonArgumentParser(argparse.ArgumentParser):
         raise BrowserCdpError(message, code="INVALID_ARGUMENT")
 
 def add_target_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--expected-url", help="exact locked page URL")
+    parser.add_argument("--expected-origin", help="optional locked origin")
+    parser.add_argument("--expected-title-regex", help="optional title constraint")
     parser.add_argument(
         "--target",
         help="page target: exact ID, unique ID prefix, unique title fragment, or unique URL fragment",
@@ -153,6 +157,9 @@ def build_parser() -> argparse.ArgumentParser:
     condition.add_argument("--expression")
     wait_parser.add_argument("--poll", type=float, default=0.25, help="poll interval in seconds")
 
+    session_parser = sub.add_parser("session", help="one locked page WebSocket; stdin/stdout JSONL requests")
+    add_target_argument(session_parser)
+
     return parser
 
 
@@ -197,7 +204,7 @@ def command_navigate(args: argparse.Namespace) -> dict[str, Any]:
 
 def command_eval_like(args: argparse.Namespace, expression: str, *, await_promise: bool = False) -> dict[str, Any]:
     target = selected_target(args.browser, args.target, timeout=args.timeout)
-    with page_client(target, timeout=args.timeout) as client:
+    with locked_page(args, target) as client:
         value = client.evaluate(expression, await_promise=await_promise)
     return {"target": target_view(target), "value": value}
 
@@ -224,7 +231,7 @@ def command_call(args: argparse.Namespace) -> dict[str, Any]:
             result = client.call(args.method, params)
         return {"scope": "browser", "method": args.method, "result": result}
     target = selected_target(args.browser, args.target, timeout=args.timeout)
-    with page_client(target, timeout=args.timeout) as client:
+    with locked_page(args, target) as client:
         result = client.call(args.method, params)
     return {"scope": "page", "target": target_view(target), "method": args.method, "result": result}
 
@@ -232,7 +239,7 @@ def command_call(args: argparse.Namespace) -> dict[str, Any]:
 def command_network(args: argparse.Namespace) -> dict[str, Any]:
     target = selected_target(args.browser, args.target, timeout=args.timeout)
     trigger_result: Any = None
-    with page_client(target, timeout=args.timeout) as client:
+    with locked_page(args, target) as client:
         client.call("Network.enable")
         if args.click:
             trigger_result = client.evaluate(
@@ -259,7 +266,7 @@ def command_network(args: argparse.Namespace) -> dict[str, Any]:
 
 def command_click(args: argparse.Namespace) -> dict[str, Any]:
     target = selected_target(args.browser, args.target, timeout=args.timeout)
-    with page_client(target, timeout=args.timeout) as client:
+    with locked_page(args, target) as client:
         point = client.evaluate(
             interaction_point_expression(args.selector, allow_submit=args.allow_submit)
         )
@@ -271,7 +278,7 @@ def command_click(args: argparse.Namespace) -> dict[str, Any]:
 
 def command_type(args: argparse.Namespace) -> dict[str, Any]:
     target = selected_target(args.browser, args.target, timeout=args.timeout)
-    with page_client(target, timeout=args.timeout) as client:
+    with locked_page(args, target) as client:
         point = client.evaluate(
             interaction_point_expression(args.selector, require_text_target=True)
         )
@@ -300,7 +307,7 @@ def command_fill(args: argparse.Namespace) -> dict[str, Any]:
 def command_upload(args: argparse.Namespace) -> dict[str, Any]:
     target = selected_target(args.browser, args.target, timeout=args.timeout)
     files = [chrome_file_path(value) for value in args.files]
-    with page_client(target, timeout=args.timeout) as client:
+    with locked_page(args, target) as client:
         client.call("DOM.enable")
         document = client.call("DOM.getDocument", {"depth": 1, "pierce": True})
         root = document.get("root", {})
@@ -335,7 +342,7 @@ def command_wait(args: argparse.Namespace) -> dict[str, Any]:
     started = time.monotonic()
     deadline = started + args.timeout
     last: Any = None
-    with page_client(target, timeout=args.timeout) as client:
+    with locked_page(args, target) as client:
         while time.monotonic() < deadline:
             last = client.evaluate(expression)
             if bool(last):
@@ -410,6 +417,11 @@ def main() -> int:
         if args.command != "profiles":
             args.browser = resolve_profile(args.profile, args.config, args.endpoint, args.user_data_dir, args.profile_directory)
             args.endpoint = args.browser.endpoint
+        if args.command == "session":
+            target = selected_target(args.browser, args.target, timeout=args.timeout)
+            with locked_page(args, target) as page:
+                serve_session(page, sys.stdin, sys.stdout)
+            return 0
         emit(dispatch(args), compact=args.compact)
     except BrowserCdpError as exc:
         emit(exc.as_dict(), compact="--compact" in sys.argv)

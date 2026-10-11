@@ -104,11 +104,15 @@ uv run <absolute-script-path> --profile chatgpt tabs
 productivity/browser-access/REFERENCE.md
 ```
 
-## 运行时文件
-
 ## 自动化错误契约
 
 命令失败统一返回 `ok: false`、`error_code`、`message` 与 `context`，退出码为 2；旧 `error` 字段保留兼容。`--compact` 只改变 JSON 排版。调用方按错误码判断失败类型，不解析自然语言或标准错误输出。参数错误同样返回 JSON；目标不存在与匹配歧义分别为 `TARGET_NOT_FOUND`、`TARGET_AMBIGUOUS`，连接失败为 `CDP_UNREACHABLE`，页面表达式异常为 `JS_EXCEPTION`。
+
+## 固定页面与长连接
+
+`session` 在一个页面 WebSocket 上处理逐行 JSON 请求，也提供 `browser_session.BrowserSession` Python 接口。会话建立时固定目标 ID、准确网址和主文档身份，可增加来源和标题正则约束。每次操作检查目标存在，动作前后检查网址与主框架；换址、关闭或同网址重新加载后停止，拒绝换页或自动恢复导航。单次 CLI 可以用 `--target` 和 `--expected-url` 保持同一约束；显式导航及旧的导航型等待仍保持兼容。详细调用契约见 `REFERENCE.md`。
+
+## 运行时文件
 
 主运行规则：
 

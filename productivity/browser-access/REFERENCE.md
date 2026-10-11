@@ -18,6 +18,14 @@
 
 ## 1. Adapter：Windows Chrome 持久实例模式
 
+### 页面长连接与目标锁定
+
+连续操作可运行 `uv run <script-path> session --target <完整ID> --expected-url <准确网址>`，每行输入 `{"id":1,"op":"inspect"}`，每行输出 `{"id":1,"ok":true,"result":...}`。命令错误保留原 ID 并返回统一错误对象；损坏请求的 ID 无法读取时为 `null`。结束标准输入即断开连接，保留浏览器。基础操作包括 `inspect`、`text`、`title`、`eval`、`call`；参数使用对应命令的下划线名称，不读取标准输入表达式。
+
+也可导入同目录 `browser_session.BrowserSession`，在上下文管理器内调用 `execute(op, **options)`、`evaluate` 或 `call`。Python 调用方必须先履行 Skill 的浏览器选择、授权和专用配置核验；模块只连接，不启动浏览器。CLI 会先履行已有配置核验。
+
+会话固定目标 ID、准确网址、主框架与文档加载身份，每次操作检查目标仍存在，协议动作前后再次检查页面身份。换址、关闭或同网址重新加载后锁定失败保持有效；不选其他页面、不自动导航回来。可选 `--expected-origin` 与 `--expected-title-regex` 增加约束。显式 `navigate` 以及未带准确网址约束的旧 `network --navigate`、`wait --url-contains` 保留导航语义；锁定会话不执行自动重新绑定。
+
 未指定参数时的默认配置保持为：
 
 ```text
