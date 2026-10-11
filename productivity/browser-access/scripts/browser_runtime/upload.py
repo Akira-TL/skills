@@ -36,6 +36,8 @@ def prepare_file(value: str, browser_os: str) -> UploadFile:
     path = Path(local).expanduser().resolve()
     if not path.is_file():
         raise BrowserCdpError('Upload path is not a file',code='FILE_NOT_FOUND',context={'path':str(path)})
+    if browser_os=='Windows' and not windows and os.name!='nt' and not running_in_wsl():
+        raise BrowserCdpError('Local file cannot be mapped to a Windows browser from this host',code='FILE_CONSTRAINT_VIOLATION',context={'path':str(path),'browser_os':browser_os})
     browser_path = value if windows and browser_os=='Windows' else chrome_file_path(str(path)) if browser_os=='Windows' else str(path)
     name = ntpath.basename(browser_path) if browser_os=='Windows' else path.name
     return UploadFile(str(path),browser_path,name,path.stat().st_size,mimetypes.guess_type(name)[0] or '')

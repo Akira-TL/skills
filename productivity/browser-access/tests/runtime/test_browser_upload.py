@@ -23,6 +23,21 @@ class UploadTests(unittest.TestCase):
     def test_linux_browser_in_wsl_keeps_linux_path(self):
         with tempfile.NamedTemporaryFile(suffix='.png') as f,patch('browser_runtime.upload.running_in_wsl',return_value=True):
             self.assertEqual(prepare_file(f.name,'Linux').browser_path,f.name)
+
+    def test_remote_windows_browser_does_not_receive_posix_path(self):
+        with tempfile.NamedTemporaryFile() as f,patch('browser_runtime.upload.running_in_wsl',return_value=False),patch('browser_runtime.upload.os.name','posix'):
+            with self.assertRaises(BrowserCdpError) as caught:prepare_file(f.name,'Windows')
+        self.assertEqual(caught.exception.code,'FILE_CONSTRAINT_VIOLATION')
+
+    def test_windows_conversion_preserves_chinese_spaces_and_parentheses(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source=Path(folder)/'中文 图片(1).png';source.write_bytes(b'png')
+            converted='C:\\Temp\\中文 图片(1).png'
+            with patch('browser_runtime.upload.running_in_wsl',return_value=True),patch('browser_runtime.upload.chrome_file_path',return_value=converted):
+                prepared=prepare_file(str(source),'Windows')
+            self.assertEqual(prepared.browser_path,converted)
+            self.assertEqual(prepared.name,source.name)
+            self.assertEqual(prepared.size,3)
     def test_browser_file_list_is_verified_even_without_protocol_error(self):
         class Peer:
             def evaluate(self,expression):
