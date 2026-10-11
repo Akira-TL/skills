@@ -244,6 +244,10 @@ uv run <script-path> type '#q1' '示例'
 
 ## 7. 点击、单选和条件题
 
+高动态页面用唯一业务容器限定目标，例如 `click 'button.variant' --within '#message-123' --expect-text 'U1' --expect-role button`。相同文本的其他容器不参与定位。默认匹配数量为 1；只有显式设置 `--expect-count N --allow-multiple` 才按第一个匹配动作，调用方仍应优先唯一定位。`--predicate` 使用变量 `el` 表达补充约束。会话操作 `click`、`type`、`fill` 使用同名下划线参数。
+
+点击在滚动及一帧等待后重新查询，不使用旧坐标。指针移动与按下后再验证同一元素身份、文本、祖先和位置，命中点被遮挡或元素变化时拒绝。输入回读可编辑区域的可见文本、焦点与 `aria-invalid`，通过 `--verify exact|contains|none` 指定值核验方式；即使关闭值核验，仍核验焦点、元素身份和无效状态。模态框勘察可用 `inspect --within '#modal'`。
+
 普通点击优先使用 CLI 的 `click`。该命令不是 `element.click()` 包装：它读取目标实际屏幕坐标、通过 `elementFromPoint` 验证落点，再发送 CDP mouse move / press / release。自定义单选、React/Vue 控件和条件题都先走这条真实 pointer 路径。
 
 如果真实 `input` 被隐藏而交互绑定在可见 label、anchor 或 wrapper 上，应把 selector 指向站点实际可点击的可见目标。若中心落点被 overlay 或其他元素遮挡，CLI 会拒绝继续；先重新定位真正的交互目标，而不是退回 `element.click()` 绕过命中测试。

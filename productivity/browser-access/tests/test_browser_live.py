@@ -1,0 +1,51 @@
+"""Opt-in real Chromium tests; started exclusively by browser_fixture.sh."""
+import os
+import sys
+import unittest
+import urllib.request
+from pathlib import Path
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
+from browser_cdp_core import BrowserCdpError, http_json
+from browser_session import BrowserSession
+
+ENDPOINT='http://127.0.0.1:19322'
+URL='http://127.0.0.1:19323/dynamic.html'
+
+@unittest.skipUnless(os.environ.get('BROWSER_LIVE_TESTS')=='1','set BROWSER_LIVE_TESTS=1 after browser_fixture.sh start')
+class LiveTests(unittest.TestCase):
+    def setUp(self):
+        self.target=http_json(ENDPOINT,'/json/new?'+URL,method='PUT')
+        from browser_cdp_core import page_client, wait_ready
+        with page_client(self.target,timeout=5) as client:
+            wait_ready(client,timeout=5)
+        self.addCleanup(lambda:urllib.request.urlopen(ENDPOINT+'/json/close/'+self.target['id']).close())
+    def page(self):
+        return BrowserSession(ENDPOINT,target=self.target['id'],expected_url=URL,timeout=5)
+    def test_scoped_click_ambiguity_overlay_and_scroll(self):
+        with self.page() as page:
+            with self.assertRaises(BrowserCdpError) as caught:
+                page.execute('click',selector='.variant')
+            self.assertEqual(caught.exception.code,'ELEMENT_AMBIGUOUS')
+            result=page.execute('click',selector='.variant',within='#message-two',expect_text='U1',expect_role='button')
+            self.assertTrue(result['clicked'])
+            self.assertEqual(page.evaluate("document.querySelector('#message-two button').dataset.clicked"),'two')
+            self.assertIsNone(page.evaluate("document.querySelector('#message-one button').dataset.clicked"))
+            page.evaluate("document.querySelector('#overlay').style.display='block'")
+            with self.assertRaises(BrowserCdpError) as caught:
+                page.execute('click',selector='#editor')
+            self.assertEqual(caught.exception.code,'ELEMENT_OCCLUDED')
+            page.evaluate("document.querySelector('#overlay').style.display='none'")
+            self.assertTrue(page.execute('click',selector='#offscreen')['clicked'])
+    def test_replacement_during_press_is_rejected(self):
+        with self.page() as page:
+            with self.assertRaises(BrowserCdpError) as caught:
+                page.execute('click',selector='#replace-press')
+            self.assertEqual(caught.exception.code,'ELEMENT_CHANGED_DURING_ACTION')
+    def test_native_rich_text_and_modal(self):
+        with self.page() as page:
+            self.assertEqual(page.execute('type',selector='#editor',value='中文输入')['state']['value'],'中文输入')
+            self.assertEqual(page.execute('type',selector='#rich',value='可见文本')['state']['value'],'可见文本')
+            page.execute('click',selector='#open-modal')
+            self.assertEqual(page.execute('type',selector='.field',value='modal',within='#modal')['state']['value'],'modal')
+            page.execute('click',selector='.close',within='#modal')
+            self.assertTrue(page.evaluate("document.querySelector('#modal').hidden"))

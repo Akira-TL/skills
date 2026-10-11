@@ -112,6 +112,10 @@ productivity/browser-access/REFERENCE.md
 
 `session` 在一个页面 WebSocket 上处理逐行 JSON 请求，也提供 `browser_session.BrowserSession` Python 接口。会话建立时固定目标 ID、准确网址和主文档身份，可增加来源和标题正则约束。每次操作检查目标存在，动作前后检查网址与主框架；换址、关闭或同网址重新加载后停止，拒绝换页或自动恢复导航。单次 CLI 可以用 `--target` 和 `--expected-url` 保持同一约束；显式导航及旧的导航型等待仍保持兼容。详细调用契约见 `REFERENCE.md`。
 
+点击默认要求唯一可见目标。`--within` 限定唯一祖先，`--expect-text`、`--expect-role`、`--expect-count` 与可选元素谓词约束定位。滚动后等待动画帧再查询，读取元素身份、文本、角色、祖先 ID 与位置；移动后、按下后再次校验身份和命中点。按下期间目标被替换时在页面外释放鼠标并返回 `ELEMENT_CHANGED_DURING_ACTION`；遮挡返回 `ELEMENT_OCCLUDED`。点击自身关闭模态框允许作为正常结果。`type --verify exact|contains|none` 返回输入前后值、焦点、`aria-invalid` 与元素身份，默认准确核对；输入失败不会被当作成功。
+
+本地夹具由 `scripts/browser_fixture.sh start|stop` 启停，使用无凭据临时 Chromium 配置，日志位于仓库 `logs/`。设置 `BROWSER_LIVE_TESTS=1` 后运行测试，覆盖作用域消歧、遮挡、滚动、按下时节点替换、富文本和模态框。
+
 ## 运行时文件
 
 主运行规则：

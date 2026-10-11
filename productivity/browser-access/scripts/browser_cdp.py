@@ -21,6 +21,8 @@ sys.dont_write_bytecode = True
 from browser_cdp_lifecycle import (
     BrowserConfig, browser_status, ensure_browser, ensure_then_targets, selected_target,
 )
+from browser_actions import pointer_click, type_text, fill_native
+from browser_dom import SelectorGuard, dom_expression, scope_expression
 from browser_session import BrowserSession, locked_page, serve_session
 from browser_cdp_profiles import DEFAULT_CONFIG_PATH, load_profiles, resolve_profile, save_profile
 from browser_cdp_core import (
@@ -160,6 +162,15 @@ def build_parser() -> argparse.ArgumentParser:
     session_parser = sub.add_parser("session", help="one locked page WebSocket; stdin/stdout JSONL requests")
     add_target_argument(session_parser)
 
+    for scoped in (click_parser,type_parser,fill_parser,upload_parser,inspect_parser,text_parser,wait_parser,network_parser):
+        scoped.add_argument("--within", help="unique ancestor selector")
+    for guarded in (click_parser,type_parser,fill_parser,upload_parser):
+        guarded.add_argument("--expect-text", help="exact normalized visible text")
+        guarded.add_argument("--expect-role", help="ARIA or native role")
+        guarded.add_argument("--expect-count", type=int, default=1)
+        guarded.add_argument("--allow-multiple", action="store_true", help="explicitly use first of expected matches")
+        guarded.add_argument("--predicate", help="JavaScript predicate with el in scope")
+    type_parser.add_argument("--verify", choices=("exact","contains","none"),default="exact")
     return parser
 
 
@@ -212,13 +223,13 @@ def command_eval_like(args: argparse.Namespace, expression: str, *, await_promis
 def command_text(args: argparse.Namespace) -> dict[str, Any]:
     limit = max(0, int(args.limit))
     expression = f"(() => {{ const t = document.body?.innerText || ''; return {{text:t.slice(0,{limit}), length:t.length, truncated:t.length>{limit}}}; }})()"
-    return command_eval_like(args, expression)
+    return command_eval_like(args, scope_expression(expression,args.within))
 
 
 def command_inspect(args: argparse.Namespace) -> dict[str, Any]:
     return command_eval_like(
         args,
-        inspect_expression(max(0, int(args.text_limit)), all_controls=args.all_controls),
+        scope_expression(inspect_expression(max(0, int(args.text_limit)), all_controls=args.all_controls),args.within),
     )
 
 
@@ -242,12 +253,7 @@ def command_network(args: argparse.Namespace) -> dict[str, Any]:
     with locked_page(args, target) as client:
         client.call("Network.enable")
         if args.click:
-            trigger_result = client.evaluate(
-                interaction_point_expression(args.click, allow_submit=args.allow_submit)
-            )
-            if not isinstance(trigger_result, dict):
-                raise CdpProtocolError("Pointer target inspection did not return an object")
-            dispatch_primary_click(client, trigger_result)
+            trigger_result = pointer_click(client,args.click,SelectorGuard(within=args.within),allow_submit=args.allow_submit)
         elif args.navigate:
             client.call("Page.enable")
             trigger_result = client.call("Page.navigate", {"url": args.navigate})
@@ -266,42 +272,23 @@ def command_network(args: argparse.Namespace) -> dict[str, Any]:
 
 def command_click(args: argparse.Namespace) -> dict[str, Any]:
     target = selected_target(args.browser, args.target, timeout=args.timeout)
-    with locked_page(args, target) as client:
-        point = client.evaluate(
-            interaction_point_expression(args.selector, allow_submit=args.allow_submit)
-        )
-        if not isinstance(point, dict):
-            raise CdpProtocolError("Pointer target inspection did not return an object")
-        dispatch_primary_click(client, point)
-    return {"clicked": True, "target": target_view(target), "interaction": point}
+    with locked_page(args, target) as page:
+        result = pointer_click(page,args.selector,SelectorGuard.from_options(vars(args)),allow_submit=args.allow_submit)
+    return {"target":target_view(target),**result}
 
 
 def command_type(args: argparse.Namespace) -> dict[str, Any]:
     target = selected_target(args.browser, args.target, timeout=args.timeout)
-    with locked_page(args, target) as client:
-        point = client.evaluate(
-            interaction_point_expression(args.selector, require_text_target=True)
-        )
-        if not isinstance(point, dict):
-            raise CdpProtocolError("Text target inspection did not return an object")
-        dispatch_primary_click(client, point)
-        focused = client.evaluate(target_state_expression(args.selector))
-        if not isinstance(focused, dict) or not focused.get("focused"):
-            raise CdpProtocolError(
-                "Pointer click did not focus the requested text target; refusing to send keyboard input"
-            )
-        replace_focused_text(client, args.value)
-        state = client.evaluate(target_state_expression(args.selector))
-    return {
-        "typed": True,
-        "target": target_view(target),
-        "interaction": point,
-        "state": state,
-    }
+    with locked_page(args, target) as page:
+        result = type_text(page,args.selector,args.value,SelectorGuard.from_options(vars(args)),verify=args.verify)
+    return {"target":target_view(target),**result}
 
 
 def command_fill(args: argparse.Namespace) -> dict[str, Any]:
-    return command_eval_like(args, fill_expression(args.selector, args.value))
+    target = selected_target(args.browser,args.target,timeout=args.timeout)
+    with locked_page(args,target) as page:
+        result = fill_native(page,args.selector,args.value,SelectorGuard.from_options(vars(args)))
+    return {"target":target_view(target),**result}
 
 
 def command_upload(args: argparse.Namespace) -> dict[str, Any]:

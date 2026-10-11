@@ -154,8 +154,21 @@ class BrowserSession:
         return result
 
     def _execute(self, op: str, options: dict[str, Any]) -> dict[str, Any]:
+        if op in {"click", "type", "fill"}:
+            from browser_actions import pointer_click, type_text, fill_native
+            from browser_dom import SelectorGuard
+            guard = SelectorGuard.from_options(options)
+            selector = str(options["selector"])
+            if op == "click":
+                action = pointer_click(self,selector,guard,allow_submit=bool(options.get("allow_submit",False)))
+            elif op == "type":
+                action = type_text(self,selector,str(options["value"]),guard,verify=str(options.get("verify","exact")))
+            else:
+                action = fill_native(self,selector,str(options["value"]),guard)
+            return {"target":target_view(self.target),**action}
         if op == "inspect":
-            value = self.evaluate(inspect_expression(int(options.get("text_limit", 12000)), all_controls=bool(options.get("all_controls", False))))
+            from browser_dom import scope_expression
+            value = self.evaluate(scope_expression(inspect_expression(int(options.get("text_limit", 12000)), all_controls=bool(options.get("all_controls", False))), options.get("within")))
         elif op == "title":
             value = self.evaluate("document.title")
         elif op == "text":
