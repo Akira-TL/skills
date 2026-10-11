@@ -1,18 +1,14 @@
 from __future__ import annotations
 
-import importlib.util
+import importlib
 import sys
 import unittest
 from pathlib import Path
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "browser_cdp_core.py"
-SPEC = importlib.util.spec_from_file_location("browser_cdp_core", SCRIPT)
-if SPEC is None or SPEC.loader is None:
-    raise RuntimeError(f"Cannot load {SCRIPT}")
-BROWSER_CDP = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = BROWSER_CDP
-SPEC.loader.exec_module(BROWSER_CDP)
+sys.path.insert(0, str(SCRIPT.parent))
+BROWSER_CDP = importlib.import_module("browser_cdp_core")
 
 
 class NetworkSummaryTests(unittest.TestCase):
