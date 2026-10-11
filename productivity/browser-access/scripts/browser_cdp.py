@@ -169,6 +169,7 @@ def build_parser() -> argparse.ArgumentParser:
     condition.add_argument("--url-contains")
     condition.add_argument("--expression")
     condition.add_argument("--dom-stable",metavar="SELECTOR")
+    wait_parser.add_argument("--visible",action="store_true",help="selector must have a visible match")
     wait_parser.add_argument("--poll", type=float, default=0.25, help="poll interval in seconds")
 
     session_parser = sub.add_parser("session", help="one locked page WebSocket; stdin/stdout JSONL requests")

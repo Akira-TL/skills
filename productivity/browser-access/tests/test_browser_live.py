@@ -215,3 +215,14 @@ class LiveTests(unittest.TestCase):
             self.assertNotIn('PASSWORD_SENTINEL',str(result))
             result=page.execute('click',selector='#fixture-password')
             self.assertEqual(result['interaction']['text'],'[redacted]')
+
+    def test_scoped_text_and_mutation_observations(self):
+        with self.page() as page:
+            page.evaluate("document.querySelector('#message-one button').innerText='范围甲';document.querySelector('#message-two button').innerText='范围乙'")
+            self.assertTrue(page.execute('wait',text='范围甲',within='#message-one',timeout=1)['met'])
+            with self.assertRaises(BrowserCdpError) as caught:page.execute('wait',text='范围乙',within='#message-one',timeout=0.1)
+            self.assertEqual(caught.exception.code,'WAIT_TIMEOUT')
+            page.evaluate("setTimeout(()=>document.querySelector('#preview').textContent='预览就绪',80)")
+            result=page.execute('wait-mutation',within='#preview',until_expression="document.querySelector('#preview').textContent==='预览就绪'",timeout=1)
+            self.assertEqual(result['last_observed'][0]['text'],'预览就绪')
+            with self.assertRaises(BrowserCdpError):page.execute('wait',selector='#modal',visible=True,timeout=0.1)

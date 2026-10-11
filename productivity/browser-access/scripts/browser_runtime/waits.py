@@ -18,7 +18,7 @@ def observation_expression(selector: str | None, within: str | None = None,
     return f"""(() => {{ {DOM_HELPERS}
  const within={within_js}, selector={selector_js};let root=document;
  if(within){{const roots=[...document.querySelectorAll(within)]; if(roots.length>1) fail('ELEMENT_AMBIGUOUS','Wait scope is ambiguous'); if(!roots.length) return [];root=roots[0];}}
- return [...root.querySelectorAll(selector||'body')].slice(0,100).map(el=>({{identity:{json.dumps(identity_attribute)} && el.getAttribute({json.dumps(identity_attribute)}) ? 'attribute:'+{json.dumps(identity_attribute)}+':'+el.getAttribute({json.dumps(identity_attribute)}) : identity(el),id:el.id,text:(el.innerText||el.textContent||'').slice(0,1000),visible:visible(el),attributes:Object.fromEntries({attrs_js}.map(name=>[name,el.getAttribute(name)]))}}));
+ return (selector?[...root.querySelectorAll(selector)]:root===document?[document.body].filter(Boolean):[root]).slice(0,100).map(el=>({{identity:{json.dumps(identity_attribute)} && el.getAttribute({json.dumps(identity_attribute)}) ? 'attribute:'+{json.dumps(identity_attribute)}+':'+el.getAttribute({json.dumps(identity_attribute)}) : identity(el),id:el.id,text:(el.innerText||el.textContent||'').slice(0,1000),visible:visible(el),attributes:Object.fromEntries({attrs_js}.map(name=>[name,el.getAttribute(name)]))}}));
 }})()"""
 
 
@@ -64,6 +64,7 @@ def wait_condition(page: Any, kind: str, options: dict[str, Any]) -> dict[str, A
             pointer_click(page,options['click'],SelectorGuard(within=options.get('click_within')),allow_submit=bool(options.get('allow_submit',False)))
         while True:
             last = page.evaluate(observation)
+            observed_elements=last
             value = '\n'.join(item['text'] for item in last)
             mutation_count = int(page.evaluate(f'globalThis[{key_js}]?.count||0'))
             elapsed = time.monotonic()-started
@@ -89,9 +90,9 @@ def wait_condition(page: Any, kind: str, options: dict[str, Any]) -> dict[str, A
             elif options.get('expression') is not None:
                 last=page.evaluate(options['expression']);met=bool(last)
             elif selector:
-                met=bool(last)
+                met=any(item['visible'] for item in last) if options.get('visible') else bool(last)
             elif options.get('text') is not None:
-                last=page.evaluate(f"(document.body?.innerText||'').includes({json.dumps(options['text'])})");met=bool(last)
+                last=page.evaluate(f"(() => {{const root={json.dumps(within)}?document.querySelector({json.dumps(within)}):document.body;return (root?.innerText||'').includes({json.dumps(options['text'])});}})()");met=bool(last)
             elif options.get('url_contains') is not None:
                 last=page.evaluate(f"location.href.includes({json.dumps(options['url_contains'])})");met=bool(last)
             else:
@@ -105,7 +106,7 @@ def wait_condition(page: Any, kind: str, options: dict[str, Any]) -> dict[str, A
             if elapsed>=timeout:
                 raise BrowserCdpError('Wait condition timed out',code='WAIT_TIMEOUT',context={
                     'condition':{'kind':kind,'selector':selector,'within':within,'expression':options.get('expression') or options.get('until_expression')},
-                    'elapsed':round(elapsed,3),'last_observed':last,'mutation_count':mutation_count,'transitions':transitions})
+                    'elapsed':round(elapsed,3),'last_observed':last,'dom_observed':observed_elements,'mutation_count':mutation_count,'transitions':transitions})
             delay_ms=min(poll,max(0,timeout-elapsed))*1000
             # Wake on a mutation; timer fallback covers non-DOM conditions.
             page.evaluate(f"new Promise(resolve=>{{const slot=globalThis[{key_js}];const timer=setTimeout(done,{delay_ms});function done(){{clearTimeout(timer);if(slot)slot.wake=null;resolve(true);}}if(slot)slot.wake=done;}})",await_promise=True)
