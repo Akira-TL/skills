@@ -105,6 +105,7 @@ def build_parser() -> argparse.ArgumentParser:
     call_parser.add_argument("method", help="CDP method such as Runtime.evaluate or Network.enable")
     call_parser.add_argument("--params", default="{}", help="JSON object, or '-' to read JSON from stdin")
     call_parser.add_argument("--scope", choices=("page", "browser"), default="page")
+    call_parser.add_argument("--guard", help="page expression that must return boolean true immediately before the call")
 
     network_parser = sub.add_parser("network", help="capture request/response metadata around a click or navigation")
     add_target_argument(network_parser)
@@ -212,6 +213,8 @@ def command_inspect(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_call(args: argparse.Namespace) -> dict[str, Any]:
+    if args.guard is not None and args.scope != "page":
+        raise BrowserCdpError("--guard is only supported for page-scoped calls")
     params = read_json_object(args.params)
     if args.scope == "browser":
         ensure_browser(args.browser, timeout=args.timeout)
@@ -221,6 +224,8 @@ def command_call(args: argparse.Namespace) -> dict[str, Any]:
         return {"scope": "browser", "method": args.method, "result": result}
     target = selected_target(args.browser, args.target, timeout=args.timeout)
     with page_client(target, timeout=args.timeout) as client:
+        if args.guard is not None and client.evaluate(args.guard, await_promise=True) is not True:
+            raise BrowserCdpError("Page guard did not return boolean true; no CDP action was sent")
         result = client.call(args.method, params)
     return {"scope": "page", "target": target_view(target), "method": args.method, "result": result}
 

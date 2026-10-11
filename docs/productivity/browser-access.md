@@ -102,6 +102,8 @@ uv run <absolute-script-path> --profile chatgpt tabs
 
 它统一处理 Chrome 生命周期、page target 选择、导航、页面文本/控件勘察、真实指针点击、真实文本输入、DOM 兼容填写、等待、上传、任意单次 CDP 调用和网络请求观察。`click` 使用 `Input.dispatchMouseEvent`，`type` 使用真实点击取得焦点后调用键盘编辑命令与 `Input.insertText`；`fill` 明确降为兼容兜底。Agent 通过 `uv run <script-path> --help` 读取当前命令面；页面特定逻辑使用 CLI 的 `eval`，而不是重复编写 WebSocket/CDP 包装脚本。复杂网站的 `inspect` 默认只回传可见控件和文件控件，减少无关 DOM 对上下文的占用。
 
+需要让 Agent 的已决定动作在执行前重新核对页面时，可用页面级 `call --guard`：在同一连接中读取条件，只有结果严格为布尔值 `true` 才发送该动作。条件不满足或读取失败时不执行，不承担语义判断或自动重试。多人交互时仍应避开用户正在编辑的输入框；此检查不宣称消除所有并发输入竞争。
+
 完整的 CDP 原理、DOM 表达式、网络资源解析、跨系统上传路径和问卷实践经验位于：
 
 ```text
