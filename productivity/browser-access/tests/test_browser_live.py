@@ -110,6 +110,7 @@ class LiveTests(unittest.TestCase):
             snapshot=page.execute('snapshot',selector='body',max_chars=50)
             self.assertLessEqual(len(snapshot['outerHTML']),50)
             page.evaluate("document.body.insertAdjacentHTML('beforeend','<input name=token value=TOP_SECRET>')")
+            page.evaluate("document.body.insertAdjacentHTML('beforeend','<div hidden>HIDDEN_SECRET</div>')")
             with self.assertRaises(BrowserCdpError) as caught:
                 page.execute('click',selector='#missing',evidence_on_error=True)
             directory=Path(caught.exception.context['evidence_dir'])
@@ -118,6 +119,7 @@ class LiveTests(unittest.TestCase):
             for file in directory.glob('*.json'):
                 self.assertNotIn('TOP_SECRET',file.read_text())
             self.assertNotIn('TOP_SECRET',(directory/'visible-text.txt').read_text())
+            self.assertNotIn('HIDDEN_SECRET',(directory/'visible-text.txt').read_text())
 
     def test_network_predicates_and_artifacts(self):
         with self.page() as page:

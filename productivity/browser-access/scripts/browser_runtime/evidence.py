@@ -70,9 +70,9 @@ def snapshot(page: Any, selector: str, guard: SelectorGuard | None = None,
 
 EVIDENCE_EXPRESSION = """(() => {
  const sensitive=el=>/password|passwd|token|secret|cookie|authorization|csrf|otp/i.test((el.id||'')+' '+(el.name||'')+' '+(el.type||''));
- const clone=document.body?.cloneNode(true);if(clone)clone.querySelectorAll('script,style,input,textarea,[contenteditable]').forEach(el=>el.remove());
+ const texts=[];if(document.body){const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);let node;while((node=walker.nextNode())&&texts.join('').length<12000){let el=node.parentElement;if(!el||el.closest('script,style,input,textarea,[contenteditable]'))continue;let shown=true;for(let parent=el;parent;parent=parent.parentElement){const style=getComputedStyle(parent);if(style.display==='none'||style.visibility==='hidden'){shown=false;break;}}if(shown&&el.getClientRects().length)texts.push(sensitive(el)?'[redacted]':node.textContent);}}
  const controls=[...document.querySelectorAll('input,textarea,select,button,[contenteditable],[role]')].filter(el=>{const r=el.getBoundingClientRect(),s=getComputedStyle(el);return el.type==='file'||(r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none');}).slice(0,100).map(el=>({tag:el.tagName,id:el.id,name:el.name,type:el.type||'',role:el.getAttribute('role'),text:sensitive(el)?'[redacted]':(el.tagName==='BUTTON'?el.innerText:'').slice(0,300),aria_label:el.getAttribute('aria-label')}));
- return {visible_text:(clone?.innerText||clone?.textContent||'').slice(0,12000),controls};
+ return {visible_text:texts.join(' ').slice(0,12000),controls};
 })()"""
 
 
@@ -92,7 +92,7 @@ def _capture_evidence(page: Any, action: str, options: dict[str, Any], error: Br
     directory=Path(tempfile.mkdtemp(prefix=time.strftime('%Y%m%d-%H%M%S-'),dir=root))
     meta={'action':action,'selector':options.get('selector'),'expected_guard':{key:options.get(key) for key in ('within','expect_text','expect_role','expect_count')},
           'target_id':getattr(page,'target',{}).get('id'),'url':getattr(page,'target',{}).get('url'),
-          'error_code':error.code,'elapsed':round(elapsed,3),'element_fingerprint':error.context.get('fingerprint') or error.context.get('expected'),
+          'error_code':error.code,'elapsed':round(elapsed,3),'element_fingerprint':error.context.get('fingerprint') or error.context.get('expected') or error.context.get('after'),
           'capture_errors':[]}
     def save(name: str,value: Any) -> None:
         (directory/name).write_text(json.dumps(redact(value),ensure_ascii=False,indent=2),encoding='utf-8')
