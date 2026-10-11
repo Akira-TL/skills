@@ -81,6 +81,21 @@ Chrome 136 起，远程调试需要非标准数据目录；选择日常目录中
 productivity/browser-access/scripts/browser_cdp.py
 ```
 
+支持把专用目录和独立端口保存成命名配置，例如：
+
+```bash
+uv run <absolute-script-path> --endpoint http://localhost:9223 --user-data-dir 'C:\Users\Akira\.agent-browser\chrome-profile' profile-save chatgpt
+uv run <absolute-script-path> profiles
+uv run <absolute-script-path> --profile chatgpt status
+uv run <absolute-script-path> --profile chatgpt tabs
+```
+
+示例路径应替换为目标机器上确认的专用目录。配置默认保存到运行脚本的系统用户目录 `~/.agent-browser/profiles.toml`，可用 `--config` 指定其他文件。WSL 中配置文件放在 WSL 用户目录，但记录的数据目录使用 Windows 绝对路径。
+
+保存和列出配置都不启动浏览器。同名、重复端口或重复数据目录会被拒绝；`agent-browser` 保留为不能覆盖的内置默认配置。`--profile` 与显式目录、端口参数不能混用，未知名称不会回退到默认浏览器。不传 `--profile` 时不读取命名配置文件，保持原有默认行为。
+
+`chatgpt` 是本地专用配置名，与日常 Chrome 中的显示名称和 Google 账号无关。保存配置不代表授权控制，已保存配置的调整通过编辑 TOML 文件完成；目录或配置子目录变更后重新确认控制目标。
+
 它统一处理 Chrome 生命周期、page target 选择、导航、页面文本/控件勘察、真实指针点击、真实文本输入、DOM 兼容填写、等待、上传、任意单次 CDP 调用和网络请求观察。`click` 使用 `Input.dispatchMouseEvent`，`type` 使用真实点击取得焦点后调用键盘编辑命令与 `Input.insertText`；`fill` 明确降为兼容兜底。Agent 通过 `uv run <script-path> --help` 读取当前命令面；页面特定逻辑使用 CLI 的 `eval`，而不是重复编写 WebSocket/CDP 包装脚本。复杂网站的 `inspect` 默认只回传可见控件和文件控件，减少无关 DOM 对上下文的占用。
 
 完整的 CDP 原理、DOM 表达式、网络资源解析、跨系统上传路径和问卷实践经验位于：

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -10,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 import browser_cdp as cli
 import browser_cdp_lifecycle as lifecycle
+import browser_cdp_profiles as profiles
 from browser_cdp_core import BrowserCdpError
 
 
@@ -133,6 +137,100 @@ class DedicatedProfileTests(unittest.TestCase):
         launch.assert_called_once_with(self.config)
         self.assertFalse(result["reused"])
         self.assertTrue(result["profileVerified"])
+
+
+class NamedProfileTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.path = Path(self.temporary.name) / "profiles.toml"
+        self.config = lifecycle.BrowserConfig(
+            endpoint="http://localhost:9223", user_data_dir=r"C:\Agent Data\ChatGPT",
+            identity="chatgpt",
+        )
+
+    def test_saved_configuration_roundtrips_paths_and_is_selected_by_name(self) -> None:
+        profiles.save_profile("chatgpt", self.config, self.path)
+        self.assertEqual(profiles.resolve_profile("chatgpt", self.path, None, None, None), self.config)
+        self.assertFalse(self.path.with_name("profiles.toml.lock").exists())
+
+    def test_unknown_name_does_not_fall_back_or_create_configuration(self) -> None:
+        with self.assertRaises(BrowserCdpError):
+            profiles.resolve_profile("missing", self.path, None, None, None)
+        self.assertFalse(self.path.exists())
+
+    def test_no_name_or_builtin_name_ignores_missing_or_corrupt_file(self) -> None:
+        self.path.write_text("broken [ configuration", encoding="utf-8")
+        for name in (None, "agent-browser"):
+            self.assertEqual(profiles.resolve_profile(name, self.path, None, None, None), lifecycle.BrowserConfig())
+
+    def test_named_profile_rejects_partial_overrides(self) -> None:
+        with self.assertRaises(BrowserCdpError):
+            profiles.resolve_profile("chatgpt", self.path, "http://localhost:9224", None, None)
+
+    def test_builtin_and_invalid_names_cannot_be_saved(self) -> None:
+        for name in ("agent-browser", "Profile 7", "../../profile", "ChatGPT"):
+            with self.subTest(name=name), self.assertRaises(BrowserCdpError):
+                profiles.save_profile(name, self.config, self.path)
+        self.assertFalse(self.path.exists())
+
+    def test_duplicate_names_ports_or_directories_preserve_existing_file(self) -> None:
+        profiles.save_profile("chatgpt", self.config, self.path)
+        original = self.path.read_bytes()
+        for name, config in (
+            ("chatgpt", lifecycle.BrowserConfig(endpoint="http://localhost:9224", user_data_dir=r"C:\Agent\Second")),
+            ("second", lifecycle.BrowserConfig(endpoint="http://127.0.0.1:9223", user_data_dir=r"C:\Agent\Second")),
+            ("second", lifecycle.BrowserConfig(endpoint="http://localhost:9224", user_data_dir=r"c:/agent data/chatgpt")),
+        ):
+            with self.subTest(name=name, config=config), self.assertRaises(BrowserCdpError):
+                profiles.save_profile(name, config, self.path)
+            self.assertEqual(self.path.read_bytes(), original)
+
+    def test_invalid_schema_is_rejected_without_rewriting(self) -> None:
+        for content in ("schema = 2\n[profiles]\n", "schema = true\n[profiles]\n",
+                        "schema = 1\n[profiles.chatgpt]\nendpoint = 9223\nuser_data_dir = 'C:\\Agent'\n"):
+            with self.subTest(content=content):
+                self.path.write_text(content, encoding="utf-8")
+                with self.assertRaises(BrowserCdpError):
+                    profiles.load_profiles(self.path)
+                self.assertEqual(self.path.read_text(encoding="utf-8"), content)
+
+    def test_existing_lock_prevents_writes_and_is_preserved(self) -> None:
+        lock = self.path.with_name("profiles.toml.lock")
+        lock.write_text("another process", encoding="utf-8")
+        with self.assertRaises(BrowserCdpError):
+            profiles.save_profile("chatgpt", self.config, self.path)
+        self.assertFalse(self.path.exists())
+        self.assertTrue(lock.exists())
+
+    def test_failed_atomic_replace_preserves_file_and_cleans_lock(self) -> None:
+        profiles.save_profile("chatgpt", self.config, self.path)
+        original = self.path.read_bytes()
+        with patch.object(profiles.os, "replace", side_effect=OSError("write failed")), self.assertRaises(BrowserCdpError):
+            profiles.save_profile("second", lifecycle.BrowserConfig(
+                endpoint="http://localhost:9224", user_data_dir=r"C:\Agent\Second"), self.path)
+        self.assertEqual(self.path.read_bytes(), original)
+        self.assertEqual(list(self.path.parent.iterdir()), [self.path])
+
+    def test_cli_save_and_list_do_not_connect_or_launch(self) -> None:
+        commands = [
+            ["--config", str(self.path), "--endpoint", self.config.endpoint,
+             "--user-data-dir", self.config.user_data_dir, "profile-save", "chatgpt"],
+            ["--config", str(self.path), "profiles"],
+        ]
+        with patch.object(lifecycle, "probe_version") as probe, patch.object(lifecycle, "launch_windows_agent_chrome") as launch:
+            for command in commands:
+                with patch.object(sys, "argv", ["browser_cdp.py", *command]), redirect_stdout(StringIO()):
+                    self.assertEqual(cli.main(), 0)
+        probe.assert_not_called()
+        launch.assert_not_called()
+
+    def test_cli_propagates_named_configuration_to_page_commands(self) -> None:
+        profiles.save_profile("chatgpt", self.config, self.path)
+        with patch.object(sys, "argv", ["browser_cdp.py", "--config", str(self.path), "--profile", "chatgpt", "tabs"]), \
+             patch.object(cli, "ensure_then_targets", return_value=[]) as targets, redirect_stdout(StringIO()):
+            self.assertEqual(cli.main(), 0)
+        targets.assert_called_once_with(self.config, timeout=15.0)
 
 
 if __name__ == "__main__":

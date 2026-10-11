@@ -12,14 +12,16 @@ import argparse
 import json
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 # Installed Skill payloads can be immutable Store projections.
 sys.dont_write_bytecode = True
 
 from browser_cdp_lifecycle import (
-    browser_status, config_from_options, ensure_browser, ensure_then_targets, selected_target,
+    BrowserConfig, browser_status, ensure_browser, ensure_then_targets, selected_target,
 )
+from browser_cdp_profiles import DEFAULT_CONFIG_PATH, load_profiles, resolve_profile, save_profile
 from browser_cdp_core import (
     DEFAULT_ENDPOINT,
     BrowserCdpError,
@@ -56,6 +58,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Fast deterministic control surface for browser-access's WSL -> Windows Chrome CDP adapter"
     )
     parser.add_argument("--endpoint", help=f"CDP HTTP endpoint (default: {DEFAULT_ENDPOINT})")
+    parser.add_argument("--profile", help="saved dedicated configuration name (default: agent-browser)")
+    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH, help=f"host-local named configuration file (default: {DEFAULT_CONFIG_PATH})")
     parser.add_argument("--user-data-dir", help="dedicated persistent Chrome data directory (absolute Windows path)")
     parser.add_argument("--profile-directory", help="Chrome profile subdirectory within the dedicated data directory (default: Default)")
     parser.add_argument("--timeout", type=float, default=15.0, help="operation timeout in seconds (default: 15)")
@@ -65,6 +69,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("status", help="probe the CDP endpoint without launching Chrome")
     sub.add_parser("ensure", help="reuse or launch the selected dedicated persistent Chrome")
     sub.add_parser("tabs", help="list page targets only")
+    sub.add_parser("profiles", help="list dedicated saved configurations without connecting to Chrome")
+    save_parser = sub.add_parser("profile-save", help="save a new dedicated configuration without launching Chrome")
+    save_parser.add_argument("name", help="unique dedicated configuration name, such as chatgpt")
 
     open_parser = sub.add_parser("open", help="open a URL in a new tab in the existing Agent Chrome")
     open_parser.add_argument("url")
@@ -342,6 +349,19 @@ def command_wait(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def dispatch(args: argparse.Namespace) -> Any:
+    if args.command == "profiles":
+        if any(option is not None for option in (args.profile, args.endpoint, args.user_data_dir, args.profile_directory)):
+            raise BrowserCdpError("profiles only accepts --config and output options")
+        return {"configFile": str(args.config), "profiles": [
+            {"name": config.identity, "endpoint": config.endpoint,
+             "userDataDir": config.user_data_dir, "profileDirectory": config.profile_directory}
+            for config in (BrowserConfig(), *(profile.config for profile in load_profiles(args.config)))
+        ]}
+    if args.command == "profile-save":
+        if args.profile is not None or args.endpoint is None or args.user_data_dir is None:
+            raise BrowserCdpError("profile-save requires explicit --endpoint and --user-data-dir and does not accept --profile")
+        profile = save_profile(args.name, args.browser, args.config)
+        return {"saved": True, "name": profile.name, "configFile": str(args.config)}
     if args.command == "status":
         return command_status(args)
     if args.command == "ensure":
@@ -383,8 +403,9 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     try:
-        args.browser = config_from_options(args.endpoint, args.user_data_dir, args.profile_directory)
-        args.endpoint = args.browser.endpoint
+        if args.command != "profiles":
+            args.browser = resolve_profile(args.profile, args.config, args.endpoint, args.user_data_dir, args.profile_directory)
+            args.endpoint = args.browser.endpoint
         emit(dispatch(args), compact=args.compact)
     except BrowserCdpError as exc:
         emit({"ok": False, "error": str(exc)}, compact=args.compact)
