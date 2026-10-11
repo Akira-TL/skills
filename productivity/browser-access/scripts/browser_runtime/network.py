@@ -37,14 +37,15 @@ def observe_network(page: Any, options: dict[str, Any]) -> dict[str, Any]:
     inflight: dict[str,str]={}
     activity=time.monotonic()
     started=activity
+    trigger_result=None
     if options.get('click') or options.get('navigate'):
         # Discard earlier activity before this explicit trigger.
         page.collect_events(0)
         if options.get('click'):
             from browser_runtime.actions import pointer_click
-            pointer_click(page,options['click'],SelectorGuard(within=options.get('within')),allow_submit=bool(options.get('allow_submit',False)))
+            trigger_result=pointer_click(page,options['click'],SelectorGuard(within=options.get('within')),allow_submit=bool(options.get('allow_submit',False)))['interaction']
         else:
-            page.call('Page.navigate',{'url':options['navigate']})
+            trigger_result=page.call('Page.navigate',{'url':options['navigate']})
     while True:
         new=page.collect_events(min(0.05,max(0,duration if mode=='capture' else timeout)))
         events.extend(new)
@@ -71,7 +72,7 @@ def observe_network(page: Any, options: dict[str, Any]) -> dict[str, Any]:
         if met:
             limit=max(0,min(int(options.get('max_results',200)),1000))
             chosen=matched if mode in {'wait-response','wait-request'} else records
-            return {'mode':mode,'met':True,'elapsedSeconds':round(elapsed,3),'eventCount':len(events),'recordCount':len(chosen),'returnedRecordCount':min(len(chosen),limit),'records':chosen[:limit],'inflight_count':len(inflight)}
+            return {'trigger':trigger_result,'mode':mode,'met':True,'elapsedSeconds':round(elapsed,3),'eventCount':len(events),'recordCount':len(chosen),'returnedRecordCount':min(len(chosen),limit),'records':chosen[:limit],'inflight_count':len(inflight)}
         if elapsed>=timeout:
             raise BrowserCdpError('Network condition timed out',code='WAIT_TIMEOUT',context={'condition':{'network':mode,'url_regex':pattern.pattern,'status':status},'elapsed':round(elapsed,3),'last_observed':records[-20:],'mutation_count':0,'inflight_count':len(inflight)})
 

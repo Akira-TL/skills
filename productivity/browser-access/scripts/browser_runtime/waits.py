@@ -97,7 +97,10 @@ def wait_condition(page: Any, kind: str, options: dict[str, Any]) -> dict[str, A
             else:
                 raise BrowserCdpError('Wait requires a condition')
             if met:
-                return {'met':True,'condition':kind,'elapsedSeconds':round(elapsed,3),'value':last,
+                condition={key:options[key] for key in ('selector','text','expression') if options.get(key) is not None}
+                if options.get('url_contains') is not None:condition['urlContains']=options['url_contains']
+                if kind!='condition':condition={'kind':kind,**condition}
+                return {'met':True,'condition':condition,'elapsedSeconds':round(elapsed,3),'value':last,
                         'last_observed':last,'mutation_count':mutation_count,'baseline':baseline,'transitions':transitions}
             if elapsed>=timeout:
                 raise BrowserCdpError('Wait condition timed out',code='WAIT_TIMEOUT',context={

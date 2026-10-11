@@ -2,6 +2,8 @@
 import os
 import base64
 import tempfile
+import subprocess
+import json
 import sys
 import unittest
 import urllib.request
@@ -165,3 +167,32 @@ class LiveTests(unittest.TestCase):
             urllib.request.urlopen(ENDPOINT+'/json/close/'+target['id']).close()
             with self.assertRaises(BrowserCdpError) as caught:page.execute('inspect')
             self.assertEqual(caught.exception.code,'TARGET_LOCK_VIOLATION')
+
+    def test_legacy_cli_fields_and_jsonl_session(self):
+        script=Path(__file__).resolve().parents[1]/'scripts'/'browser_cdp.py'
+        prefix=['uv','run',str(script),'--compact','--endpoint',ENDPOINT]
+        def cli(*arguments):
+            completed=subprocess.run([*prefix,*arguments,'--target',self.target['id']],text=True,capture_output=True,timeout=30,check=True)
+            return json.loads(completed.stdout)
+        typed=cli('type','#editor','CLI输入')
+        for key in ('tag','type','id','name','value','focused','contenteditable'):
+            self.assertIn(key,typed['state'])
+            self.assertIn(key if key!='value' else 'text',typed['interaction']) if key!='focused' else None
+        self.assertEqual(cli('wait','--selector','#editor')['condition'],{'selector':'#editor'})
+        network=cli('network','--duration','0','--click','#request')
+        self.assertIn('trigger',network)
+        self.assertIn('x',network['trigger'])
+        with self.page() as page:
+            page.evaluate("document.querySelector('#message-one button').innerText='仅此范围';document.querySelector('#message-two button').innerText='另一个范围'")
+            self.assertEqual(page.execute('text',within='#message-one')['value']['text'],'仅此范围')
+        source='\n'.join(json.dumps(item) for item in [
+            {'id':1,'op':'inspect','within':'#message-one'},
+            {'id':2,'op':'click','selector':'#missing'},
+            {'id':3,'op':'type','selector':'#editor','value':'JSONL输入'},
+            {'id':4,'op':'wait','selector':'#editor'}])+'\n'
+        completed=subprocess.run([*prefix,'session','--target',self.target['id'],'--expected-url',URL],input=source,text=True,capture_output=True,timeout=30,check=True)
+        rows=[json.loads(line) for line in completed.stdout.splitlines()]
+        self.assertEqual([row['id'] for row in rows],[1,2,3,4])
+        self.assertEqual(rows[1]['error_code'],'ELEMENT_NOT_FOUND')
+        self.assertEqual(rows[2]['result']['state']['value'],'JSONL输入')
+        self.assertTrue(rows[3]['ok'])

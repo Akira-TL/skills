@@ -220,7 +220,8 @@ class BrowserSession:
             value = self.evaluate("document.title")
         elif op == "text":
             limit = max(0, int(options.get("limit", 20000)))
-            value = self.evaluate(f"(() => {{ const t=document.body?.innerText||''; return {{text:t.slice(0,{limit}),length:t.length,truncated:t.length>{limit}}}; }})()")
+            from browser_runtime.dom import scope_expression
+            value = self.evaluate(scope_expression(f"(() => {{ const t=document.body?.innerText||''; return {{text:t.slice(0,{limit}),length:t.length,truncated:t.length>{limit}}}; }})()",options.get("within")))
         elif op == "eval":
             value = self.evaluate(str(options["expression"]), await_promise=bool(options.get("await_promise", False)))
         elif op == "call":
