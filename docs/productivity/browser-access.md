@@ -22,7 +22,9 @@ Windows Chrome/CDP 是当前 Akira 环境中验证过的一个实现，但不是
 
 用户同意后，在当前对话中将同一个浏览器 + Profile 视为已批准的 `Browser Grant`。后续继续使用该控制目标时不重复询问；只有换浏览器、换 Profile 或明显扩大控制权限时才重新获得授权。
 
-自行启动的浏览器必须使用固定持久 Profile，而不是每次创建临时目录。统一的逻辑 Profile identity 为 `agent-browser`；各浏览器 adapter 将它映射到自己的持久 data directory。浏览器关闭或系统重启后继续用同一个 Profile 恢复登录态。用户日常 Profile 与专用 Agent Profile 默认隔离，只有用户明确授权时才连接现有个人 Profile。
+自行启动的浏览器必须使用固定持久配置，而不是每次创建临时目录。未指定配置时仍使用 `agent-browser`；显式指定的其他专用配置绑定各自的数据目录、配置子目录和连接地址，重启后按同一组配置恢复登录态。用户指定并授权具体配置时优先遵循该选择。
+
+配置管理只负责专用 Agent 浏览器，不发现、导入、复制或管理日常 Chrome 配置。配置名称与 Google 账号、Chrome 配置显示名称相互独立。
 
 ## 登录与人机协作
 
@@ -67,7 +69,13 @@ Profile identity: agent-browser
 Profile directory: %USERPROFILE%\.agent-browser\profile
 ```
 
-使用前先检查现有 CDP 实例；存在就复用，不存在才以同一 Profile 启动 Chrome。该 adapter 现在提供确定性命令行界面（Command-Line Interface, CLI）：
+不传配置参数时，上述默认值保持不变。其他专用配置通过 `--endpoint` 与 `--user-data-dir` 显式指定独立端口和绝对 Windows 路径，配置子目录通过 `--profile-directory` 指定，默认 `Default`。仅传其他连接地址时可连接现有实例，但不会在新端口启动默认目录。
+
+`status` 只检查，不启动 Chrome；自定义目录的页面命令会核验实例实际启动参数，不匹配或不能核验时停止。新启动的实例带 `--enable-automation` 以支持核验，旧默认实例保持兼容，`profileVerified` 明确表示是否完成身份核验。脚本不会关闭或替换已有浏览器，也不修改默认配置。
+
+Chrome 136 起，远程调试需要非标准数据目录；选择日常目录中的 `Profile 7` 不能消除该限制，适配器自动启动会拒绝日常 Chrome 数据目录。[Chrome 官方说明](https://developer.chrome.com/blog/remote-debugging-port)
+
+该 adapter 提供确定性命令行界面（Command-Line Interface, CLI）：
 
 ```text
 productivity/browser-access/scripts/browser_cdp.py

@@ -13,7 +13,6 @@ agents do not need to recreate WebSocket/CDP plumbing for each browser task.
 """
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import re
@@ -22,7 +21,6 @@ import subprocess
 import sys
 import time
 import urllib.error
-import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -257,96 +255,6 @@ def require_browser(endpoint: str, *, timeout: float) -> dict[str, Any]:
             f"Agent Chrome CDP is not reachable at {endpoint}. Run `ensure` or verify the adapter endpoint."
         )
     return version
-
-
-def _powershell_executable() -> str | None:
-    for name in ("powershell.exe", "pwsh.exe"):
-        path = shutil.which(name)
-        if path:
-            return path
-    return None
-
-
-def launch_windows_agent_chrome(endpoint: str) -> str:
-    parsed = urllib.parse.urlparse(endpoint)
-    if parsed.scheme != "http" or parsed.hostname not in {"localhost", "127.0.0.1"} or parsed.port != 9222:
-        raise BrowserCdpError(
-            "Automatic Chrome launch is only defined for the default local WSL adapter at http://localhost:9222"
-        )
-    powershell = _powershell_executable()
-    if powershell is None:
-        raise BrowserCdpError(
-            "Cannot launch Windows Agent Chrome because powershell.exe/pwsh.exe is unavailable; start the persistent adapter manually"
-        )
-    command = r'''
-$paths = @(
-  (Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'),
-  (Join-Path ${env:ProgramFiles(x86)} 'Google\Chrome\Application\chrome.exe'),
-  (Join-Path $env:LOCALAPPDATA 'Google\Chrome\Application\chrome.exe')
-) | Where-Object { $_ -and (Test-Path $_) }
-$chrome = $paths | Select-Object -First 1
-if (-not $chrome) { throw 'Chrome executable not found in known Windows locations' }
-$profile = Join-Path $env:USERPROFILE '.agent-browser\profile'
-Start-Process -FilePath $chrome -ArgumentList @(
-  '--remote-debugging-address=127.0.0.1',
-  '--remote-debugging-port=9222',
-  "--user-data-dir=$profile",
-  '--no-first-run',
-  'about:blank'
-)
-Write-Output $chrome
-'''.strip()
-    try:
-        completed = subprocess.run(
-            [powershell, "-NoProfile", "-NonInteractive", "-Command", command],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=20,
-        )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
-        stderr = getattr(exc, "stderr", "") or ""
-        raise BrowserCdpError(f"Failed to launch Windows Agent Chrome: {stderr.strip() or exc}") from exc
-    return completed.stdout.strip().splitlines()[-1] if completed.stdout.strip() else "chrome.exe"
-
-
-def ensure_browser(endpoint: str, *, timeout: float) -> dict[str, Any]:
-    version = probe_version(endpoint, timeout=min(timeout, 2.0))
-    if version is not None:
-        return {
-            "connected": True,
-            "reused": True,
-            "endpoint": endpoint,
-            "profileIdentity": PROFILE_IDENTITY,
-            "browser": version.get("Browser"),
-            "protocolVersion": version.get("Protocol-Version"),
-        }
-    executable = launch_windows_agent_chrome(endpoint)
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        version = probe_version(endpoint, timeout=1.0)
-        if version is not None:
-            return {
-                "connected": True,
-                "reused": False,
-                "endpoint": endpoint,
-                "profileIdentity": PROFILE_IDENTITY,
-                "executable": executable,
-                "browser": version.get("Browser"),
-                "protocolVersion": version.get("Protocol-Version"),
-            }
-        time.sleep(0.25)
-    raise BrowserCdpError(f"Chrome was launched but CDP did not become reachable at {endpoint} within {timeout:g}s")
-
-
-def ensure_then_targets(endpoint: str, *, timeout: float) -> list[dict[str, Any]]:
-    if probe_version(endpoint, timeout=min(timeout, 1.5)) is None:
-        ensure_browser(endpoint, timeout=timeout)
-    return list_targets(endpoint, timeout=timeout)
-
-
-def selected_target(endpoint: str, selector: str | None, *, timeout: float) -> dict[str, Any]:
-    return select_target(ensure_then_targets(endpoint, timeout=timeout), selector)
 
 
 def browser_client(version: dict[str, Any], *, timeout: float) -> CdpClient:

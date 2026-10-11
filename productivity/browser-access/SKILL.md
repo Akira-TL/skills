@@ -26,7 +26,7 @@ description: 用于需要 Agent 进入动态或已登录网页、控制用户可
 
 ## 三、浏览器能力发现与选择
 
-每次需要浏览器时先做 **capability discovery**，不要先假定运行环境或浏览器实现。按以下顺序选择首个满足当前任务需求的能力。
+每次需要浏览器时先发现可用能力，不要先假定运行环境或浏览器实现。用户已经明确指定并授权某个浏览器配置时，以该配置为控制目标；否则按以下顺序选择首个满足当前任务需求的能力。
 
 ### 3.1 首选：harness 原生或内联浏览器
 
@@ -63,9 +63,9 @@ description: 用于需要 Agent 进入动态或已登录网页、控制用户可
 
 ### 4.2 Persistent Profile
 
-任何由本 Skill 自行创建的专用浏览器 Profile，统一使用固定 identity：`agent-browser`。浏览器关闭、崩溃或系统重启后，仍以这个 Profile 恢复；不能为了方便重新建立临时目录导致用户反复登录。
+未指定配置时，专用浏览器继续使用固定身份 `agent-browser`。用户可显式选择其他专用持久配置，每套配置绑定自己的数据目录、配置子目录和连接地址；浏览器关闭、崩溃或系统重启后，仍按同一组配置恢复登录态。
 
-具体浏览器可以把 `agent-browser` 映射到自己的持久 data directory，但 identity 不变。用户日常 Profile 与该专用 Agent Profile 默认隔离。只有用户明确授权直接控制某个现有 Profile 时才连接它，而且后续始终绑定同一个既有 Profile identity，而不是把它重命名为 `agent-browser`。
+本 Skill 的配置管理只负责专用 Agent 浏览器，不发现、导入、复制或管理用户日常 Chrome 配置。配置名称不是 Google 账号，也不是 Chrome 的显示名称；不得把名称相同视为登录态相同。WSL → Windows Chrome adapter 的参数、目录与实例核验方式见 `REFERENCE.md`。
 
 ### 4.3 登录与人工接管
 
@@ -180,4 +180,4 @@ DOM 中“看得到值”只是一项证据，不足以证明受控组件已经�
 - Agent 自行启动的专用浏览器：默认跨任务复用同一个持久 Profile；浏览器被关闭或系统重启后，仍以同一 Profile 恢复。
 - 只有用户明确要求关闭或清理时才销毁专用实例/Profile；对用户自有 Profile 不执行清理。
 
-使用 WSL → Windows Chrome CDP adapter 时，可通过 `localhost:9222` 重新发现现有实例和目标标签页；这是该 adapter 的恢复方式，不是其他浏览器实现必须遵循的协议。
+使用 WSL → Windows Chrome CDP adapter 时，按当前配置的连接地址重新发现实例和目标标签页；未指定配置时仍使用 `localhost:9222`。

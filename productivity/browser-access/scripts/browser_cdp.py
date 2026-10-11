@@ -10,31 +10,33 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 from typing import Any
 
+# Installed Skill payloads can be immutable Store projections.
+sys.dont_write_bytecode = True
+
+from browser_cdp_lifecycle import (
+    browser_status, config_from_options, ensure_browser, ensure_then_targets, selected_target,
+)
 from browser_cdp_core import (
     DEFAULT_ENDPOINT,
-    PROFILE_IDENTITY,
     BrowserCdpError,
     CdpProtocolError,
     browser_client,
     chrome_file_path,
     dispatch_primary_click,
     emit,
-    ensure_browser,
-    ensure_then_targets,
     fill_expression,
     inspect_expression,
     interaction_point_expression,
     list_targets,
     page_client,
     page_targets,
-    probe_version,
     read_expression,
     read_json_object,
     require_browser,
-    selected_target,
     replace_focused_text,
     summarize_network_events,
     target_state_expression,
@@ -53,13 +55,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Fast deterministic control surface for browser-access's WSL -> Windows Chrome CDP adapter"
     )
-    parser.add_argument("--endpoint", default=DEFAULT_ENDPOINT, help=f"CDP HTTP endpoint (default: {DEFAULT_ENDPOINT})")
+    parser.add_argument("--endpoint", help=f"CDP HTTP endpoint (default: {DEFAULT_ENDPOINT})")
+    parser.add_argument("--user-data-dir", help="dedicated persistent Chrome data directory (absolute Windows path)")
+    parser.add_argument("--profile-directory", help="Chrome profile subdirectory within the dedicated data directory (default: Default)")
     parser.add_argument("--timeout", type=float, default=15.0, help="operation timeout in seconds (default: 15)")
     parser.add_argument("--compact", action="store_true", help="emit compact JSON")
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("status", help="probe the CDP endpoint without launching Chrome")
-    sub.add_parser("ensure", help="reuse the persistent Agent Chrome or launch it with the agent-browser Profile")
+    sub.add_parser("ensure", help="reuse or launch the selected dedicated persistent Chrome")
     sub.add_parser("tabs", help="list page targets only")
 
     open_parser = sub.add_parser("open", help="open a URL in a new tab in the existing Agent Chrome")
@@ -142,23 +146,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def command_status(args: argparse.Namespace) -> dict[str, Any]:
-    version = probe_version(args.endpoint, timeout=min(args.timeout, 2.0))
-    return {
-        "connected": version is not None,
-        "endpoint": args.endpoint,
-        "profileIdentity": PROFILE_IDENTITY,
-        "browser": version.get("Browser") if version else None,
-        "protocolVersion": version.get("Protocol-Version") if version else None,
-    }
+    return browser_status(args.browser, timeout=args.timeout)
 
 
 def command_tabs(args: argparse.Namespace) -> dict[str, Any]:
-    pages = page_targets(ensure_then_targets(args.endpoint, timeout=args.timeout))
+    pages = page_targets(ensure_then_targets(args.browser, timeout=args.timeout))
     return {"count": len(pages), "pages": [target_view(item) for item in pages]}
 
 
 def command_open(args: argparse.Namespace) -> dict[str, Any]:
-    ensure_browser(args.endpoint, timeout=args.timeout)
+    ensure_browser(args.browser, timeout=args.timeout)
     version = require_browser(args.endpoint, timeout=args.timeout)
     with browser_client(version, timeout=args.timeout) as client:
         result = client.call("Target.createTarget", {"url": args.url})
@@ -169,7 +166,7 @@ def command_open(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_focus(args: argparse.Namespace) -> dict[str, Any]:
-    target = selected_target(args.endpoint, args.target, timeout=args.timeout)
+    target = selected_target(args.browser, args.target, timeout=args.timeout)
     version = require_browser(args.endpoint, timeout=args.timeout)
     with browser_client(version, timeout=args.timeout) as client:
         client.call("Target.activateTarget", {"targetId": target["id"]})
@@ -177,7 +174,7 @@ def command_focus(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_navigate(args: argparse.Namespace) -> dict[str, Any]:
-    target = selected_target(args.endpoint, args.target, timeout=args.timeout)
+    target = selected_target(args.browser, args.target, timeout=args.timeout)
     with page_client(target, timeout=args.timeout) as client:
         client.call("Page.enable")
         nav = client.call("Page.navigate", {"url": args.url})
@@ -188,7 +185,7 @@ def command_navigate(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_eval_like(args: argparse.Namespace, expression: str, *, await_promise: bool = False) -> dict[str, Any]:
-    target = selected_target(args.endpoint, args.target, timeout=args.timeout)
+    target = selected_target(args.browser, args.target, timeout=args.timeout)
     with page_client(target, timeout=args.timeout) as client:
         value = client.evaluate(expression, await_promise=await_promise)
     return {"target": target_view(target), "value": value}
@@ -210,19 +207,19 @@ def command_inspect(args: argparse.Namespace) -> dict[str, Any]:
 def command_call(args: argparse.Namespace) -> dict[str, Any]:
     params = read_json_object(args.params)
     if args.scope == "browser":
-        ensure_browser(args.endpoint, timeout=args.timeout)
+        ensure_browser(args.browser, timeout=args.timeout)
         version = require_browser(args.endpoint, timeout=args.timeout)
         with browser_client(version, timeout=args.timeout) as client:
             result = client.call(args.method, params)
         return {"scope": "browser", "method": args.method, "result": result}
-    target = selected_target(args.endpoint, args.target, timeout=args.timeout)
+    target = selected_target(args.browser, args.target, timeout=args.timeout)
     with page_client(target, timeout=args.timeout) as client:
         result = client.call(args.method, params)
     return {"scope": "page", "target": target_view(target), "method": args.method, "result": result}
 
 
 def command_network(args: argparse.Namespace) -> dict[str, Any]:
-    target = selected_target(args.endpoint, args.target, timeout=args.timeout)
+    target = selected_target(args.browser, args.target, timeout=args.timeout)
     trigger_result: Any = None
     with page_client(target, timeout=args.timeout) as client:
         client.call("Network.enable")
@@ -250,7 +247,7 @@ def command_network(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_click(args: argparse.Namespace) -> dict[str, Any]:
-    target = selected_target(args.endpoint, args.target, timeout=args.timeout)
+    target = selected_target(args.browser, args.target, timeout=args.timeout)
     with page_client(target, timeout=args.timeout) as client:
         point = client.evaluate(
             interaction_point_expression(args.selector, allow_submit=args.allow_submit)
@@ -262,7 +259,7 @@ def command_click(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_type(args: argparse.Namespace) -> dict[str, Any]:
-    target = selected_target(args.endpoint, args.target, timeout=args.timeout)
+    target = selected_target(args.browser, args.target, timeout=args.timeout)
     with page_client(target, timeout=args.timeout) as client:
         point = client.evaluate(
             interaction_point_expression(args.selector, require_text_target=True)
@@ -290,7 +287,7 @@ def command_fill(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_upload(args: argparse.Namespace) -> dict[str, Any]:
-    target = selected_target(args.endpoint, args.target, timeout=args.timeout)
+    target = selected_target(args.browser, args.target, timeout=args.timeout)
     files = [chrome_file_path(value) for value in args.files]
     with page_client(target, timeout=args.timeout) as client:
         client.call("DOM.enable")
@@ -311,7 +308,7 @@ def command_upload(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_wait(args: argparse.Namespace) -> dict[str, Any]:
-    target = selected_target(args.endpoint, args.target, timeout=args.timeout)
+    target = selected_target(args.browser, args.target, timeout=args.timeout)
     if args.selector is not None:
         expression = f"!!document.querySelector({json.dumps(args.selector, ensure_ascii=False)})"
         condition = {"selector": args.selector}
@@ -348,7 +345,7 @@ def dispatch(args: argparse.Namespace) -> Any:
     if args.command == "status":
         return command_status(args)
     if args.command == "ensure":
-        return ensure_browser(args.endpoint, timeout=args.timeout)
+        return ensure_browser(args.browser, timeout=args.timeout)
     if args.command == "tabs":
         return command_tabs(args)
     if args.command == "open":
@@ -386,6 +383,8 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     try:
+        args.browser = config_from_options(args.endpoint, args.user_data_dir, args.profile_directory)
+        args.endpoint = args.browser.endpoint
         emit(dispatch(args), compact=args.compact)
     except BrowserCdpError as exc:
         emit({"ok": False, "error": str(exc)}, compact=args.compact)

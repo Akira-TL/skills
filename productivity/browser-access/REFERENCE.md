@@ -10,7 +10,7 @@
 
 它把高频能力固定为同一个控制面：`status` / `ensure` 处理生命周期，`tabs` 发现 page target，`open` / `navigate` / `focus` 管理页面，`text` / `inspect` 完成勘察，`click` / `type` / `fill` / `wait` / `upload` 完成交互，`eval` 承载页面特定 JavaScript，`call` 承载任意单次 CDP 方法，`network` 捕获请求与响应元数据。
 
-除 `status` 外，命令在 CDP 不可达时会尝试以固定 `agent-browser` Profile 启动 Windows Chrome。存在多个真实 `type=page` target 且没有唯一选择时，脚本会直接拒绝继续，并要求通过 `--target` 使用 target ID、标题或 URL 的唯一片段选择页面。
+除 `status` 外，命令在 CDP 不可达时会尝试恢复选定的专用配置。未提供配置参数时仍使用原有 `agent-browser`；仅指定其他 `--endpoint` 而未提供专用目录时，只连接已运行实例，不在新端口启动默认目录。存在多个真实 `type=page` target 且没有唯一选择时，脚本会直接拒绝继续，并要求通过 `--target` 使用 target ID、标题或 URL 的唯一片段选择页面。
 
 `inspect` 默认只回传可见控件和文件控件，同时报告页面控件总数；需要隐藏控件时再使用其显式选项。`click` 会先滚动并验证 `elementFromPoint` 命中目标，再通过 `Input.dispatchMouseEvent` 发出真实指针事件；它默认拒绝关联表单的 HTML 提交控件，只有已经满足 `SKILL.md` 的提交授权边界时才使用对应显式放行参数。`type` 复用同一真实点击取得焦点，再以 `Input.dispatchKeyEvent` 选择/清除现有文本并用 `Input.insertText` 输入。
 
@@ -18,7 +18,7 @@
 
 ## 1. Adapter：Windows Chrome 持久实例模式
 
-默认控制面固定为：
+未指定参数时的默认配置保持为：
 
 ```text
 CDP: http://localhost:9222
@@ -26,13 +26,24 @@ Profile identity: agent-browser
 Profile directory: %USERPROFILE%\.agent-browser\profile
 ```
 
+其他专用配置必须显式指定独立端口与持久数据目录。所有全局参数放在子命令前，例如：
+
+```bash
+uv run <absolute-script-path> --endpoint http://localhost:9223 --user-data-dir 'C:\Users\Akira\.agent-browser\chrome-profile' status
+uv run <absolute-script-path> --endpoint http://localhost:9223 --user-data-dir 'C:\Users\Akira\.agent-browser\chrome-profile' ensure
+```
+
+`--profile-directory` 是该专用数据目录内的 Chrome 配置子目录，默认 `Default`；它不表示用户日常 Chrome 的配置选择器。自定义目录禁止复用默认 Agent 目录和本地 `9222` 端口。自动启动只支持带明确端口的本地 HTTP 地址，并为含空格的 Windows 路径保留参数引号。
+
+`status` 只探测与核验，不启动 Chrome。自定义目录的页面命令在复用实例前通过 `Browser.getBrowserCommandLine` 核对数据目录和配置子目录；新启动的实例会带 `--enable-automation`。不匹配或无法核验时拒绝控制，不关闭、替换或重启已有实例。旧默认实例保持可连接，返回的 `profileVerified: false` 表示身份未经核验；仅设置连接地址时也不把其他端口的身份报告成 `agent-browser`。[Chrome 调试协议中的核验方法](https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/pdl/domains/Browser.pdl)
+
 任务级检查与启动由 CLI 的 `status` / `ensure` 负责。下面的原始探针只用于 adapter 自身排障：
 
 ```bash
 curl -fsS http://localhost:9222/json/version
 ```
 
-探针成功时复用现有实例，不再启动 Chrome。只有 CDP 不可达时，才探测 Chrome 的实际路径。常见位置包括：
+探针成功时按当前配置核验并复用现有实例，不再启动 Chrome。只有 CDP 不可达时，才探测 Chrome 的实际路径。常见位置包括：
 
 ```text
 C:\Program Files\Google\Chrome\Application\chrome.exe
@@ -50,13 +61,15 @@ Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" -ArgumentL
   "--remote-debugging-address=127.0.0.1",
   "--remote-debugging-port=9222",
   "--user-data-dir=$agentProfile",
+  "--profile-directory=Default",
+  "--enable-automation",
   "https://example.com"
 )
 ```
 
 这个目录不是临时目录。首次登录飞书、问卷平台或其他站点后，Cookie 和站点登录态留在该 Profile 中，后续 CDP 会话继续复用。浏览器被关闭后也应使用同一路径重新启动，不能换新目录。
 
-不要对用户默认 Chrome Profile 直接开放 CDP。现代 Chrome 也会限制对默认数据目录使用远程调试参数，因此专用 `--user-data-dir` 同时是安全和兼容性要求。
+本配置管理不读取或管理日常 Chrome 配置。Chrome 136 起对标准数据目录忽略远程调试参数，自动启动会拒绝日常 Chrome 数据目录；仅加 `--profile-directory=Profile 7` 不能改变这一限制。[Chrome 官方说明](https://developer.chrome.com/blog/remote-debugging-port)
 
 ## 2. 从 WSL 发现并复用 CDP
 
