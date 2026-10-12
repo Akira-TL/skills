@@ -23,3 +23,21 @@
 行为规则：[SKILL.md](../../in-progress/auto-gpt/SKILL.md)。浏览器机械步骤只在选择相应适配器时读取：[页面观察与单次动作](../../in-progress/auto-gpt/references/browser-operations.md)。依赖通过标准 `skiloom-package.toml` 声明 `browser-access`。
 
 当前属于 `in-progress` 技能；[适用验证记录](auto-gpt-validation.md)分别区分真实任务观察、确定性机械测试和当前 Agent 的场景审计，不把一种证据当作所有分支都已真实复现。
+
+## 本地测试
+
+测试直接读取当前仓库中的 `in-progress/auto-gpt/SKILL.md` 和 `productivity/browser-access/SKILL.md`，使用同一源码仓中的浏览器执行入口。不要把全局已安装的旧版本当成待测版本；本地测试不以推送 GitHub 或更新 Skiloom 安装为前提。
+
+从本仓根目录核对已有专用窗口，不启动新窗口或发送消息：
+
+```sh
+uv run --no-project --offline productivity/browser-access/scripts/browser_cdp.py --profile auto-gpt status
+```
+
+浏览器机械测试也可以直接本地运行：
+
+```sh
+uv run --no-project --offline -m unittest discover -s productivity/browser-access/tests -p 'test_*.py'
+```
+
+`--offline` 要求所需依赖已存在于本机缓存。真实页面观察与单次续接仍由读取上述两个本地技能的 Agent 执行，测试命令不会自动续接。
