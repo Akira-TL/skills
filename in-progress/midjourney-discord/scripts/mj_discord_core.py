@@ -11,7 +11,7 @@ import sys
 import time
 import urllib.request
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit, urlunsplit
 
 
 READ_ONLY_COMMANDS = {"info", "help", "settings"}
@@ -49,7 +49,11 @@ def emit(payload: object) -> None:
 
 
 def normalize_url(value: str) -> str:
-    return value.split("?", 1)[0].rstrip("/")
+    parsed = urlsplit(value)
+    if (parsed.scheme != "https" or parsed.netloc != "discord.com"
+            or not re.fullmatch(r"/channels/(?:@me|[0-9]+)/[0-9]+/?", parsed.path)):
+        raise MjDiscordError("Expected an HTTPS discord.com channel URL with server and channel IDs")
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path.rstrip("/"), "", ""))
 
 
 def browser_cli_candidates() -> list[Path]:
@@ -82,6 +86,12 @@ def browser_cli_candidates() -> list[Path]:
 
 
 def resolve_browser_cli() -> Path:
+    override = os.environ.get("BROWSER_ACCESS_CLI")
+    if override:
+        candidate = Path(override).expanduser()
+        if not candidate.is_file():
+            raise MjDiscordError("BROWSER_ACCESS_CLI does not point to an existing browser-access entry point")
+        return candidate
     for candidate in browser_cli_candidates():
         if candidate.is_file():
             return candidate
@@ -101,6 +111,12 @@ def run_browser(args: argparse.Namespace, *parts: str) -> dict:
     command = [uv, "run", str(cli), "--compact"]
     if args.endpoint:
         command += ["--endpoint", args.endpoint]
+    locked_url = getattr(args, "_locked_url", None)
+    if "--target" in parts and locked_url:
+        selected = parts[parts.index("--target") + 1]
+        if selected != args._locked_target:
+            raise MjDiscordError("Page action does not match the selected Discord target")
+        parts = (*parts, "--expected-url", locked_url)
     command += list(parts)
 
     proc = subprocess.run(
@@ -136,13 +152,26 @@ def list_tabs(args: argparse.Namespace) -> list[dict]:
     return list(result.get("pages") or [])
 
 
+def discover_channels(args: argparse.Namespace) -> dict:
+    channels = []
+    for page in list_tabs(args):
+        if page.get("type", "page") != "page":
+            continue
+        try:
+            channel_url = normalize_url(str(page.get("url", "")))
+        except (MjDiscordError, ValueError):
+            continue
+        channels.append({"target_id": page["id"], "channel_url": channel_url,
+                         "page_url": page["url"], "title": page.get("title", "")})
+    return {"ok": True, "channels": channels}
+
+
 def resolve_target(args: argparse.Namespace) -> dict:
     expected = normalize_url(args.channel_url)
-    matches = [
-        page for page in list_tabs(args)
-        if page.get("type", "page") == "page"
-        and normalize_url(str(page.get("url", ""))) == expected
-    ]
+    matches = []
+    for page in discover_channels(args)["channels"]:
+        if page["channel_url"] == expected and (not getattr(args, "target", None) or page["target_id"] == args.target):
+            matches.append({"id": page["target_id"], "url": page["page_url"], "title": page["title"]})
     if len(matches) != 1:
         raise MjDiscordError(
             f"Expected exactly one already-open Discord tab for {expected}; "
@@ -150,6 +179,8 @@ def resolve_target(args: argparse.Namespace) -> dict:
         )
 
     target = matches[0]
+    args._locked_target = target["id"]
+    args._locked_url = target["url"]
     current = eval_js(
         args,
         target["id"],

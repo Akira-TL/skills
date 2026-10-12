@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import importlib.util
 import unittest
+from argparse import Namespace
 from pathlib import Path
+from unittest.mock import patch
 
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "mj_discord.py"
@@ -12,6 +14,7 @@ MJ = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MJ)
 
 import mj_discord_media as MEDIA
+import mj_discord_core as CORE
 
 
 class MjDiscordPureTests(unittest.TestCase):
@@ -20,6 +23,62 @@ class MjDiscordPureTests(unittest.TestCase):
             MJ.normalize_url("https://discord.com/channels/1/2/?x=1"),
             "https://discord.com/channels/1/2",
         )
+
+    def test_channel_url_rejects_other_origins_and_incomplete_paths(self):
+        for url in ("https://discord.com.evil/channels/1/2", "http://discord.com/channels/1/2",
+                    "https://discord.com/channels/1", "https://discord.com/channels/@me",
+                    "https://user@discord.com/channels/1/2", "https://discord.com/channels/1/2/3"):
+            with self.subTest(url=url), self.assertRaises(CORE.MjDiscordError):
+                CORE.normalize_url(url)
+        self.assertEqual(CORE.normalize_url("https://discord.com/channels/@me/123#message"),
+                         "https://discord.com/channels/@me/123")
+
+    def test_discovery_lists_open_channels_without_selecting_a_page(self):
+        tabs = [{"id": "one", "url": "https://discord.com/channels/1/2", "title": "first"},
+                {"id": "two", "url": "https://discord.com/channels/3/4?view=chat", "title": "second"},
+                {"id": "other", "url": "https://example.com/", "title": "other"}]
+        args = Namespace(endpoint=None, timeout=10)
+        with patch.object(CORE, "list_tabs", return_value=tabs), patch.object(CORE, "eval_js") as evaluate:
+            result = CORE.discover_channels(args)
+        self.assertEqual([item["target_id"] for item in result["channels"]], ["one", "two"])
+        evaluate.assert_not_called()
+        self.assertFalse(hasattr(args, "_locked_target"))
+
+    def test_same_channel_tabs_require_exact_target_id(self):
+        args = Namespace(channel_url="https://discord.com/channels/1/2", target=None)
+        pages = [{"target_id": name, "channel_url": args.channel_url,
+                  "page_url": args.channel_url, "title": name} for name in ("one", "two")]
+        with patch.object(CORE, "discover_channels", return_value={"channels": pages}):
+            with self.assertRaises(CORE.MjDiscordError):
+                CORE.resolve_target(args)
+            args.target = "two"
+            with patch.object(CORE, "eval_js", return_value={"href": args.channel_url, "composer": "Message"}):
+                self.assertEqual(CORE.resolve_target(args)["id"], "two")
+                self.assertEqual(args._locked_url, args.channel_url)
+            args.target = "tw"
+            with self.assertRaises(CORE.MjDiscordError):
+                CORE.resolve_target(args)
+
+    def test_discovery_parser_needs_no_channel_and_adds_no_named_profile(self):
+        args = MJ.build_parser().parse_args(["channels"])
+        self.assertEqual(args.subcommand, "channels")
+        self.assertFalse(hasattr(args, "profile"))
+
+    def test_page_action_passes_exact_observed_url_to_browser_access(self):
+        args = Namespace(endpoint=None, timeout=10, _locked_target="one",
+                         _locked_url="https://discord.com/channels/1/2?view=chat")
+        process = Namespace(returncode=0, stdout='{"value":true}', stderr="")
+        with patch.object(CORE, "resolve_browser_cli", return_value=Path("/test/browser_cdp.py")), \
+             patch.object(CORE.shutil, "which", return_value="uv"), \
+             patch.object(CORE.subprocess, "run", return_value=process) as run:
+            self.assertTrue(CORE.eval_js(args, "one", "true"))
+            command = run.call_args.args[0]
+            self.assertEqual(command[-2:], ["--expected-url", args._locked_url])
+            self.assertNotIn("--profile", command)
+            self.assertNotIn("--endpoint", command)
+            with self.assertRaises(CORE.MjDiscordError):
+                CORE.eval_js(args, "two", "true")
+            self.assertEqual(run.call_count, 1)
 
     def test_parse_waiting(self):
         self.assertEqual(MJ.parse_job_status("foo (Waiting to start)"), ("waiting", None))

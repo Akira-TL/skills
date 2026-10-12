@@ -10,7 +10,8 @@ Midjourney 普通会员并不等价于公开 API 配额。为了复用用户已�
 
 ## 安全设计
 
-- 每次必须提供完整频道 URL，且只允许连接已经打开、完全匹配的 tab。
+- 先通过 `channels` 发现当前已授权浏览器中已打开的频道；业务调用使用按用户意图选定的完整频道 URL。没有固定服务器、频道或页面 ID，同频道多个标签页可通过完整 `--target` 消歧。
+- 直接复用 `browser-access` 的默认浏览器，不要求命名配置或命名标签页；原有 `--endpoint` 参数保留。选定频道后的页面动作绑定实际准确网址，页面换址就拒绝动作。
 - CLI 默认不导航，不访问其他服务器/频道。
 - 账号设置只提供 `/settings` 只读观察，不提供通用的设置修改命令。
 - 图片上传、生成和按钮动作使用独立显式子命令；上传前若 composer 已有文本草稿或待发送附件则拒绝，避免覆盖用户现场状态。
@@ -23,6 +24,8 @@ Midjourney 普通会员并不等价于公开 API 配额。为了复用用户已�
 ## 推荐命令
 
 ```bash
+# 先发现默认浏览器中打开的频道；不会发送消息或导航：
+uv run <skill>/scripts/mj_discord.py channels
 export MJ_DISCORD_CHANNEL_URL='https://discord.com/channels/<guild>/<channel>'
 
 uv run scripts/mj_discord.py doctor

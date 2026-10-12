@@ -530,6 +530,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("BROWSER_CDP_ENDPOINT"),
         help="Optional browser-access CDP endpoint.",
     )
+    parser.add_argument("--target", help="Exact page target ID to disambiguate tabs for the same channel.")
     parser.add_argument(
         "--timeout",
         type=float,
@@ -544,6 +545,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     sub = parser.add_subparsers(dest="subcommand", required=True)
+    sub.add_parser("channels", help="List already-open Discord channel tabs without choosing or navigating.")
     sub.add_parser("doctor", help="Verify exact-tab lock and composer availability.")
 
     command_parser = sub.add_parser("command", help="Run a read-only Midjourney slash command.")
@@ -622,15 +624,20 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    if not args.channel_url:
+    if not args.channel_url and args.subcommand != "channels":
         parser.error("--channel-url or MJ_DISCORD_CHANNEL_URL is required")
-    if not normalize_url(args.channel_url).startswith("https://discord.com/channels/"):
-        parser.error("--channel-url must be a Discord channel URL")
+    if args.channel_url:
+        try:
+            normalize_url(args.channel_url)
+        except (MjDiscordError, ValueError) as exc:
+            parser.error(str(exc))
     if args.timeout <= 0 or args.poll <= 0:
         parser.error("--timeout and --poll must be positive")
 
     try:
-        if args.subcommand == "doctor":
+        if args.subcommand == "channels":
+            result = discover_channels(args)
+        elif args.subcommand == "doctor":
             result = doctor(args)
         elif args.subcommand == "command":
             result = invoke_read_only(args)
