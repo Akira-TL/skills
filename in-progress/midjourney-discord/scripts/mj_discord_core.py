@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import os
 import re
@@ -10,8 +11,12 @@ import subprocess
 import sys
 import time
 import urllib.request
+from contextlib import AbstractContextManager
 from pathlib import Path
+from typing import cast
 from urllib.parse import urlparse, urlsplit, urlunsplit
+
+from mj_discord_browser import MjDiscordError, PageTarget, SessionFactory, browser_scope, scope_for, session_operation
 
 
 READ_ONLY_COMMANDS = {"info", "help", "settings"}
@@ -40,8 +45,25 @@ REMIX_CAPABLE_ACTIONS = {
 COMPOSER_SELECTOR = '[role="textbox"][aria-label]'
 
 
-class MjDiscordError(RuntimeError):
-    pass
+def browser_operations(args: argparse.Namespace) -> AbstractContextManager[None]:
+    return browser_scope(args, resolve_browser_cli())
+
+
+def open_page_session(args: argparse.Namespace, target: dict) -> None:
+    scope = scope_for(args)
+    if scope is None:
+        return
+    if not scope.cli.resolve().with_name("browser_session.py").is_file():
+        raise MjDiscordError("Selected browser-access version lacks the public BrowserSession API",
+                             code="BROWSER_CAPABILITY_MISSING")
+    status = run_browser(args, "status")
+    endpoint = status.get("endpoint")
+    if status.get("connected") is not True or not isinstance(endpoint, str):
+        raise MjDiscordError("Selected browser is not connected", code="CDP_UNREACHABLE")
+    sys.path.insert(0, str(scope.cli.resolve().parent))
+    factory = cast(SessionFactory, importlib.import_module("browser_session").BrowserSession)
+    scope.page = scope.stack.enter_context(factory(endpoint, target=target["id"], expected_url=target["url"],
+                                                  timeout=min(args.timeout, 15)))
 
 
 def emit(payload: object) -> None:
@@ -103,7 +125,16 @@ def resolve_browser_cli() -> Path:
 
 
 def run_browser(args: argparse.Namespace, *parts: str) -> dict:
-    cli = resolve_browser_cli()
+    scope = scope_for(args)
+    cli = scope.cli if scope else resolve_browser_cli()
+    locked_url = getattr(args, "_locked_url", None)
+    if "--target" in parts and locked_url:
+        selected = parts[parts.index("--target") + 1]
+        if selected != args._locked_target:
+            raise MjDiscordError("Page action does not match the selected Discord target", code="TARGET_LOCK_VIOLATION")
+        if scope and scope.page:
+            return session_operation(scope.page, parts)
+        parts = (*parts, "--expected-url", locked_url)
     uv = shutil.which("uv")
     if not uv:
         raise MjDiscordError("uv is required to run browser-access browser_cdp.py")
@@ -111,12 +142,6 @@ def run_browser(args: argparse.Namespace, *parts: str) -> dict:
     command = [uv, "run", str(cli), "--compact"]
     if args.endpoint:
         command += ["--endpoint", args.endpoint]
-    locked_url = getattr(args, "_locked_url", None)
-    if "--target" in parts and locked_url:
-        selected = parts[parts.index("--target") + 1]
-        if selected != args._locked_target:
-            raise MjDiscordError("Page action does not match the selected Discord target")
-        parts = (*parts, "--expected-url", locked_url)
     command += list(parts)
 
     proc = subprocess.run(
@@ -126,6 +151,14 @@ def run_browser(args: argparse.Namespace, *parts: str) -> dict:
         timeout=max(args.timeout + 10, 25),
     )
     if proc.returncode != 0:
+        try:
+            error = json.loads(proc.stdout)
+        except json.JSONDecodeError:
+            error = None
+        if isinstance(error, dict) and error.get("ok") is False:
+            raise MjDiscordError(str(error.get("message") or error.get("error")),
+                                 code=str(error.get("error_code") or "BROWSER_ERROR"),
+                                 context=error.get("context"))
         raise MjDiscordError(
             f"browser-access failed ({proc.returncode}): "
             f"{(proc.stderr or proc.stdout).strip()}"
@@ -167,6 +200,9 @@ def discover_channels(args: argparse.Namespace) -> dict:
 
 
 def resolve_target(args: argparse.Namespace) -> dict:
+    scope = scope_for(args)
+    if scope and scope.target:
+        return dict(scope.target)
     expected = normalize_url(args.channel_url)
     matches = []
     for page in discover_channels(args)["channels"]:
@@ -181,6 +217,7 @@ def resolve_target(args: argparse.Namespace) -> dict:
     target = matches[0]
     args._locked_target = target["id"]
     args._locked_url = target["url"]
+    open_page_session(args, target)
     current = eval_js(
         args,
         target["id"],
@@ -197,6 +234,8 @@ def resolve_target(args: argparse.Namespace) -> dict:
     target = dict(target)
     target["composer"] = current.get("composer")
     target["title"] = current.get("title") or target.get("title")
+    if scope:
+        scope.target = cast(PageTarget, target)
     return target
 
 

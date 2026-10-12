@@ -13,7 +13,7 @@ Midjourney 未向普通订阅用户提供可与会员额度等价复用的公共
 
 ## 强制边界
 
-1. **先发现，再精确频道锁定**：通过 `channels` 列出当前已授权浏览器中打开的 Discord 频道，由 Agent 按用户意图选定频道。业务调用传完整频道网址，例如 `https://discord.com/channels/<guild>/<channel>`；同频道多标签页时另传完整 `--target`。频道可以每个任务重新指定，不固定某台机器、某个服务器或某个页面；默认不导航、不新开标签页，频道发现不授予发送权限。
+1. **先发现，再精确频道锁定**：通过 `channels` 列出当前已授权浏览器中打开的 Discord 频道，由 Agent 按用户意图选定频道。业务调用传完整频道网址，例如 `https://discord.com/channels/<guild>/<channel>`；同频道多标签页时另传完整 `--target`。整次业务命令复用 `browser-access` 公开的 `BrowserSession`，绑定完整页面 ID、准确网址与主文档；关闭、换址、重新加载后停止该命令，不换页或自动恢复。频道可以每个任务重新指定，不固定某台机器、某个服务器或某个页面；默认不导航、不新开标签页，频道发现不授予发送权限。
 2. **复用 Browser Grant**：如果当前对话没有对该浏览器/Profile 的明确授权，先按 `browser-access` 的 Browser Grant 规则询问。换 Profile、换浏览器或扩大控制范围时重新授权。
 3. **不触碰凭据**：不得导出 Discord token、Cookie、Authorization header 或 Midjourney 会话凭据。
 4. **账号设置默认只读**：`/settings` 只允许读取当前状态；`/prefer`、模式切换、隐私设置、订阅操作等会改变账号行为的命令只有用户明确要求时才另行处理，不由本 CLI 泛化执行。
@@ -34,6 +34,8 @@ uv run <skill>/scripts/mj_discord.py --channel-url "$URL" doctor
 ```
 
 直接使用 `browser-access` 的默认 `agent-browser`，不要求额外命名浏览器配置或标签页。原有 `--endpoint` 连接地址参数保留。只有同频道存在多个已打开页面时，才用 `--target <完整页面ID>` 明确选择；不能按标题、页面位置或“最后一个频道”猜测。
+
+错误使用 `error_code`、`message`、`context` 判断，保留旧 `error` 字段。`TARGET_LOCK_VIOLATION` 或 `NAVIGATION_DETECTED` 表示当前业务命令已经失去绑定；Agent 重新检查用户允许的频道后才能发起新命令，不自动重发上一条可能已发送的消息。`BROWSER_ACCESS_CLI` 可显式指向待测试版本；指定路径不存在时直接报错，不回退到其他版本。
 
 也可以设置：
 

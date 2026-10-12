@@ -12,6 +12,7 @@ Midjourney 普通会员并不等价于公开 API 配额。为了复用用户已�
 
 - 先通过 `channels` 发现当前已授权浏览器中已打开的频道；业务调用使用按用户意图选定的完整频道 URL。没有固定服务器、频道或页面 ID，同频道多个标签页可通过完整 `--target` 消歧。
 - 直接复用 `browser-access` 的默认浏览器，不要求命名配置或命名标签页；原有 `--endpoint` 参数保留。选定频道后的页面动作绑定实际准确网址，页面换址就拒绝动作。
+- 一次业务命令的读取、输入、点击、上传与等待复用公开 `BrowserSession`，保持同一个页面连接与主文档绑定；页面关闭、换址或同网址重新加载后报错，不自动重绑。保留通用浏览器错误的 `error_code` 和 `context`，调用方据此核对现场，不自动重发不确定消息。
 - CLI 默认不导航，不访问其他服务器/频道。
 - 账号设置只提供 `/settings` 只读观察，不提供通用的设置修改命令。
 - 图片上传、生成和按钮动作使用独立显式子命令；上传前若 composer 已有文本草稿或待发送附件则拒绝，避免覆盖用户现场状态。
@@ -70,3 +71,16 @@ uv run scripts/mj_discord.py download-all --message-id '<message-id>' --output .
 - 单图下载与任务树批量下载
 
 `Vary (Region)`、`Custom Zoom`、`/blend` 专用 Slash Command 以及账号设置修改需要额外交互契约，不属于当前稳定 CLI 表面。常规 image-prompt 已通过“Discord 上传附件 → CDN URL → `/imagine`”完整支持。`V1`–`V4` 与普通 Vary 按钮在 Remix Mode 开启时并非直接生成，CLI 会显式进入 Remix modal 状态，只有传 `--accept-remix` 或 `--remix-prompt` 才提交。
+
+## 本地验证
+
+从本仓根目录运行：
+
+```sh
+UV_CACHE_DIR=/tmp/browser-hardening-uv uv run --no-project --offline --with websocket-client \
+  -m unittest discover -s in-progress/midjourney-discord/tests -p 'test_*.py'
+```
+
+测试覆盖频道发现和多个页面消歧，以及公开会话的长连接复用、换址后不可恢复、同网址重新加载、关闭后不选其他频道、结构化错误传递和既有动作参数适配。它们使用本地模拟协议，不是实际 Discord 上传／生成／Remix 的 17 项回归；真实回归仍待用户授权的频道与动作范围，不宣称已经通过。
+
+本地业务入口测试可设置 `BROWSER_ACCESS_CLI=<当前源码中的browser_cdp.py绝对路径>`，避免混用已安装版本；无需先推送或更新技能。入口和公开模块都禁止生成字节码，保护安装后的内容存储投影。

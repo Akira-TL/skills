@@ -1,8 +1,13 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["websocket-client>=1.8,<2"]
+# ///
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import subprocess
 import sys
@@ -97,6 +102,7 @@ def submit_remix_dialog(
         "--target",
         target,
         '[data-mj-discord-cli-modal-submit="1"]',
+        "--allow-submit",
     )
     return {
         "dialog": dialog,
@@ -631,39 +637,46 @@ def main(argv: list[str] | None = None) -> int:
             normalize_url(args.channel_url)
         except (MjDiscordError, ValueError) as exc:
             parser.error(str(exc))
-    if args.timeout <= 0 or args.poll <= 0:
-        parser.error("--timeout and --poll must be positive")
+    if not math.isfinite(args.timeout) or not math.isfinite(args.poll) or args.timeout <= 0 or args.poll <= 0:
+        parser.error("--timeout and --poll must be finite and positive")
 
     try:
-        if args.subcommand == "channels":
-            result = discover_channels(args)
-        elif args.subcommand == "doctor":
-            result = doctor(args)
-        elif args.subcommand == "command":
-            result = invoke_read_only(args)
-        elif args.subcommand == "upload":
-            result = upload_images(args)
-        elif args.subcommand == "imagine":
-            result = imagine_with_images(args) if args.image else imagine(args)
-        elif args.subcommand == "recent":
-            result = recent(args)
-        elif args.subcommand == "action":
-            result = action(args)
-        elif args.subcommand == "remix":
-            result = remix_command(args)
-        elif args.subcommand == "collect":
-            result = collect_related(args)
-        elif args.subcommand == "download":
-            result = download(args)
-        elif args.subcommand == "download-all":
-            result = download_all(args)
-        else:
-            raise AssertionError(args.subcommand)
+        with browser_operations(args):
+            result = dispatch_command(args)
         emit(result)
         return 0
-    except (MjDiscordError, subprocess.TimeoutExpired, OSError) as exc:
-        emit({"ok": False, "error": str(exc)})
+    except MjDiscordError as exc:
+        emit(exc.as_dict())
         return 2
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        emit(MjDiscordError(str(exc), code="BROWSER_EXECUTION_FAILED").as_dict())
+        return 2
+
+
+def dispatch_command(args: argparse.Namespace) -> dict:
+    if args.subcommand == "channels":
+        return discover_channels(args)
+    if args.subcommand == "doctor":
+        return doctor(args)
+    if args.subcommand == "command":
+        return invoke_read_only(args)
+    if args.subcommand == "upload":
+        return upload_images(args)
+    if args.subcommand == "imagine":
+        return imagine_with_images(args) if args.image else imagine(args)
+    if args.subcommand == "recent":
+        return recent(args)
+    if args.subcommand == "action":
+        return action(args)
+    if args.subcommand == "remix":
+        return remix_command(args)
+    if args.subcommand == "collect":
+        return collect_related(args)
+    if args.subcommand == "download":
+        return download(args)
+    if args.subcommand == "download-all":
+        return download_all(args)
+    raise AssertionError(args.subcommand)
 
 
 if __name__ == "__main__":
