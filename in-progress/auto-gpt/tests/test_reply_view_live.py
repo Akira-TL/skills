@@ -2,6 +2,7 @@
 import json
 import os
 import sys
+import time
 import unittest
 import urllib.request
 from pathlib import Path
@@ -33,6 +34,11 @@ class ReplyViewLiveTests(unittest.TestCase):
         self.target = http_json(ENDPOINT, '/json/new?' + URL, method='PUT')
         self.addCleanup(lambda: urllib.request.urlopen(ENDPOINT + '/json/close/' + self.target['id']).close())
         with page_client(self.target, timeout=5) as client:
+            deadline = time.monotonic() + 5
+            while client.evaluate('location.href === ' + json.dumps(URL)) is not True:
+                if time.monotonic() >= deadline:
+                    self.fail('Local fixture did not reach its expected URL')
+                time.sleep(0.02)
             wait_ready(client, timeout=5)
         self.page = BrowserSession(ENDPOINT, target=self.target['id'], expected_url=URL, timeout=5)
         self.page.__enter__()
