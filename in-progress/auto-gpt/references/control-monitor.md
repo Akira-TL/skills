@@ -11,7 +11,8 @@ bash <auto-gpt目录>/scripts/auto_gpt.sh start \
   --browser-access-script <browser-access目录>/scripts/browser_cdp.py \
   --endpoint <status核验过的连接地址> \
   --anchor-target <已发现的完整ChatGPT页面ID> \
-  --anchor-url <该页面的准确网址>
+  --anchor-url <该页面的准确网址> \
+  --max-wait-seconds 1800
 ```
 
 脚本自己再次通过 `--profile auto-gpt status` 核对身份与地址，只在成功时导入 `browser-access` 公开的 `BrowserSession`。后续发现页面与读取控件都复用其目标锁和协议调用，不再启动浏览器、不导航、不访问认证存储；连接目标关闭或更换主文档时返回观察错误，由 Agent 重新发现后决定是否重建观察。
@@ -19,6 +20,8 @@ bash <auto-gpt目录>/scripts/auto_gpt.sh start \
 以执行器的前台终端会话运行；不要加 `&`、`nohup`、守护进程或持久定时任务。工具调用保持可中断，单次等待不超过执行器允许的响应边界；若工具返回“进程仍在运行”，继续等待同一会话，不另外读取正文或启动观察进程。工具调度仍可能花少量 token；此实现减少正文读取和模型判断次数，不承诺整个执行器零 token。
 
 ## 事件与重新等待
+
+单次控件等待默认最多 1800 秒，可用 `--max-wait-seconds` 指定正数。到期返回 `reason: watch-timeout`、空 `targets` 和最后一份完整 `observations`；正在进行的协议请求仍受浏览器适配器自身的短超时约束。到期只是结束本次等待，不表示聊天结束或采集失败。总体监听继续时，Agent 将返回基线原样传入下一次前台等待，不读取正文、不发送、不刷新；不并行启动第二个观察进程。掉线计时和已报告标记随基线保留，采样缺口仍按原规则处理。
 
 每分钟采样全部真实 HTTPS `chatgpt.com` 页面。只读表达式在 `scripts/observe-controls.js` 维护，返回按钮数量、输入框和草稿是否存在、提示／对话框数量、断线提示是否存在及现有轮次标识，不返回回复、用户消息正文、模型推理或个人资料。运行状态稳定时没有输出。
 

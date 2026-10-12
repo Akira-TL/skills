@@ -20,6 +20,42 @@ def page(target="one", *, running=False, draft=False, turns=1, alerts=0, dialogs
 
 
 class WatchTests(unittest.TestCase):
+    def test_thirty_minute_timeout_preserves_baseline_without_extra_sample(self):
+        time = [0.0]
+        samples = []
+        def sample():
+            samples.append(time[0])
+            return (page(running=True),)
+        def sleep(seconds):
+            time[0] += seconds
+        event = watch(sample, baseline=None, clock=lambda: time[0], sleep=sleep)
+        self.assertEqual(time[0], 1800)
+        self.assertEqual(samples, list(range(0, 1800, 60)))
+        self.assertEqual(event.reason, "watch-timeout")
+        self.assertEqual(event.targets, ())
+        self.assertEqual(event.observations, (page(running=True),))
+
+    def test_timeout_rearming_preserves_connection_grace_period(self):
+        time = [0.0]
+        def sleep(seconds):
+            time[0] += seconds
+        sample = lambda: (page(running=True, lost=True),)
+        first = watch(sample, baseline=None, clock=lambda: time[0], sleep=sleep,
+                      max_wait_seconds=150)
+        self.assertEqual(first.reason, "watch-timeout")
+        self.assertEqual(time[0], 150)
+        baseline = module.read_baseline(json.dumps([module.asdict(p) for p in first.observations]))
+        second = watch(sample, baseline=baseline, clock=lambda: time[0], sleep=sleep)
+        self.assertEqual(second.reason, "connection-interrupted")
+        self.assertEqual(second.observations[0].connection.since, 0)
+        self.assertEqual(time[0], 210)
+
+    def test_invalid_timeout_is_rejected_before_sampling(self):
+        for seconds in (0, -1, float("inf"), float("nan")):
+            with self.subTest(seconds=seconds), self.assertRaises(ValueError):
+                watch(lambda: self.fail("invalid timeout sampled"), baseline=None,
+                      max_wait_seconds=seconds)
+
     def test_running_then_composer_waits_a_minute_and_only_returns_end_event(self):
         frames = iter([(page(running=True),), (page(running=True),), (page(),)])
         waits = []

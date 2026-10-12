@@ -192,10 +192,16 @@ def changes(previous: Sequence[Observation] | None, current: tuple[Observation, 
 
 
 def watch(sample: Callable[[], tuple[Observation, ...]], *, baseline: tuple[Observation, ...] | None,
-          clock: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep) -> Event:
+          clock: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep,
+          max_wait_seconds: float = 1800.0) -> Event:
+    if not math.isfinite(max_wait_seconds) or max_wait_seconds <= 0:
+        raise ValueError("Observation wait limit must be positive and finite")
+    deadline = clock() + max_wait_seconds
     previous = baseline
     while True:
         started = clock()
+        if started >= deadline:
+            return Event("watch-timeout", (), tuple(previous or ()))
         current = observe_connections(previous, sample(), clock())
         event = changes(previous, current)
         persistent = tuple(page.target for page in current if page.connection is not None
@@ -210,7 +216,8 @@ def watch(sample: Callable[[], tuple[Observation, ...]], *, baseline: tuple[Obse
         if event is not None:
             return event
         previous = current
-        sleep(max(0.0, 60.0 - (clock() - started)))
+        now = clock()
+        sleep(max(0.0, min(60.0 - (now - started), deadline - now)))
 
 
 def verify_profile(browser_script: Path, endpoint: str) -> None:
@@ -233,6 +240,8 @@ def main() -> int:
     parser.add_argument("--anchor-target", required=True)
     parser.add_argument("--anchor-url", required=True)
     parser.add_argument("--baseline", help="上一事件的 observations JSON 数组；只在内存和参数中传递")
+    parser.add_argument("--max-wait-seconds", type=float, default=1800.0,
+                        help="单次控件等待期限，默认 1800 秒；到期返回基线，由 Agent 继续等待")
     parser.add_argument("--ignore-conversation", action="append", default=[], help="Agent 已暂停的会话标识")
     args = parser.parse_args()
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(130))
@@ -265,7 +274,7 @@ def main() -> int:
                         result.append(Observation(target_id, url, read_controls(page.evaluate(PROBE))))
                 observations = tuple(sorted(result, key=lambda page: page.target))
                 return observations
-            event = watch(sample, baseline=baseline)
+            event = watch(sample, baseline=baseline, max_wait_seconds=args.max_wait_seconds)
         print(json.dumps(asdict(event), ensure_ascii=False), flush=True)
         return 0
     except (KeyboardInterrupt, SystemExit):
