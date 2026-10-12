@@ -68,6 +68,15 @@ class ReplyViewLiveTests(unittest.TestCase):
         result = self.read()
         self.assertEqual(result['text'], '第一条完整说明\n第二条需要人工处理')
 
+    def test_display_contents_root_with_rendered_children_is_readable(self):
+        before = self.read()
+        self.page.evaluate("document.querySelector('#reply').style.display='contents'")
+        after = self.read()
+        self.assertEqual(after['text'], before['text'])
+        self.assertEqual(after['version'], before['version'])
+        self.page.evaluate("document.querySelector('#reply').innerHTML='唯一直接文字';")
+        self.assertEqual(self.read()['text'], '唯一直接文字')
+
     def test_payload_change_changes_version_and_full_read_keeps_version(self):
         before = self.read()
         full = self.read(payload_text=True)
