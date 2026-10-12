@@ -10,6 +10,7 @@ import argparse
 import importlib
 import json
 import math
+import re
 import signal
 import subprocess
 import sys
@@ -234,6 +235,16 @@ def verify_profile(browser_script: Path, endpoint: str) -> None:
         raise ValueError("Dedicated auto-gpt profile was not verified at the requested endpoint")
 
 
+def observation_error(exc: Exception, *, phase: str, target: str,
+                      observations: Sequence[Observation]) -> Mapping[str, object]:
+    # 只取规范错误码，不回传异常正文或包含页面内容的协议上下文。
+    code = getattr(exc, "code", "")
+    return {"reason": "observation-error", "error_type": type(exc).__name__,
+            "error_code": code if isinstance(code, str) and re.fullmatch(r"[A-Z][A-Z_]+", code) else "",
+            "phase": phase, "failed_target": target,
+            "observations": [asdict(page) for page in observations]}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--browser-access-script", type=Path, required=True)
@@ -248,18 +259,22 @@ def main() -> int:
     args = parser.parse_args()
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(130))
     observations: tuple[Observation, ...] = ()
+    phase, failed_target = "arguments", ""
     try:
         baseline = read_baseline(args.baseline)
         if conversation(args.anchor_url) is None:
             raise ValueError("Anchor must be an HTTPS ChatGPT page")
         browser_script = args.browser_access_script.resolve(strict=True)
+        phase = "profile-verification"
         verify_profile(browser_script, args.endpoint)
         sys.path.insert(0, str(browser_script.parent))
         session_type = cast(SessionFactory, importlib.import_module("browser_session").BrowserSession)
         ignored = set(args.ignore_conversation)
+        phase, failed_target = "anchor-bind", args.anchor_target
         with session_type(args.endpoint, target=args.anchor_target, expected_url=args.anchor_url) as anchor:
             def sample() -> tuple[Observation, ...]:
-                nonlocal observations
+                nonlocal observations, phase, failed_target
+                phase, failed_target = "target-discovery", args.anchor_target
                 targets = anchor.call("Target.getTargets").get("targetInfos")
                 if not isinstance(targets, list):
                     raise ValueError("Target discovery did not return a list")
@@ -272,6 +287,7 @@ def main() -> int:
                     identifier = conversation(url)
                     if identifier is None or identifier in ignored:
                         continue
+                    phase, failed_target = "control-sample", target_id
                     with session_type(args.endpoint, target=target_id, expected_url=url) as page:
                         result.append(Observation(target_id, url, read_controls(page.evaluate(PROBE))))
                 observations = tuple(sorted(result, key=lambda page: page.target))
@@ -286,8 +302,8 @@ def main() -> int:
         return 130
     except Exception as exc:
         # 只暴露错误类型；不输出协议上下文、正文或自动截图。
-        print(json.dumps({"reason": "observation-error", "error_type": type(exc).__name__,
-                          "observations": [asdict(page) for page in observations]}, ensure_ascii=False), flush=True)
+        print(json.dumps(observation_error(exc, phase=phase, target=failed_target,
+                                           observations=observations), ensure_ascii=False), flush=True)
         return 2
 
 

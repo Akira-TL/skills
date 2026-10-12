@@ -28,6 +28,8 @@
 
 Agent 明确判断续接后，可用 `auto_gpt.sh continue` 发起一次动作：在一个受保护连接中聚焦、插入精确的“继续”、真实回车并确认新的用户消息。版本、模型、草稿或生成状态变化时退让；结果不明不重发。`read` 使用同样的已核验选择器完整读取，界面布局不匹配时先调查。单次动作确认只返回少量事实，下一回复结束前继续由只读控件脚本等待。
 
+采集失败返回规范错误码、发生阶段和失败目标，不返回聊天内容或协议上下文；Agent 可只读核对相应连接或目标，避免只看到错误类型就重查全部页面。失败结果中的控件事实属于上一轮成功采样，不能当作当前页面已经完成。
+
 ## 源码与验证
 
 行为规则：[SKILL.md](../../in-progress/auto-gpt/SKILL.md)。适配器启动、事件和取消入口：[只读控件观察](../../in-progress/auto-gpt/references/control-monitor.md)；续接机械步骤：[页面观察与单次动作](../../in-progress/auto-gpt/references/browser-operations.md)。依赖通过标准 `skiloom-package.toml` 声明 `browser-access`。

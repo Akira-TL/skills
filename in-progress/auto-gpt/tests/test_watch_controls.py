@@ -20,6 +20,23 @@ def page(target="one", *, running=False, draft=False, turns=1, alerts=0, dialogs
 
 
 class WatchTests(unittest.TestCase):
+    def test_error_reports_phase_and_code_without_exception_text_or_protocol_context(self):
+        class Failure(Exception):
+            code = 'NAVIGATION_DETECTED'
+            context = {'body':'private chat'}
+        event = module.observation_error(Failure('private chat'), phase='control-sample',
+                                         target='one', observations=(page(),))
+        self.assertEqual(event['error_code'], 'NAVIGATION_DETECTED')
+        self.assertEqual(event['failed_target'], 'one')
+        self.assertEqual(event['phase'], 'control-sample')
+        self.assertNotIn('private chat', json.dumps(event))
+
+    def test_untrusted_error_code_is_not_returned_as_chat_text(self):
+        class Failure(Exception):
+            code = 'private chat'
+        event = module.observation_error(Failure(), phase='anchor-bind', target='one', observations=())
+        self.assertEqual(event['error_code'], '')
+
     def test_thirty_minute_timeout_preserves_baseline_without_extra_sample(self):
         time = [0.0]
         samples = []
