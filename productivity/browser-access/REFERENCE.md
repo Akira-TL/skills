@@ -28,6 +28,8 @@ Python 调用方从 Skiloom Store 投影导入时，先设置 `sys.dont_write_by
 
 也可导入同目录 `browser_session.BrowserSession`，在上下文管理器内调用 `execute(op, **options)`、`evaluate` 或 `call`；`focus` 使用锁定页面的 `Page.bringToFront` 激活。Python 调用方必须先履行 Skill 的浏览器选择、授权和专用配置核验；模块只连接，不启动浏览器。CLI 会先履行已有配置核验。截图、快照和资源解析也接受 `within`、`expect_text`、`expect_role`、`expect_count` 等元素约束。
 
+复用连接的协议动作同样支持保护条件：Python 使用 `page.call(method, params, guard=expression)`，逐行会话使用 `{"id":1,"op":"call","method":"Input.insertText","params":{"text":"继续"},"guard":"document.activeElement.textContent === ''"}`。条件必须是非空表达式，等待 Promise 后严格返回布尔值 `true`；其他值、求值失败或页面身份改变均不发出动作。拒绝返回 `GUARD_REJECTED`，逐行会话仍可继续只读核对；条件错误不能以重试或省略保护绕过。
+
 会话固定目标 ID、准确网址、主框架与文档加载身份，每次操作检查目标仍存在，协议动作前后再次检查页面身份。换址、关闭或同网址重新加载后锁定失败保持有效；不选其他页面、不自动导航回来。可选 `--expected-origin` 与 `--expected-title-regex` 增加约束。显式 `navigate` 以及未带准确网址约束的旧 `network --navigate`、`wait --url-contains` 保留导航语义；锁定会话不执行自动重新绑定。
 
 未指定参数时的默认配置保持为：

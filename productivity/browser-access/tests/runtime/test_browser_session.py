@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts'))
 from browser_cdp_core import BrowserCdpError, CdpClient
@@ -87,6 +87,61 @@ class SessionTests(unittest.TestCase):
             self.assertEqual(rows[0]['error_code'],'INVALID_ARGUMENT')
             self.assertFalse(rows[1]['ok'])
             self.assertTrue(rows[2]['ok'])
+
+    def test_guard_rejection_never_sends_input_and_jsonl_stays_open(self):
+        with BrowserSession('http://unused', target='one') as page:
+            page.evaluate = MagicMock(return_value=False)
+            with patch.object(self.peer, 'call', wraps=self.peer.call) as calls:
+                sink = io.StringIO()
+                serve_session(page, io.StringIO(
+                    '{"id":1,"op":"call","method":"Input.insertText","params":{"text":"继续"},"guard":"false"}\n'
+                    '{"id":2,"op":"title"}\n'), sink)
+                rows = [json.loads(line) for line in sink.getvalue().splitlines()]
+                self.assertEqual(rows[0]['error_code'], 'GUARD_REJECTED')
+                self.assertTrue(rows[1]['ok'])
+                self.assertFalse(any(call.args[0] == 'Input.insertText' for call in calls.call_args_list))
+
+    def test_guard_requires_boolean_true_and_awaits_promise(self):
+        for result in (False, None, 'true', 1, [], {}):
+            with self.subTest(result=result), BrowserSession('http://unused', target='one') as page:
+                page.evaluate = MagicMock(return_value=result)
+                with patch.object(self.peer, 'call', wraps=self.peer.call) as calls:
+                    with self.assertRaises(BrowserCdpError):
+                        page.call('Input.insertText', {'text':'继续'}, guard='Promise.resolve(true)')
+                    self.assertFalse(any(call.args[0] == 'Input.insertText' for call in calls.call_args_list))
+                page.evaluate.assert_called_once_with('Promise.resolve(true)', await_promise=True)
+        with BrowserSession('http://unused', target='one') as page:
+            page.evaluate = MagicMock(return_value=True)
+            with patch.object(self.peer, 'call', wraps=self.peer.call) as calls:
+                page.call('Input.insertText', {'text':'继续'}, guard='true')
+                self.assertEqual(sum(call.args[0] == 'Input.insertText' for call in calls.call_args_list), 1)
+
+    def test_invalid_or_failed_guard_never_sends_input(self):
+        with BrowserSession('http://unused', target='one') as page:
+            for guard in ('', ' ', False, 7, []):
+                with self.subTest(guard=guard), patch.object(self.peer, 'call', wraps=self.peer.call) as calls:
+                    with self.assertRaises(BrowserCdpError):
+                        page.execute('call', method='Input.insertText', params={'text':'继续'}, guard=guard)
+                    self.assertFalse(any(call.args[0] == 'Input.insertText' for call in calls.call_args_list))
+            page.evaluate = MagicMock(side_effect=BrowserCdpError('evaluation failed'))
+            with patch.object(self.peer, 'call', wraps=self.peer.call) as calls:
+                with self.assertRaises(BrowserCdpError):
+                    page.call('Input.insertText', {'text':'继续'}, guard='broken()')
+                self.assertFalse(any(call.args[0] == 'Input.insertText' for call in calls.call_args_list))
+
+    def test_navigation_during_guard_prevents_action(self):
+        with BrowserSession('http://unused', target='one') as page:
+            original = self.peer.evaluate
+            def navigate(expression, **options):
+                if options.get('await_promise'):
+                    self.peer.loader = 'doc2'
+                    return True
+                return original(expression, **options)
+            with patch.object(self.peer, 'evaluate', side_effect=navigate), \
+                 patch.object(self.peer, 'call', wraps=self.peer.call) as calls:
+                with self.assertRaises(BrowserCdpError):
+                    page.call('Input.insertText', {'text':'继续'}, guard='true')
+                self.assertFalse(any(call.args[0] == 'Input.insertText' for call in calls.call_args_list))
 
     def test_origin_and_title_constraints(self):
         for lock in [TargetLock('one',TARGET['url'],'https://other.org'),

@@ -133,9 +133,15 @@ class BrowserSession:
                 self.violation = exc
             raise
 
-    def call(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+    def call(self, method: str, params: dict[str, Any] | None = None, *,
+             guard: str | None = None) -> dict[str, Any]:
+        if guard is not None and (not isinstance(guard, str) or not guard.strip()):
+            raise BrowserCdpError("Page guard must be a nonempty expression", code="INVALID_ARGUMENT")
         self.check()
         assert self.client
+        if guard is not None and self.evaluate(guard, await_promise=True) is not True:
+            raise BrowserCdpError("Page guard did not return boolean true; no CDP action was sent",
+                                  code="GUARD_REJECTED")
         result = self.client.call(method, params)
         self.check()
         return result
@@ -229,7 +235,8 @@ class BrowserSession:
         elif op == "eval":
             value = self.evaluate(str(options["expression"]), await_promise=bool(options.get("await_promise", False)))
         elif op == "call":
-            return {"target": target_view(self.target), "method": options["method"], "result": self.call(options["method"], options.get("params", {}))}
+            return {"target": target_view(self.target), "method": options["method"],
+                    "result": self.call(options["method"], options.get("params", {}), guard=options.get("guard"))}
         else:
             raise BrowserCdpError(f"Unsupported session operation: {op}", code="INVALID_ARGUMENT")
         return {"target": target_view(self.target), "value": value}
