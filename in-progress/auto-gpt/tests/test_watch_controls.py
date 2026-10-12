@@ -46,9 +46,9 @@ class WatchTests(unittest.TestCase):
         self.assertEqual(time[0], 150)
         baseline = module.read_baseline(json.dumps([module.asdict(p) for p in first.observations]))
         second = watch(sample, baseline=baseline, clock=lambda: time[0], sleep=sleep)
-        self.assertEqual(second.reason, "connection-interrupted")
+        self.assertEqual(second.reason, "watch-timeout")
         self.assertEqual(second.observations[0].connection.since, 0)
-        self.assertEqual(time[0], 210)
+        self.assertEqual(time[0], 1950)
 
     def test_invalid_timeout_is_rejected_before_sampling(self):
         for seconds in (0, -1, float("inf"), float("nan")):
@@ -128,7 +128,7 @@ class WatchTests(unittest.TestCase):
             watch(sample, baseline=None, clock=lambda: 0, sleep=cancel)
         self.assertEqual(samples, [1])
 
-    def test_interrupted_notice_waits_three_minutes_while_stop_button_remains(self):
+    def test_interrupted_notice_only_waits_until_deadline(self):
         time = [0.0]
         waits = []
         def sleep(seconds):
@@ -136,12 +136,48 @@ class WatchTests(unittest.TestCase):
             time[0] += seconds
         event = watch(lambda: (page(running=True, lost=True),), baseline=None,
                       clock=lambda: time[0], sleep=sleep)
-        self.assertEqual(waits, [60, 60, 60])
-        self.assertEqual(event.reason, "connection-interrupted")
-        self.assertEqual(event.targets, ("one",))
+        self.assertEqual(waits, [60] * 30)
+        self.assertEqual(event.reason, "watch-timeout")
+        self.assertEqual(event.targets, ())
         self.assertEqual(event.observations[0].controls.stop, 1)
-        self.assertEqual(event.observations[0].connection.last_seen - event.observations[0].connection.since, 180)
-        self.assertTrue(event.observations[0].connection.reported)
+        self.assertEqual(event.observations[0].connection.last_seen - event.observations[0].connection.since, 1740)
+        self.assertFalse(event.observations[0].connection.reported)
+
+    def test_stream_keeps_baseline_emits_only_changed_pages_and_expires(self):
+        time = [0.0]
+        frames = iter([(page('one', running=True), page('two', running=True)),
+                       (page('one'), page('two', running=True)),
+                       (page('one'), page('two', running=True)),
+                       (page('one', turns=2),)])
+        events = []
+        def sleep(seconds):
+            time[0] += seconds
+        result = watch(lambda: next(frames), baseline=None, clock=lambda: time[0],
+                       sleep=sleep, max_wait_seconds=240, on_event=events.append)
+        self.assertEqual([event.reason for event in events], ['watch-started', 'controls-changed', 'controls-changed'])
+        self.assertEqual(len(events[0].observations), 2)
+        self.assertEqual(events[1].targets, ('one',))
+        self.assertEqual([p.target for p in events[1].observations], ['one'])
+        self.assertEqual(events[2].targets, ('one', 'two'))
+        self.assertEqual(result.reason, 'watch-timeout')
+        self.assertEqual(result.observations[0].controls.turns, 2)
+        self.assertEqual(time[0], 240)
+
+    def test_stream_waits_through_loss_and_emits_natural_end_once(self):
+        time = [0.0]
+        events = []
+        frames = iter([(page(running=True, lost=True),)] * 5 + [(page(),)] * 2)
+        def sleep(seconds):
+            time[0] += seconds
+        watch(lambda: next(frames), baseline=None, clock=lambda: time[0], sleep=sleep,
+              max_wait_seconds=420, on_event=events.append)
+        self.assertEqual([event.reason for event in events], ['watch-started', 'controls-changed'])
+        self.assertEqual(events[1].targets, ('one',))
+
+    def test_loss_with_unknown_end_controls_keeps_waiting(self):
+        unknown = Observation('one', page().url, Controls(0, 0, 1, False, 0, 0, 1, '', True))
+        self.assertIsNone(module.changes((page(running=True, lost=True),), (unknown,)))
+        self.assertIsNone(module.changes(None, (unknown,)))
 
     def test_natural_return_to_composer_cancels_refresh_candidate(self):
         time = [0.0]

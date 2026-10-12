@@ -174,12 +174,12 @@ def changes(previous: Sequence[Observation] | None, current: tuple[Observation, 
         prior = old.get(page.target)
         now = page.controls
         if prior is None or prior.url != page.url:
-            if now.view != View.RUNNING or now.alerts or now.dialogs:
+            if (now.view != View.RUNNING and not now.connection_lost) or now.alerts or now.dialogs:
                 affected.append(page.target)
             continue
         before = prior.controls
         # 正在生成时只累计控件事实，不唤醒 Agent 做正文判断。
-        changed = before.view != now.view and now.view != View.RUNNING
+        changed = before.view != now.view and now.view != View.RUNNING and not (now.connection_lost and now.view == View.UNKNOWN)
         changed |= (before.alerts, before.dialogs) != (now.alerts, now.dialogs)
         if now.view != View.RUNNING:
             changed |= (before.draft, before.turns, before.latest_turn) != (now.draft, now.turns, now.latest_turn)
@@ -193,28 +193,29 @@ def changes(previous: Sequence[Observation] | None, current: tuple[Observation, 
 
 def watch(sample: Callable[[], tuple[Observation, ...]], *, baseline: tuple[Observation, ...] | None,
           clock: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep,
-          max_wait_seconds: float = 1800.0) -> Event:
+          max_wait_seconds: float = 1800.0,
+          on_event: Callable[[Event], None] | None = None) -> Event:
     if not math.isfinite(max_wait_seconds) or max_wait_seconds <= 0:
         raise ValueError("Observation wait limit must be positive and finite")
     deadline = clock() + max_wait_seconds
     previous = baseline
+    first = True
     while True:
         started = clock()
         if started >= deadline:
             return Event("watch-timeout", (), tuple(previous or ()))
         current = observe_connections(previous, sample(), clock())
         event = changes(previous, current)
-        persistent = tuple(page.target for page in current if page.connection is not None
-                           and not page.connection.reported
-                           and page.connection.last_seen - page.connection.since >= 180)
-        if persistent:
-            current = tuple(Observation(page.target, page.url, page.controls,
-                            ConnectionNotice(page.connection.since, page.connection.last_seen, True)
-                            if page.target in persistent and page.connection else page.connection) for page in current)
-            affected = tuple(sorted(set(persistent) | set(event.targets if event else ())))
-            return Event("connection-interrupted", affected, current)
-        if event is not None:
+        if on_event is not None:
+            if first:
+                on_event(Event("watch-started", event.targets if event else (), current))
+            elif event is not None:
+                # 只输出变化项；完整事实仍留在进程内存，到期统一返回。
+                on_event(Event(event.reason, event.targets,
+                               tuple(page for page in current if page.target in event.targets)))
+        elif event is not None:
             return event
+        first = False
         previous = current
         now = clock()
         sleep(max(0.0, min(60.0 - (now - started), deadline - now)))
@@ -243,6 +244,7 @@ def main() -> int:
     parser.add_argument("--max-wait-seconds", type=float, default=1800.0,
                         help="单次控件等待期限，默认 1800 秒；到期返回基线，由 Agent 继续等待")
     parser.add_argument("--ignore-conversation", action="append", default=[], help="Agent 已暂停的会话标识")
+    parser.add_argument("--stream", action="store_true", help="持续输出变化事件，保留内存基线直到单次期限或取消")
     args = parser.parse_args()
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(130))
     observations: tuple[Observation, ...] = ()
@@ -274,7 +276,10 @@ def main() -> int:
                         result.append(Observation(target_id, url, read_controls(page.evaluate(PROBE))))
                 observations = tuple(sorted(result, key=lambda page: page.target))
                 return observations
-            event = watch(sample, baseline=baseline, max_wait_seconds=args.max_wait_seconds)
+            def emit(event: Event) -> None:
+                print(json.dumps(asdict(event), ensure_ascii=False, separators=(",", ":")), flush=True)
+            event = watch(sample, baseline=baseline, max_wait_seconds=args.max_wait_seconds,
+                          on_event=emit if args.stream else None)
         print(json.dumps(asdict(event), ensure_ascii=False), flush=True)
         return 0
     except (KeyboardInterrupt, SystemExit):
