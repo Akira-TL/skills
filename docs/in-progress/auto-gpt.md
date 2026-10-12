@@ -26,6 +26,8 @@
 
 只读回复提取支持把经 Agent 核验的界面控件和机械载荷单列：回复仍完整返回，载荷默认仅返回长度与摘要、按需读取全文。界面按钮文字变化不再触发整段重读，回复或载荷变化仍使版本失效；无法分清内容时保留全文。四项独立本地 Chromium 场景验证了完整回复、界面变化、载荷变化及未知布局拒绝，不改真实任务页面来测试。
 
+Agent 明确判断续接后，可用 `auto_gpt.sh continue` 发起一次动作：在一个受保护连接中聚焦、插入精确的“继续”、真实回车并确认新的用户消息。版本、模型、草稿或生成状态变化时退让；结果不明不重发。`read` 使用同样的已核验选择器完整读取，界面布局不匹配时先调查。单次动作确认只返回少量事实，下一回复结束前继续由只读控件脚本等待。
+
 ## 源码与验证
 
 行为规则：[SKILL.md](../../in-progress/auto-gpt/SKILL.md)。适配器启动、事件和取消入口：[只读控件观察](../../in-progress/auto-gpt/references/control-monitor.md)；续接机械步骤：[页面观察与单次动作](../../in-progress/auto-gpt/references/browser-operations.md)。依赖通过标准 `skiloom-package.toml` 声明 `browser-access`。

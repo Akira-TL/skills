@@ -12,6 +12,8 @@ sys.path.insert(0, str(REPOSITORY / 'productivity/browser-access/scripts'))
 if os.environ.get('BROWSER_LIVE_TESTS') == '1':
     from browser_cdp_core import http_json, page_client, wait_ready
     from browser_session import BrowserSession
+    sys.path.insert(0, str(Path(__file__).parents[1] / 'scripts'))
+    import reply_once as once
 
 VIEW = (Path(__file__).parents[1] / 'scripts/reply-view.js').read_text()
 ENDPOINT = os.environ.get('BROWSER_FIXTURE_ENDPOINT', 'http://127.0.0.1:19322')
@@ -75,6 +77,55 @@ class ReplyViewLiveTests(unittest.TestCase):
                         {'ui_selector':'.payload'}):
             with self.subTest(options=options), self.assertRaises(BrowserCdpError):
                 self.read(**options)
+
+    def test_real_guard_preserves_draft_and_blocks_reply_model_or_run_change(self):
+        from browser_cdp_core import BrowserCdpError
+        before = self.read()
+        selectors = once.Selectors(**OPTIONS)
+        guard = once.action_guard(selectors, url=URL, version=before['version'],
+                                  model=before['model'], draft='', focused=False)
+        mutations = [
+            "document.querySelector('[role=textbox]').textContent='用户草稿'",
+            "document.querySelector('#model').textContent='5.6 Pro'",
+            "document.querySelector('#reply p').textContent='需要人工'",
+            "document.querySelector('main').insertAdjacentHTML('beforeend','<button aria-label=停止>停止</button>')",
+            "document.querySelector('main').insertAdjacentHTML('beforeend','<div role=dialog>确认</div>')",
+        ]
+        for mutation in mutations:
+            with self.subTest(mutation=mutation):
+                self.page.evaluate('document.body.innerHTML=' + json.dumps(HTML))
+                self.page.evaluate(mutation)
+                with self.assertRaises(BrowserCdpError):
+                    self.page.call('Input.insertText', {'text':'继续'}, guard=guard)
+                actual = self.page.evaluate("document.querySelector('[role=textbox]').textContent")
+                self.assertEqual(actual, '用户草稿' if '用户草稿' in mutation else '')
+
+    def test_real_single_enter_and_confirmed_new_user_message(self):
+        self.page.evaluate("""document.querySelector('[role=textbox]').addEventListener('keydown', event => {
+          if(event.key !== 'Enter') return;
+          event.preventDefault();
+          const message=document.createElement('p'); message.className='user';
+          message.textContent=event.target.innerText.trim();
+          document.querySelector('#reply').before(message);
+          event.target.textContent='';
+          document.querySelector('#reply').innerHTML='<p>开始继续核对第二部分。</p>';
+        });""")
+        before = self.read()
+        attempt = once.Attempt()
+        result = once.continue_once(self.page, once.Selectors(**OPTIONS), url=URL,
+                                    target=self.target['id'], version=before['version'],
+                                    model=before['model'], attempt=attempt)
+        self.assertTrue(result['attempt']['confirmed'])
+        self.assertEqual(self.page.evaluate("[...document.querySelectorAll('.user')].map(el=>el.innerText)"),
+                         ['核对论文全文', '继续'])
+        self.assertEqual(self.page.evaluate("document.querySelector('[role=textbox]').innerText"), '')
+
+    def test_pointer_movement_or_overlay_blocks_click_guard(self):
+        before = self.read()
+        guard = once.action_guard(once.Selectors(**OPTIONS), url=URL, version=before['version'],
+                                  model=before['model'], draft='', focused=False, point=before['point'])
+        self.page.evaluate("document.querySelector('[role=textbox]').style.marginLeft='20px'")
+        self.assertIs(self.page.evaluate(guard, await_promise=True), False)
 
 
 if __name__ == '__main__':

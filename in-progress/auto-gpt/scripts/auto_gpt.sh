@@ -6,6 +6,11 @@ case "${1:-}" in
     shift
     exec uv run --no-project --offline "$script_dir/watch_controls.py" "$@"
     ;;
+  read|continue)
+    operation="$1"
+    shift
+    exec uv run --no-project --offline "$script_dir/reply_once.py" "$operation" "$@"
+    ;;
   stop)
     monitor_pid="${2:?需要当前观察进程的 PID}"
     [[ "$monitor_pid" =~ ^[1-9][0-9]*$ ]] || exit 2
@@ -14,7 +19,7 @@ case "${1:-}" in
     kill -TERM "$monitor_pid"
     ;;
   *)
-    echo '用法：auto_gpt.sh start <watch_controls.py 参数> | stop <观察进程 PID>' >&2
+    echo '用法：auto_gpt.sh start <观察参数> | read|continue <单次动作参数> | stop <观察进程 PID>' >&2
     exit 2
     ;;
 esac

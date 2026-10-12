@@ -41,6 +41,22 @@ uv run <browser-access脚本绝对路径> --profile auto-gpt call --target <页�
 
 Agent 完成语义判断后，按 `browser-access` 获取真实焦点。普通 `type` 会选中并替换内容，不能用于本技能的并发输入场景；改用显式 `Input.insertText`，不会先删除任何文本。
 
+优先用同版本的 `.sh` 单次入口，`read` 和 `continue` 共用已核验的选择器：
+
+```sh
+bash <auto-gpt目录>/scripts/auto_gpt.sh read \
+  --browser-access-script <browser-access目录>/scripts/browser_cdp.py \
+  --endpoint <已核验地址> --target <完整ID> --url <准确会话网址> \
+  --reply-selector <唯一当前回复> --user-selector <全部用户消息正文> \
+  --model-selector <唯一模型控件>
+```
+
+`read` 完整返回当前回复、用户最新消息、模型和版本；必要前文仍须经公共入口完整读取。`user-selector` 指向用户消息正文，不是“你说：”标题或整个混合轮次。只有已核验范围才添加 `--ui-selector` 或 `--payload-selector`，载荷全文按需添加 `--payload-text`。无法可靠定位最新回复或用户正文时，沿用只读调查，不强行使用此入口。
+
+Agent 判断需要续接后，用相同参数把 `read` 改成 `continue`，再提供 `--expected-version <已完整读过的version>` 与 `--expected-model <已核验的完整模型文字>`。入口只执行这一次，核验专用实例后复用一个公共 `BrowserSession` 完成聚焦、坐标复核、插入、回车和发送确认；没有定时器、语义判断或重试。模型、回复、草稿、焦点、生成状态、附件或对话框变化即拒绝。重复会话标签页需要 Agent 先消歧，该入口不会擅自选一个继续。
+
+结果只返回动作阶段、是否尝试插入／回车、是否确认新用户消息与控件事实；`confirmed` 要求用户消息数增加且最新正文严格为“继续”。`unconfirmed`、错误或工具超时都保留待确认记录，先回读，不再次调用。按键释放只释放已有尝试，不提交第二次。旧 `browser-access` 缺少 Python `call(..., guard=...)` 能力时停在动作之前，不通过省略保护降级；先用本地源码验证依赖，不为测试更新安装。
+
 动作前条件应严格核对这些已观察事实：
 
 1. 当前 `location.href` 仍等于本次已读页面地址，协议和主机名仍合格；
