@@ -1,0 +1,250 @@
+"""Opt-in real Chromium tests; started exclusively by browser_fixture.sh."""
+import os
+import base64
+import tempfile
+import subprocess
+import json
+import sys
+import unittest
+import urllib.request
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
+from browser_cdp_core import BrowserCdpError, http_json
+from browser_session import BrowserSession
+
+ENDPOINT=os.environ.get('BROWSER_FIXTURE_ENDPOINT','http://127.0.0.1:19322')
+URL='http://127.0.0.1:19323/dynamic.html'
+
+@unittest.skipUnless(os.environ.get('BROWSER_LIVE_TESTS')=='1','set BROWSER_LIVE_TESTS=1 after browser_fixture.sh start')
+class LiveTests(unittest.TestCase):
+    def setUp(self):
+        self.target=http_json(ENDPOINT,'/json/new?'+URL,method='PUT')
+        from browser_cdp_core import page_client, wait_ready
+        with page_client(self.target,timeout=5) as client:
+            wait_ready(client,timeout=5)
+        self.addCleanup(self.close_target)
+    def close_target(self):
+        if any(t.get('id')==self.target['id'] for t in http_json(ENDPOINT,'/json/list')):
+            urllib.request.urlopen(ENDPOINT+'/json/close/'+self.target['id']).close()
+    def page(self):
+        return BrowserSession(ENDPOINT,target=self.target['id'],expected_url=URL,timeout=5)
+    def test_scoped_click_ambiguity_overlay_and_scroll(self):
+        with self.page() as page:
+            with self.assertRaises(BrowserCdpError) as caught:
+                page.execute('click',selector='.variant')
+            self.assertEqual(caught.exception.code,'ELEMENT_AMBIGUOUS')
+            result=page.execute('click',selector='.variant',within='#message-two',expect_text='U1',expect_role='button')
+            self.assertTrue(result['clicked'])
+            self.assertEqual(page.evaluate("document.querySelector('#message-two button').dataset.clicked"),'two')
+            self.assertIsNone(page.evaluate("document.querySelector('#message-one button').dataset.clicked"))
+            page.evaluate("document.querySelector('#overlay').style.display='block'")
+            with self.assertRaises(BrowserCdpError) as caught:
+                page.execute('click',selector='#editor')
+            self.assertEqual(caught.exception.code,'ELEMENT_OCCLUDED')
+            page.evaluate("document.querySelector('#overlay').style.display='none'")
+            self.assertTrue(page.execute('click',selector='#offscreen')['clicked'])
+    def test_replacement_during_press_is_rejected(self):
+        with self.page() as page:
+            with self.assertRaises(BrowserCdpError) as caught:
+                page.execute('click',selector='#replace-press')
+            self.assertEqual(caught.exception.code,'ELEMENT_CHANGED_DURING_ACTION')
+    def test_native_rich_text_and_modal(self):
+        with self.page() as page:
+            self.assertEqual(page.execute('type',selector='#editor',value='中文输入')['state']['value'],'中文输入')
+            self.assertEqual(page.execute('type',selector='#rich',value='可见文本')['state']['value'],'可见文本')
+            page.execute('click',selector='#open-modal')
+            self.assertEqual(page.execute('type',selector='.field',value='modal',within='#modal')['state']['value'],'modal')
+            page.execute('click',selector='.close',within='#modal')
+            self.assertTrue(page.evaluate("document.querySelector('#modal').hidden"))
+
+    def test_upload_single_multi_and_rebuilt_hidden_input(self):
+        with tempfile.TemporaryDirectory() as folder, self.page() as page:
+            data=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=')
+            first=Path(folder)/'中文 图片(1).png'
+            second=Path(folder)/'图片(2).png'
+            first.write_bytes(data);second.write_bytes(data)
+            result=page.execute('upload',selector='.file',within='#upload-one',files=[str(first)])
+            self.assertTrue(result['input_rebuilt'])
+            self.assertEqual(result['state']['names'],[first.name])
+            result=page.execute('upload',selector='.file',within='#upload-one',files=[str(second)])
+            self.assertEqual(result['state']['names'],[second.name])
+            self.assertEqual(page.evaluate("document.querySelector('#preview').textContent"),second.name)
+            with self.assertRaises(BrowserCdpError) as caught:
+                page.execute('upload',selector='.file',within='#upload-one',files=[str(first),str(second)])
+            self.assertEqual(caught.exception.code,'FILE_CONSTRAINT_VIOLATION')
+            result=page.execute('upload',selector='.file',within='#upload-two',files=[str(first),str(second)])
+            self.assertEqual(result['state']['count'],2)
+            for name in ('tiny.jpg','tiny.webp'):
+                source=Path(__file__).parent/'fixtures'/name
+                local=Path(folder)/('中文 空格(3)'+source.suffix)
+                local.write_bytes(source.read_bytes())
+                result=page.execute('upload',selector='.file',within='#upload-one',files=[str(local)])
+                self.assertEqual(result['state']['names'],[local.name])
+                self.assertEqual(result['state']['files'][0]['type'],'image/jpeg' if name.endswith('.jpg') else 'image/webp')
+
+    def test_wait_transitions_new_elements_stability_and_timeout(self):
+        with self.page() as page:
+            baseline=page.execute('elements',selector='#messages > div')['value']
+            transition=page.execute('wait-transition',selector='#status',initial_text='初始',until_expression="value==='完成'",click='#progress',timeout=2,poll=0.02)
+            self.assertIn('完成',transition['transitions'])
+            result=page.execute('wait-new',selector='#messages > div',baseline=[item['identity'] for item in baseline],timeout=1)
+            self.assertEqual(result['value'][0]['id'],'new-message')
+            self.assertTrue(page.execute('wait',dom_stable='#status',stable_ms=80,timeout=1)['met'])
+            with self.assertRaises(BrowserCdpError) as caught:
+                page.execute('wait-mutation',within='#status',until_expression='false',timeout=0.1)
+            self.assertEqual(caught.exception.code,'WAIT_TIMEOUT')
+            self.assertIn('last_observed',caught.exception.context)
+            self.assertIn('mutation_count',caught.exception.context)
+
+    def test_dom_stability_tracks_changes_between_checks(self):
+        with self.page() as page:
+            page.evaluate("setTimeout(()=>{document.querySelector('#status').textContent='临时';setTimeout(()=>document.querySelector('#status').textContent='初始',20)},40)")
+            result=page.execute('wait',dom_stable='#status',stable_ms=100,poll=0.2,timeout=1)
+            self.assertGreaterEqual(result['elapsedSeconds'],0.15)
+
+    def test_new_semantic_identity_on_reused_node(self):
+        with self.page() as page:
+            page.evaluate("document.querySelector('#messages').innerHTML='<div id=old-message>旧</div>'")
+            baseline=page.execute('elements',selector='#messages > div',identity_attribute='id')['value']
+            page.evaluate("setTimeout(()=>document.querySelector('#old-message').id='replacement-message',100)")
+            result=page.execute('wait-new',selector='#messages > div',identity_attribute='id',baseline=[r['identity'] for r in baseline],timeout=1)
+            self.assertEqual(result['value'][0]['id'],'replacement-message')
+
+    def test_error_evidence_screenshot_and_bounded_snapshot(self):
+        with tempfile.TemporaryDirectory() as folder,self.page() as page:
+            output=Path(folder)/'element.png'
+            self.assertGreater(page.execute('screenshot',selector='#editor',output=str(output))['bytes'],0)
+            self.assertTrue(output.read_bytes().startswith(b'\x89PNG'))
+            snapshot=page.execute('snapshot',selector='body',max_chars=50)
+            self.assertLessEqual(len(snapshot['outerHTML']),50)
+            page.evaluate("document.body.insertAdjacentHTML('beforeend','<input name=token value=TOP_SECRET>')")
+            page.evaluate("document.body.insertAdjacentHTML('beforeend','<div hidden>HIDDEN_SECRET</div>')")
+            with self.assertRaises(BrowserCdpError) as caught:
+                page.execute('click',selector='#missing',evidence_on_error=True)
+            directory=Path(caught.exception.context['evidence_dir'])
+            for name in ('meta.json','screenshot.png','visible-text.txt','controls.json','target.json','console-errors.json'):
+                self.assertTrue((directory/name).exists(),name)
+            for file in directory.glob('*.json'):
+                self.assertNotIn('TOP_SECRET',file.read_text())
+            self.assertNotIn('TOP_SECRET',(directory/'visible-text.txt').read_text())
+            self.assertNotIn('HIDDEN_SECRET',(directory/'visible-text.txt').read_text())
+
+    def test_network_predicates_and_artifacts(self):
+        with self.page() as page:
+            result=page.execute('network',mode='wait-response',url_regex='/asset\\.png$',status='2xx',click='#request',timeout=2)
+            self.assertEqual(result['records'][0]['status'],200)
+            self.assertNotIn('headers',result['records'][0])
+            self.assertTrue(page.execute('network',mode='wait-idle',url_regex='/asset',idle_ms=50,timeout=1)['met'])
+            artifact=page.execute('resolve-artifact',selector='#artifact')
+            self.assertEqual(artifact['suggested_filename'],'结果.png')
+            fetched=page.execute('browser-fetch',url=artifact['url'],max_bytes=1000)
+            self.assertTrue(Path(fetched['output']).read_bytes().startswith(b'\x89PNG'))
+            Path(fetched['output']).unlink()
+
+    def test_hundred_read_write_actions_use_one_connection(self):
+        import websocket
+        with patch('websocket.create_connection',wraps=websocket.create_connection) as connect:
+            with self.page() as page:
+                for index in range(100):
+                    if index%10==0:page.execute('type',selector='#editor',value=f'输入 {index}')
+                    result=page.execute('eval',expression="document.querySelector('#editor').value")
+                    self.assertEqual(result['target']['id'],self.target['id'])
+                self.assertEqual(connect.call_count,1)
+    def test_navigation_and_closed_target_fail_closed(self):
+        with self.page() as page:
+            page.client.evaluate("location.hash='other-channel'")
+            with self.assertRaises(BrowserCdpError) as caught:page.execute('inspect')
+            self.assertEqual(caught.exception.code,'TARGET_LOCK_VIOLATION')
+            self.assertEqual(caught.exception.context['expected_url'],URL)
+        # Closing this target cannot bind a concurrently opened target.
+        second=http_json(ENDPOINT,'/json/new?'+URL,method='PUT')
+        self.addCleanup(lambda:urllib.request.urlopen(ENDPOINT+'/json/close/'+second['id']).close())
+        target=http_json(ENDPOINT,'/json/new?'+URL,method='PUT')
+        from browser_cdp_core import page_client,wait_ready
+        with page_client(target,timeout=5) as client:wait_ready(client,timeout=5)
+        with BrowserSession(ENDPOINT,target=target['id'],expected_url=URL) as page:
+            urllib.request.urlopen(ENDPOINT+'/json/close/'+target['id']).close()
+            with self.assertRaises(BrowserCdpError) as caught:page.execute('inspect')
+            self.assertEqual(caught.exception.code,'TARGET_LOCK_VIOLATION')
+
+    def test_legacy_cli_fields_and_jsonl_session(self):
+        script=Path(__file__).resolve().parents[1]/'scripts'/'browser_cdp.py'
+        prefix=['uv','run',str(script),'--compact','--endpoint',ENDPOINT]
+        def cli(*arguments):
+            completed=subprocess.run([*prefix,*arguments,'--target',self.target['id']],text=True,capture_output=True,timeout=30,check=True)
+            return json.loads(completed.stdout)
+        typed=cli('type','#editor','CLI输入')
+        for key in ('tag','type','id','name','value','focused','contenteditable'):
+            self.assertIn(key,typed['state'])
+            self.assertIn(key if key!='value' else 'text',typed['interaction']) if key!='focused' else None
+        self.assertEqual(cli('wait','--selector','#editor')['condition'],{'selector':'#editor'})
+        network=cli('network','--duration','0','--click','#request')
+        self.assertIn('trigger',network)
+        self.assertIn('x',network['trigger'])
+        with self.page() as page:
+            page.evaluate("document.querySelector('#message-one button').innerText='仅此范围';document.querySelector('#message-two button').innerText='另一个范围'")
+            self.assertEqual(page.execute('text',within='#message-one')['value']['text'],'仅此范围')
+        source='\n'.join(json.dumps(item) for item in [
+            {'id':1,'op':'inspect','within':'#message-one'},
+            {'id':2,'op':'click','selector':'#missing'},
+            {'id':3,'op':'type','selector':'#editor','value':'JSONL输入'},
+            {'id':4,'op':'wait','selector':'#editor'}])+'\n'
+        completed=subprocess.run([*prefix,'session','--target',self.target['id'],'--expected-url',URL],input=source,text=True,capture_output=True,timeout=30,check=True)
+        rows=[json.loads(line) for line in completed.stdout.splitlines()]
+        self.assertEqual([row['id'] for row in rows],[1,2,3,4])
+        self.assertEqual(rows[1]['error_code'],'ELEMENT_NOT_FOUND')
+        self.assertEqual(rows[2]['result']['state']['value'],'JSONL输入')
+        self.assertTrue(rows[3]['ok'])
+
+    def test_guarded_cli_call_preserves_target_lock_and_user_draft(self):
+        script=Path(__file__).resolve().parents[1]/'scripts'/'browser_cdp.py'
+        prefix=['uv','run','--no-project','--offline',str(script),'--endpoint',ENDPOINT,
+                'call','--target',self.target['id'],'Input.insertText','--params',json.dumps({'text':'继续'})]
+        condition="document.activeElement.id==='editor' && document.activeElement.value===''"
+        with self.page() as page:
+            page.execute('click',selector='#editor')
+            denied=subprocess.run([*prefix,'--expected-url',URL,'--guard','false'],text=True,capture_output=True,timeout=30)
+            self.assertEqual(denied.returncode,2)
+            self.assertFalse(json.loads(denied.stdout)['ok'])
+            self.assertEqual(page.evaluate("document.querySelector('#editor').value"),'')
+            accepted=subprocess.run([*prefix,'--expected-url',URL,'--guard',condition],text=True,capture_output=True,timeout=30)
+            self.assertEqual(accepted.returncode,0,accepted.stdout+accepted.stderr)
+            self.assertEqual(page.evaluate("document.querySelector('#editor').value"),'继续')
+            drafted=subprocess.run([*prefix,'--expected-url',URL,'--guard',condition],text=True,capture_output=True,timeout=30)
+            self.assertEqual(drafted.returncode,2)
+            self.assertEqual(page.evaluate("document.querySelector('#editor').value"),'继续')
+            wrong_target=subprocess.run([*prefix,'--expected-url',URL+'#different','--guard','true'],text=True,capture_output=True,timeout=30)
+            self.assertEqual(wrong_target.returncode,2)
+            self.assertEqual(json.loads(wrong_target.stdout)['error_code'],'TARGET_LOCK_VIOLATION')
+            self.assertEqual(page.evaluate("document.querySelector('#editor').value"),'继续')
+
+    def test_focus_and_diagnostic_guards_are_consistent(self):
+        script=Path(__file__).resolve().parents[1]/'scripts'/'browser_cdp.py'
+        completed=subprocess.run(['uv','run',str(script),'--compact','--endpoint',ENDPOINT,'focus','--target',self.target['id'],'--expected-url',URL+'#different'],text=True,capture_output=True,timeout=30)
+        self.assertNotEqual(completed.returncode,0)
+        self.assertEqual(json.loads(completed.stdout)['error_code'],'TARGET_LOCK_VIOLATION')
+        with self.page() as page:
+            self.assertTrue(page.execute('focus')['focused'])
+            with self.assertRaises(BrowserCdpError):page.execute('snapshot',selector='.variant')
+            result=page.execute('snapshot',selector='.variant',within='#message-two',expect_text='U1',expect_role='button')
+            self.assertEqual(result['text'],'U1')
+
+    def test_password_fingerprints_do_not_expose_value(self):
+        with self.page() as page:
+            page.evaluate("document.body.insertAdjacentHTML('afterbegin','<input id=fixture-password type=password value=PASSWORD_SENTINEL>')")
+            result=page.execute('snapshot',selector='#fixture-password')
+            self.assertNotIn('PASSWORD_SENTINEL',str(result))
+            result=page.execute('click',selector='#fixture-password')
+            self.assertEqual(result['interaction']['text'],'[redacted]')
+
+    def test_scoped_text_and_mutation_observations(self):
+        with self.page() as page:
+            page.evaluate("document.querySelector('#message-one button').innerText='范围甲';document.querySelector('#message-two button').innerText='范围乙'")
+            self.assertTrue(page.execute('wait',text='范围甲',within='#message-one',timeout=1)['met'])
+            with self.assertRaises(BrowserCdpError) as caught:page.execute('wait',text='范围乙',within='#message-one',timeout=0.1)
+            self.assertEqual(caught.exception.code,'WAIT_TIMEOUT')
+            page.evaluate("setTimeout(()=>document.querySelector('#preview').textContent='预览就绪',80)")
+            result=page.execute('wait-mutation',within='#preview',until_expression="document.querySelector('#preview').textContent==='预览就绪'",timeout=1)
+            self.assertEqual(result['last_observed'][0]['text'],'预览就绪')
+            with self.assertRaises(BrowserCdpError):page.execute('wait',selector='#modal',visible=True,timeout=0.1)

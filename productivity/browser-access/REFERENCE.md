@@ -20,6 +20,16 @@
 
 ## 1. Adapter：Windows Chrome 持久实例模式
 
+### 页面长连接与目标锁定
+
+Python 调用方从 Skiloom Store 投影导入时，先设置 `sys.dont_write_bytecode = True`，或在 `uv run` 的进程环境设置 `PYTHONDONTWRITEBYTECODE=1`，使入口及内部模块都不写字节码；也可使用 `uv run --with websocket-client python -B <调用方脚本>`。官方 CLI 自行禁用内部模块缓存，无需调用方补参数。
+
+连续操作可运行 `uv run <script-path> session --target <完整ID> --expected-url <准确网址>`，每行输入 `{"id":1,"op":"inspect"}`，每行输出 `{"id":1,"ok":true,"result":...}`。命令错误保留原 ID 并返回统一错误对象；损坏请求的 ID 无法读取时为 `null`。结束标准输入即断开连接，保留浏览器。会话支持 CLI 的页面读取、焦点、交互、上传、等待、诊断、网络和资源操作；生命周期与显式导航使用会话外 CLI。参数使用对应命令的下划线名称，不读取标准输入表达式；`call` 的 `params` 直接提供 JSON 对象，不使用 CLI 的字符串包装。
+
+也可导入同目录 `browser_session.BrowserSession`，在上下文管理器内调用 `execute(op, **options)`、`evaluate` 或 `call`；`focus` 使用锁定页面的 `Page.bringToFront` 激活。Python 调用方必须先履行 Skill 的浏览器选择、授权和专用配置核验；模块只连接，不启动浏览器。CLI 会先履行已有配置核验。截图、快照和资源解析也接受 `within`、`expect_text`、`expect_role`、`expect_count` 等元素约束。
+
+会话固定目标 ID、准确网址、主框架与文档加载身份，每次操作检查目标仍存在，协议动作前后再次检查页面身份。换址、关闭或同网址重新加载后锁定失败保持有效；不选其他页面、不自动导航回来。可选 `--expected-origin` 与 `--expected-title-regex` 增加约束。显式 `navigate` 以及未带准确网址约束的旧 `network --navigate`、`wait --url-contains` 保留导航语义；锁定会话不执行自动重新绑定。
+
 未指定参数时的默认配置保持为：
 
 ```text
@@ -188,6 +198,14 @@ expires_at
 
 ## 5. 页面勘察表达式
 
+### 网络条件与资源原语
+
+旧 `network --duration 3 --click '#download'` 继续可用；显式 `network capture` 等价。`network wait-response --url-regex '/upload' --status 2xx --click '#send'` 先启用观察再触发点击，等待匹配响应；状态也可为 `200,201`。`network wait-request` 等待请求开始，`network wait-idle --url-regex '/upload' --idle-ms 500` 要求匹配范围内没有未完成请求且在指定时间内无活动。会话建立时即启用网络域，支持先执行输入／点击再等待；单次 CLI 只能观察连接期间和显式触发之后的请求，不能追溯连接前发生的请求。缓存响应、重定向与失败结束按 CDP 事件处理。[Network 官方协议](https://chromedevtools.github.io/devtools-protocol/tot/Network/)
+
+输出只含安全元数据：网址、方法、状态、媒体类型、内容长度与时间；不返回 Cookie、Authorization、其他原始请求头或请求正文。事件与结果有数量边界。超时同样为 `WAIT_TIMEOUT`，带最后观测和未完成请求数量。
+
+`resolve-artifact '#result a' --within '#message-123'` 从 `data-safe-src`、`currentSrc`、`href`、`src` 或 `data` 提取真实资源，回传网址、来源页、类型提示和建议文件名。调用方优先使用普通 HTTP 传输；网址必须依赖当前浏览器会话时，`browser-fetch '<网址>' --max-bytes 20971520` 在页面中获取并保存到系统临时文件，回传绝对路径、大小与媒体类型。该命令执行读取，不提取或保存浏览器凭据。
+
 普通勘察先使用 CLI 的 `inspect`；只需要正文时使用 `text`。下面表达式用于 `eval` 的站点特定补充，不应再包装成独立脚本。
 
 读取可见正文：
@@ -241,6 +259,10 @@ uv run <script-path> type '#q1' '示例'
 
 ## 7. 点击、单选和条件题
 
+高动态页面用唯一业务容器限定目标，例如 `click 'button.variant' --within '#message-123' --expect-text 'U1' --expect-role button`。相同文本的其他容器不参与定位。默认匹配数量为 1；只有显式设置 `--expect-count N --allow-multiple` 才按第一个匹配动作，调用方仍应优先唯一定位。`--predicate` 使用变量 `el` 表达补充约束。会话操作 `click`、`type`、`fill` 使用同名下划线参数。
+
+点击在滚动及一帧等待后重新查询，不使用旧坐标。指针移动与按下后再验证同一元素身份、文本、祖先和位置，命中点被遮挡或元素变化时拒绝。输入回读可编辑区域的可见文本、焦点与 `aria-invalid`，通过 `--verify exact|contains|none` 指定值核验方式；即使关闭值核验，仍核验焦点、元素身份和无效状态。模态框勘察可用 `inspect --within '#modal'`。
+
 普通点击优先使用 CLI 的 `click`。该命令不是 `element.click()` 包装：它读取目标实际屏幕坐标、通过 `elementFromPoint` 验证落点，再发送 CDP mouse move / press / release。自定义单选、React/Vue 控件和条件题都先走这条真实 pointer 路径。
 
 如果真实 `input` 被隐藏而交互绑定在可见 label、anchor 或 wrapper 上，应把 selector 指向站点实际可点击的可见目标。若中心落点被 overlay 或其他元素遮挡，CLI 会拒绝继续；先重新定位真正的交互目标，而不是退回 `element.click()` 绕过命中测试。
@@ -248,6 +270,16 @@ uv run <script-path> type '#q1' '示例'
 点击后使用 `inspect`、`wait` 或站点特定 `eval` 重新读取组件状态、错误状态和后续题目的显示状态。不要一次性给所有隐藏题写值再假定页面会接受；条件题应按真实交互顺序展开。
 
 ## 8. 日期控件
+
+### 可解释异步等待
+
+`wait` 保留选择器、文本、网址片段和表达式条件；`--visible` 要求选择器实际可见，文本条件遵循 `--within`。新增 `--dom-stable <选择器> --stable-ms 500`。稳定条件比较数量、可见文本和指定属性，要求至少一个元素存在；`--attribute` 可重复指定观测属性。
+
+`elements --selector '.message' --within '#messages'` 返回有界元素观测及身份。动作前保留 `identity` 数组，再用 `wait-new --selector '.message' --baseline '[1,2]'` 等待真正新增元素。省略数组时以等待启动时的元素为基准；已经出现的结果需要使用动作前的数组。站点虚拟列表复用 DOM 节点时，在两次调用中使用相同的 `--identity-attribute id` 或现有消息身份属性；数组中会包含属性身份，节点复用但属性变化也能识别。属性为空时退回元素对象身份，不临时修改 DOM 打标记。
+
+`wait-transition --selector '#status' --initial-text '正在发送' --until-expression 'value === "完成"'` 记录初始、途中和完成文本，表达式可读 `value` 和 `observed`。若要求经过特定途中状态，可重复使用 `--intermediate-text`；轮次之间短暂出现的文本可能无法捕获，不应把极短状态作为完成前提。`wait-mutation --within '#preview' --until-expression '<表达式>'` 要求范围内先发生变化，再满足完成条件。
+
+等待在页面安装 `MutationObserver`，变化时立即唤醒，定时器兼容无 DOM 变化的条件，并在完成或失败后清理。需要把触发与等待结合时，传 `--click` 和可选 `--click-within`，先安装观察与基线，再使用真实点击。超时返回 `WAIT_TIMEOUT`，`context` 包含条件、`elapsed`、`last_observed`、`mutation_count` 和文本变化记录。会话中使用相同操作名与下划线参数，`timeout` 按请求指定秒数。
 
 对只读日期输入框，首选点击页面日期选择器。如果必须直接设置，应在设置后验证站点是否接受：
 
@@ -262,6 +294,10 @@ el.dispatchEvent(new Event('change', { bubbles: true }));
 不要把这一方式当作默认做法。不同站点可能把真实值保存在隐藏字段或框架状态中。
 
 ## 9. 文件上传与跨系统路径
+
+`upload 'input[type=file]' '/tmp/中文 图片(1).png' --within '#attachment-area' --check-only` 返回完整预检；去掉 `--check-only` 才设置文件。`--predicate 'el.accept.includes("image")'` 可消歧隐藏输入，默认不按 DOM 顺序挑选。单文件输入收到多个路径返回 `FILE_CONSTRAINT_VIOLATION`，缺文件返回 `FILE_NOT_FOUND`，设置后回读不一致返回 `UPLOAD_VERIFICATION_FAILED`。页面额外大小限制用 `--max-file-bytes`、`--max-total-bytes` 表达，不能从 `accept` 推断大小。
+
+路径转换依据浏览器的 `navigator.platform`，在 WSL 控制 Linux 浏览器时保留 Linux 路径；控制 Windows 浏览器时转换，并先核验本地文件。无法核验远程 Windows 路径时拒绝。结果 `state.files` 包含浏览器读到的 `name`、`size`、`type`；`input_rebuilt` 和 `current_input` 说明设置后是否重建。上层仍需等待预览、传输完成和消息落地，不把 CDP 设置成功当作服务器已收到。
 
 优先使用 CLI 的 `upload`。在 WSL 下传入存在的 Linux 路径时，脚本会在需要时转换为 Windows Chrome 可访问路径；也可以直接传入明确的 Windows 路径。
 
@@ -290,6 +326,14 @@ C:\Users\Akira\Downloads\evidence.zip
 如果页面只允许上传一个文件，而凭证有多个，优先按主办方要求打包，不要尝试多次覆盖同一个单文件上传框。
 
 ## 10. 文件按时间定位
+
+### 截图、快照与失败证据
+
+`screenshot --output /tmp/page.png` 截取可视区域，增加 `--selector '#modal' --within '#root'` 可裁剪元素。`snapshot --selector '#modal' --max-chars 10000` 返回有界 HTML、位置、计算可见性、祖先与子控件，移除脚本、隐藏凭据输入和敏感属性。输出图片来自 [`Page.captureScreenshot`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-captureScreenshot)。
+
+`click '#missing' --evidence-on-error` 等高风险命令在失败时生成系统临时证据目录；会话也可全局开启，或每行传 `evidence_on_error: true`。原错误的 `context.evidence_dir` 指向目录，包含 `meta.json`、`screenshot.png`、`visible-text.txt`、`controls.json`、`target.json`、`console-errors.json`。网址查询与片段、敏感键和认证文本被过滤；不采集 Cookie、浏览器存储、请求头或完整 DOM。失败截图临时模糊表单输入，然后恢复原样。截图仍包含页面其他可见内容，证据是本地临时诊断资料，不自动发送或长期存档。
+
+关闭、换页或失去锁定时不会为了凑齐证据控制另一个目标，`meta.capture_errors` 说明缺少哪些采集步骤。临时目录不可写等诊断失败通过 `evidence_capture_error` 回传，保留原动作错误码。
 
 当用户只记得“几个文件挨得比较近”时，可以先按修改时间列出下载目录，再由文件名、时间和大小交叉确认。
 

@@ -30,7 +30,7 @@ class GuardedCallTests(unittest.TestCase):
         context = MagicMock()
         context.__enter__.return_value = client
         with patch.object(cli, "selected_target", return_value={"id": "page-a", "title": "ChatGPT", "url": "https://chatgpt.com/"}), \
-             patch.object(cli, "page_client", return_value=context):
+             patch.object(cli, "locked_page", return_value=context):
             try:
                 cli.command_call(self.arguments())
             except BrowserCdpError:

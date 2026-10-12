@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -21,6 +22,12 @@ sys.dont_write_bytecode = True
 from browser_cdp_lifecycle import (
     BrowserConfig, browser_status, ensure_browser, ensure_then_targets, selected_target,
 )
+from browser_runtime.network import observe_network, resolve_artifact, browser_fetch
+from browser_runtime.waits import wait_condition, observation_expression
+from browser_runtime.upload import upload_files
+from browser_runtime.actions import pointer_click, type_text, fill_native
+from browser_runtime.dom import SelectorGuard, dom_expression, scope_expression
+from browser_session import TargetLock, BrowserSession, locked_page, serve_session
 from browser_cdp_profiles import DEFAULT_CONFIG_PATH, load_profiles, resolve_profile, save_profile
 from browser_cdp_core import (
     DEFAULT_ENDPOINT,
@@ -44,9 +51,17 @@ from browser_cdp_core import (
     target_state_expression,
     target_view,
     wait_ready,
+    validate_timeout,
 )
 
+class JsonArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        raise BrowserCdpError(message, code="INVALID_ARGUMENT")
+
 def add_target_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--expected-url", help="exact locked page URL")
+    parser.add_argument("--expected-origin", help="optional locked origin")
+    parser.add_argument("--expected-title-regex", help="optional title constraint")
     parser.add_argument(
         "--target",
         help="page target: exact ID, unique ID prefix, unique title fragment, or unique URL fragment",
@@ -54,7 +69,7 @@ def add_target_argument(parser: argparse.ArgumentParser) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = JsonArgumentParser(
         description="Fast deterministic control surface for browser-access's WSL -> Windows Chrome CDP adapter"
     )
     parser.add_argument("--endpoint", help=f"CDP HTTP endpoint (default: {DEFAULT_ENDPOINT})")
@@ -109,6 +124,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     network_parser = sub.add_parser("network", help="capture request/response metadata around a click or navigation")
     add_target_argument(network_parser)
+    network_parser.add_argument("mode",nargs="?",choices=("capture","wait-response","wait-request","wait-idle"),default="capture")
+    network_parser.add_argument("--url-regex")
+    network_parser.add_argument("--status",default="2xx")
+    network_parser.add_argument("--idle-ms",type=float,default=500)
     trigger = network_parser.add_mutually_exclusive_group()
     trigger.add_argument("--click", metavar="SELECTOR", help="click this element after Network.enable")
     trigger.add_argument("--navigate", metavar="URL", help="navigate after Network.enable")
@@ -140,6 +159,9 @@ def build_parser() -> argparse.ArgumentParser:
     add_target_argument(upload_parser)
     upload_parser.add_argument("selector")
     upload_parser.add_argument("files", nargs="+")
+    upload_parser.add_argument("--check-only",action="store_true")
+    upload_parser.add_argument("--max-file-bytes",type=int)
+    upload_parser.add_argument("--max-total-bytes",type=int)
 
     wait_parser = sub.add_parser("wait", help="wait until a selector, text, URL fragment, or JavaScript expression becomes true")
     add_target_argument(wait_parser)
@@ -148,8 +170,63 @@ def build_parser() -> argparse.ArgumentParser:
     condition.add_argument("--text")
     condition.add_argument("--url-contains")
     condition.add_argument("--expression")
+    condition.add_argument("--dom-stable",metavar="SELECTOR")
+    wait_parser.add_argument("--visible",action="store_true",help="selector must have a visible match")
     wait_parser.add_argument("--poll", type=float, default=0.25, help="poll interval in seconds")
 
+    session_parser = sub.add_parser("session", help="one locked page WebSocket; stdin/stdout JSONL requests")
+    add_target_argument(session_parser)
+
+    new_parser=sub.add_parser("wait-new",help="wait for elements absent from an identity baseline")
+    transition_parser=sub.add_parser("wait-transition",help="observe text states until a predicate completes")
+    mutation_parser=sub.add_parser("wait-mutation",help="wait for a scoped DOM mutation and optional expression")
+    elements_parser=sub.add_parser("elements",help="read bounded element identities for a wait baseline")
+    for observer in (new_parser,transition_parser,mutation_parser,elements_parser):
+        add_target_argument(observer)
+        observer.add_argument("--selector",required=observer in (new_parser,transition_parser,elements_parser))
+        observer.add_argument("--within")
+        observer.add_argument("--attribute",action="append",dest="attributes")
+        observer.add_argument("--identity-attribute",help="semantic DOM identity, such as id or data-message-id")
+    new_parser.add_argument("--baseline",help="JSON array of identities captured before the action")
+    transition_parser.add_argument("--initial-text")
+    transition_parser.add_argument("--intermediate-text",action="append",default=[])
+    transition_parser.add_argument("--until-expression",required=True,help="completion expression with observed and value in scope")
+    mutation_parser.add_argument("--until-expression")
+    for waiting in (wait_parser,new_parser,transition_parser,mutation_parser):
+        if waiting is not wait_parser: waiting.add_argument("--poll",type=float,default=0.1)
+        waiting.add_argument("--stable-ms",type=float,default=500)
+        waiting.add_argument("--click",help="trigger click after installing observer and baseline")
+        waiting.add_argument("--click-within")
+        waiting.add_argument("--allow-submit",action="store_true")
+    wait_parser.add_argument("--attribute",action="append",dest="attributes")
+    artifact_parser=sub.add_parser("resolve-artifact",help="resolve an element's resource URL and filename")
+    fetch_parser=sub.add_parser("browser-fetch",help="bounded fetch in the authorized page, saved to OS temp")
+    add_target_argument(artifact_parser)
+    artifact_parser.add_argument("selector")
+    artifact_parser.add_argument("--within")
+    add_target_argument(fetch_parser)
+    fetch_parser.add_argument("url")
+    fetch_parser.add_argument("--max-bytes",type=int,default=20*1024*1024)
+    fetch_parser.add_argument("--evidence-on-error",action="store_true")
+    screenshot_parser=sub.add_parser("screenshot",help="capture a page or selected element as PNG")
+    snapshot_parser=sub.add_parser("snapshot",help="return bounded HTML and geometry without credential attributes")
+    for diagnostic in (screenshot_parser,snapshot_parser):
+        add_target_argument(diagnostic)
+        diagnostic.add_argument("--selector",required=diagnostic is snapshot_parser)
+        diagnostic.add_argument("--within")
+    screenshot_parser.add_argument("--output",required=True)
+    snapshot_parser.add_argument("--max-chars",type=int,default=10000)
+    for risky in (click_parser,type_parser,fill_parser,upload_parser,wait_parser,new_parser,transition_parser,mutation_parser,network_parser,eval_parser,call_parser,session_parser):
+        risky.add_argument("--evidence-on-error",action="store_true")
+    for scoped in (click_parser,type_parser,fill_parser,upload_parser,inspect_parser,text_parser,wait_parser,network_parser):
+        scoped.add_argument("--within", help="unique ancestor selector")
+    for guarded in (click_parser,type_parser,fill_parser,upload_parser,screenshot_parser,snapshot_parser,artifact_parser):
+        guarded.add_argument("--expect-text", help="exact normalized visible text")
+        guarded.add_argument("--expect-role", help="ARIA or native role")
+        guarded.add_argument("--expect-count", type=int, default=1)
+        guarded.add_argument("--allow-multiple", action="store_true", help="explicitly use first of expected matches")
+        guarded.add_argument("--predicate", help="JavaScript predicate with el in scope")
+    type_parser.add_argument("--verify", choices=("exact","contains","none"),default="exact")
     return parser
 
 
@@ -174,16 +251,21 @@ def command_open(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_focus(args: argparse.Namespace) -> dict[str, Any]:
-    target = selected_target(args.browser, args.target, timeout=args.timeout)
-    version = require_browser(args.endpoint, timeout=args.timeout)
-    with browser_client(version, timeout=args.timeout) as client:
-        client.call("Target.activateTarget", {"targetId": target["id"]})
-    return {"focused": True, "target": target_view(target)}
+    target=selected_target(args.browser,args.target,timeout=args.timeout)
+    with locked_page(args,target) as page:
+        page.call("Page.bringToFront")
+    return {"focused":True,"target":target_view(target)}
 
 
 def command_navigate(args: argparse.Namespace) -> dict[str, Any]:
     target = selected_target(args.browser, args.target, timeout=args.timeout)
+    if any(getattr(args,key,None) for key in ("expected_url","expected_origin","expected_title_regex")):
+        TargetLock(str(target["id"]),args.expected_url or str(target["url"]),args.expected_origin,args.expected_title_regex).validate(target)
     with page_client(target, timeout=args.timeout) as client:
+        if args.expected_url:
+            actual=client.evaluate("location.href")
+            if actual!=args.expected_url:
+                raise BrowserCdpError("Page changed before explicit navigation",code="TARGET_LOCK_VIOLATION",context={"expected_url":args.expected_url,"actual_url":actual})
         client.call("Page.enable")
         nav = client.call("Page.navigate", {"url": args.url})
         ready = wait_ready(client, timeout=args.timeout)
@@ -194,7 +276,7 @@ def command_navigate(args: argparse.Namespace) -> dict[str, Any]:
 
 def command_eval_like(args: argparse.Namespace, expression: str, *, await_promise: bool = False) -> dict[str, Any]:
     target = selected_target(args.browser, args.target, timeout=args.timeout)
-    with page_client(target, timeout=args.timeout) as client:
+    with locked_page(args, target) as client:
         value = client.evaluate(expression, await_promise=await_promise)
     return {"target": target_view(target), "value": value}
 
@@ -202,13 +284,13 @@ def command_eval_like(args: argparse.Namespace, expression: str, *, await_promis
 def command_text(args: argparse.Namespace) -> dict[str, Any]:
     limit = max(0, int(args.limit))
     expression = f"(() => {{ const t = document.body?.innerText || ''; return {{text:t.slice(0,{limit}), length:t.length, truncated:t.length>{limit}}}; }})()"
-    return command_eval_like(args, expression)
+    return command_eval_like(args, scope_expression(expression,args.within))
 
 
 def command_inspect(args: argparse.Namespace) -> dict[str, Any]:
     return command_eval_like(
         args,
-        inspect_expression(max(0, int(args.text_limit)), all_controls=args.all_controls),
+        scope_expression(inspect_expression(max(0, int(args.text_limit)), all_controls=args.all_controls),args.within),
     )
 
 
@@ -223,7 +305,7 @@ def command_call(args: argparse.Namespace) -> dict[str, Any]:
             result = client.call(args.method, params)
         return {"scope": "browser", "method": args.method, "result": result}
     target = selected_target(args.browser, args.target, timeout=args.timeout)
-    with page_client(target, timeout=args.timeout) as client:
+    with locked_page(args, target) as client:
         if args.guard is not None and client.evaluate(args.guard, await_promise=True) is not True:
             raise BrowserCdpError("Page guard did not return boolean true; no CDP action was sent")
         result = client.call(args.method, params)
@@ -231,129 +313,66 @@ def command_call(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def command_network(args: argparse.Namespace) -> dict[str, Any]:
-    target = selected_target(args.browser, args.target, timeout=args.timeout)
-    trigger_result: Any = None
-    with page_client(target, timeout=args.timeout) as client:
-        client.call("Network.enable")
-        if args.click:
-            trigger_result = client.evaluate(
-                interaction_point_expression(args.click, allow_submit=args.allow_submit)
-            )
-            if not isinstance(trigger_result, dict):
-                raise CdpProtocolError("Pointer target inspection did not return an object")
-            dispatch_primary_click(client, trigger_result)
-        elif args.navigate:
-            client.call("Page.enable")
-            trigger_result = client.call("Page.navigate", {"url": args.navigate})
-        events = client.collect_events(max(0.0, args.duration))
-    records = summarize_network_events(events, url_contains=args.url_contains)
-    max_results = max(0, int(args.max_results))
-    return {
-        "target": target_view(target),
-        "trigger": trigger_result,
-        "eventCount": len(events),
-        "recordCount": len(records),
-        "returnedRecordCount": min(len(records), max_results),
-        "records": records[:max_results],
-    }
+    target=selected_target(args.browser,args.target,timeout=args.timeout)
+    with locked_page(args,target) as page:
+        result=observe_network(page,vars(args))
+    return {"target":target_view(target),**result}
 
 
 def command_click(args: argparse.Namespace) -> dict[str, Any]:
     target = selected_target(args.browser, args.target, timeout=args.timeout)
-    with page_client(target, timeout=args.timeout) as client:
-        point = client.evaluate(
-            interaction_point_expression(args.selector, allow_submit=args.allow_submit)
-        )
-        if not isinstance(point, dict):
-            raise CdpProtocolError("Pointer target inspection did not return an object")
-        dispatch_primary_click(client, point)
-    return {"clicked": True, "target": target_view(target), "interaction": point}
+    with locked_page(args, target) as page:
+        result = pointer_click(page,args.selector,SelectorGuard.from_options(vars(args)),allow_submit=args.allow_submit)
+    return {"target":target_view(target),**result}
 
 
 def command_type(args: argparse.Namespace) -> dict[str, Any]:
     target = selected_target(args.browser, args.target, timeout=args.timeout)
-    with page_client(target, timeout=args.timeout) as client:
-        point = client.evaluate(
-            interaction_point_expression(args.selector, require_text_target=True)
-        )
-        if not isinstance(point, dict):
-            raise CdpProtocolError("Text target inspection did not return an object")
-        dispatch_primary_click(client, point)
-        focused = client.evaluate(target_state_expression(args.selector))
-        if not isinstance(focused, dict) or not focused.get("focused"):
-            raise CdpProtocolError(
-                "Pointer click did not focus the requested text target; refusing to send keyboard input"
-            )
-        replace_focused_text(client, args.value)
-        state = client.evaluate(target_state_expression(args.selector))
-    return {
-        "typed": True,
-        "target": target_view(target),
-        "interaction": point,
-        "state": state,
-    }
+    with locked_page(args, target) as page:
+        result = type_text(page,args.selector,args.value,SelectorGuard.from_options(vars(args)),verify=args.verify)
+    return {"target":target_view(target),**result}
 
 
 def command_fill(args: argparse.Namespace) -> dict[str, Any]:
-    return command_eval_like(args, fill_expression(args.selector, args.value))
+    target = selected_target(args.browser,args.target,timeout=args.timeout)
+    with locked_page(args,target) as page:
+        result = fill_native(page,args.selector,args.value,SelectorGuard.from_options(vars(args)))
+    return {"target":target_view(target),**result}
 
 
 def command_upload(args: argparse.Namespace) -> dict[str, Any]:
-    target = selected_target(args.browser, args.target, timeout=args.timeout)
-    files = [chrome_file_path(value) for value in args.files]
-    with page_client(target, timeout=args.timeout) as client:
-        client.call("DOM.enable")
-        document = client.call("DOM.getDocument", {"depth": 1, "pierce": True})
-        root = document.get("root", {})
-        node_id = root.get("nodeId") if isinstance(root, dict) else None
-        if not isinstance(node_id, int):
-            raise CdpProtocolError("DOM.getDocument did not return a root nodeId")
-        query = client.call("DOM.querySelector", {"nodeId": node_id, "selector": args.selector})
-        file_node_id = query.get("nodeId")
-        if not isinstance(file_node_id, int) or file_node_id == 0:
-            raise CdpProtocolError(f"No element matches upload selector {args.selector!r}")
-        client.call("DOM.setFileInputFiles", {"nodeId": file_node_id, "files": files})
-        state = client.evaluate(
-            f"(() => {{ const el=document.querySelector({json.dumps(args.selector, ensure_ascii=False)}); return el ? {{count:el.files?.length || 0, names:[...(el.files || [])].map(f=>f.name)}} : null; }})()"
-        )
-    return {"uploaded": True, "target": target_view(target), "files": files, "state": state}
+    target=selected_target(args.browser,args.target,timeout=args.timeout)
+    with locked_page(args,target) as page:
+        result=upload_files(page,args.selector,args.files,SelectorGuard.from_options(vars(args)),check_only=args.check_only,max_file_bytes=args.max_file_bytes,max_total_bytes=args.max_total_bytes)
+    return {"target":target_view(target),**result}
 
 
 def command_wait(args: argparse.Namespace) -> dict[str, Any]:
-    target = selected_target(args.browser, args.target, timeout=args.timeout)
-    if args.selector is not None:
-        expression = f"!!document.querySelector({json.dumps(args.selector, ensure_ascii=False)})"
-        condition = {"selector": args.selector}
-    elif args.text is not None:
-        expression = f"(document.body?.innerText || '').includes({json.dumps(args.text, ensure_ascii=False)})"
-        condition = {"text": args.text}
-    elif args.url_contains is not None:
-        expression = f"location.href.includes({json.dumps(args.url_contains, ensure_ascii=False)})"
-        condition = {"urlContains": args.url_contains}
-    else:
-        expression = args.expression
-        condition = {"expression": args.expression}
-    started = time.monotonic()
-    deadline = started + args.timeout
-    last: Any = None
-    with page_client(target, timeout=args.timeout) as client:
-        while time.monotonic() < deadline:
-            last = client.evaluate(expression)
-            if bool(last):
-                return {
-                    "met": True,
-                    "elapsedSeconds": round(time.monotonic() - started, 3),
-                    "condition": condition,
-                    "target": target_view(target),
-                    "value": last,
-                }
-            time.sleep(max(0.05, args.poll))
-    raise BrowserCdpError(
-        f"Condition was not met within {args.timeout:g}s: {json.dumps(condition, ensure_ascii=False)}; last value={last!r}"
-    )
+    target=selected_target(args.browser,args.target,timeout=args.timeout)
+    kind={"wait-new":"new","wait-transition":"transition","wait-mutation":"mutation"}.get(args.command,"stable" if getattr(args,"dom_stable",None) else "condition")
+    options=vars(args).copy()
+    if getattr(args,"baseline",None):
+        options["baseline"]=json.loads(args.baseline)
+    if getattr(args,"dom_stable",None):
+        options["selector"]=args.dom_stable
+    with locked_page(args,target) as page:
+        result=wait_condition(page,kind,options)
+    return {"target":target_view(target),**result}
 
 
 def dispatch(args: argparse.Namespace) -> Any:
+    if args.command in {"resolve-artifact","browser-fetch"}:
+        target=selected_target(args.browser,args.target,timeout=args.timeout)
+        with locked_page(args,target) as page:
+            result=resolve_artifact(page,args.selector,SelectorGuard.from_options(vars(args))) if args.command=="resolve-artifact" else browser_fetch(page,args.url,max_bytes=args.max_bytes,timeout=args.timeout)
+        return {"target":target_view(target),**result}
+    if args.command in {"screenshot","snapshot"}:
+        from browser_runtime.evidence import screenshot, snapshot
+        target=selected_target(args.browser,args.target,timeout=args.timeout)
+        with locked_page(args,target) as page:
+            if args.command=="screenshot":result=screenshot(page,args.output,args.selector,SelectorGuard.from_options(vars(args)))
+            else:result=snapshot(page,args.selector,SelectorGuard.from_options(vars(args)),max_chars=args.max_chars)
+        return {"target":target_view(target),**result}
     if args.command == "profiles":
         if any(option is not None for option in (args.profile, args.endpoint, args.user_data_dir, args.profile_directory)):
             raise BrowserCdpError("profiles only accepts --config and output options")
@@ -399,21 +418,35 @@ def dispatch(args: argparse.Namespace) -> Any:
         return command_fill(args)
     if args.command == "upload":
         return command_upload(args)
-    if args.command == "wait":
+    if args.command in {"wait","wait-new","wait-transition","wait-mutation"}:
         return command_wait(args)
+    if args.command == "elements":
+        return command_eval_like(args,observation_expression(args.selector,args.within,args.attributes,args.identity_attribute))
     raise BrowserCdpError(f"Unsupported command: {args.command}")
 
 
 def main() -> int:
     parser = build_parser()
-    args = parser.parse_args()
     try:
+        args = parser.parse_args()
+        args.timeout = validate_timeout(args.timeout)
         if args.command != "profiles":
             args.browser = resolve_profile(args.profile, args.config, args.endpoint, args.user_data_dir, args.profile_directory)
             args.endpoint = args.browser.endpoint
+        if args.command == "session":
+            target = selected_target(args.browser, args.target, timeout=args.timeout)
+            with locked_page(args, target) as page:
+                serve_session(page, sys.stdin, sys.stdout, evidence_on_error=args.evidence_on_error)
+            return 0
         emit(dispatch(args), compact=args.compact)
     except BrowserCdpError as exc:
-        emit({"ok": False, "error": str(exc)}, compact=args.compact)
+        emit(exc.as_dict(), compact="--compact" in sys.argv)
+        return 2
+    except (OSError, ValueError, re.error) as exc:
+        emit(BrowserCdpError(str(exc), code="IO_ERROR" if isinstance(exc, OSError) else "INVALID_ARGUMENT").as_dict(), compact="--compact" in sys.argv)
+        return 2
+    except Exception as exc:
+        emit(BrowserCdpError(str(exc),code="INTERNAL_ERROR").as_dict(),compact="--compact" in sys.argv)
         return 2
     return 0
 

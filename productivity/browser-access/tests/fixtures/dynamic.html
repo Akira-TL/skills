@@ -1,0 +1,20 @@
+<!doctype html><meta charset="utf-8"><title>Browser Access 本地夹具</title>
+<style>body{font:18px sans-serif;padding:20px}button,input,[contenteditable]{margin:8px;padding:8px}#overlay{display:none;position:fixed;inset:0;background:#fffa;z-index:100}#modal{border:1px solid;padding:20px}#spacer{height:1600px}</style>
+<div id="message-one"><button type="button" class="variant" onclick="this.dataset.clicked='one'">U1</button></div>
+<div id="message-two"><button type="button" class="variant" onclick="this.dataset.clicked='two'">U1</button></div>
+<input id="editor"><div id="rich" contenteditable="true" role="textbox"></div>
+<button id="open-modal" type="button" onclick="document.querySelector('#modal').hidden=false">打开</button>
+<div id="modal" hidden><input class="field"><button class="close" type="button" onclick="document.querySelector('#modal').hidden=true">关闭</button></div>
+<button id="progress" type="button" onclick="runProgress()">开始</button><div id="status">初始</div><div id="messages"></div>
+<div id="upload-one"><input type="file" class="file" accept="image/*" hidden></div>
+<div id="upload-two"><input type="file" class="file" accept="image/png,image/jpeg,image/webp" multiple hidden></div>
+<div id="preview"></div>
+<button id="replace-press" type="button" onmousedown="const next=this.cloneNode(true);next.removeAttribute('onmousedown');this.replaceWith(next)">替换</button>
+<a id="artifact" href="/asset.png" download="结果.png">附件</a>
+<button id="request" type="button" onclick="fetch('/asset.png').then(r=>r.blob())">请求</button>
+<div id="overlay"></div><div id="spacer"></div><button id="offscreen" type="button">远处</button>
+<script>
+function bindFiles(input){input.addEventListener('change',()=>{document.querySelector('#preview').textContent=[...input.files].map(f=>f.name).join('|');const next=input.cloneNode();input.replaceWith(next);bindFiles(next);});}
+document.querySelectorAll('input[type=file]').forEach(bindFiles);
+function runProgress(){const status=document.querySelector('#status');status.textContent='正在发送';setTimeout(()=>status.textContent='处理中',80);setTimeout(()=>{status.textContent='完成';const node=document.createElement('div');node.id='new-message';node.textContent='最终结果';document.querySelector('#messages').append(node);},220);}
+</script>
