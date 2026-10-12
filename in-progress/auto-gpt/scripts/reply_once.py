@@ -51,6 +51,12 @@ def snapshot(page: Page, selectors: Selectors) -> Mapping[str, object]:
     return object_fields(page.evaluate(selectors.expression(), await_promise=True))
 
 
+def confirmation(page: Page, selectors: Selectors) -> Mapping[str, object]:
+    # 提交后旧回复容器可被替换；只读用户消息与控件，不再绑定发送前回复。
+    expression = f"(() => {{ {VIEW}; return {{...userView({json.dumps(asdict(selectors))}), controls: {PROBE}}}; }})()"
+    return object_fields(page.evaluate(expression))
+
+
 def non_pro(model: str) -> bool:
     return bool(model.strip()) and "pro" not in model.casefold()
 
@@ -121,13 +127,15 @@ def continue_once(page: Page, selectors: Selectors, *, url: str, target: str,
         page.call("Input.dispatchKeyEvent", {"type": "keyUp", "key": "Enter", "code": "Enter",
                   "windowsVirtualKeyCode": 13}, guard=release_guard)
     attempt.stage = "confirming"
-    after = snapshot(page, selectors)
+    after = confirmation(page, selectors)
     attempt.confirmed = (type(after.get("user_count")) is int
                          and cast(int, after["user_count"]) > cast(int, before["user_count"])
                          and after.get("latest_user") == "继续")
     attempt.stage = "confirmed" if attempt.confirmed else "unconfirmed"
     # 确认失败只返回事实，不再按键，不把空编辑器当发送成功。
-    return {"attempt": asdict(attempt), "controls": asdict(read_controls(page.evaluate(PROBE)))}
+    return {"attempt": asdict(attempt), "confirmation": {"before_user_count": before["user_count"],
+            "after_user_count": after.get("user_count"), "latest_user_is_continue": after.get("latest_user") == "继续"},
+            "controls": asdict(read_controls(after.get("controls")))}
 
 
 def main() -> int:

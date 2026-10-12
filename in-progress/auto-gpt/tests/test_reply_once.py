@@ -34,7 +34,8 @@ class ReplyOnceTests(unittest.TestCase):
                                     model='5.6 极高', attempt=self.attempt, **options)
 
     def test_one_input_and_one_enter_confirmed_in_one_page_session(self):
-        with patch.object(module, 'snapshot', side_effect=[BEFORE, BEFORE, AFTER]):
+        with patch.object(module, 'snapshot', side_effect=[BEFORE, BEFORE]), \
+             patch.object(module, 'confirmation', return_value={**AFTER, 'controls':CONTROLS}):
             result = self.run_once()
         self.assertTrue(result['attempt']['confirmed'])
         calls = self.page.call.call_args_list
@@ -55,11 +56,13 @@ class ReplyOnceTests(unittest.TestCase):
             self.page.call.assert_not_called()
 
     def test_unconfirmed_enter_is_never_retried(self):
-        with patch.object(module, 'snapshot', side_effect=[BEFORE, BEFORE, BEFORE]):
+        with patch.object(module, 'snapshot', side_effect=[BEFORE, BEFORE]), \
+             patch.object(module, 'confirmation', return_value={**BEFORE, 'controls':CONTROLS}):
             result = self.run_once()
         self.assertEqual(result['attempt']['stage'], 'unconfirmed')
         self.assertTrue(result['attempt']['enter_attempted'])
         self.assertFalse(result['attempt']['confirmed'])
+        self.assertEqual(result['confirmation']['after_user_count'], 1)
         self.assertEqual(sum(call.args[0] == 'Input.insertText' for call in self.page.call.call_args_list), 1)
 
     def test_enter_failure_releases_key_but_never_sends_second_enter(self):

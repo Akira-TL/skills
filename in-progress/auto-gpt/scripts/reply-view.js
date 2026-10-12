@@ -1,20 +1,27 @@
 // 只读：选择器必须先由 Agent 在实际页面核验，不猜测消息或工具区域。
-async function replyView(options) {
-  const fail = (error_code, message) => {
-    throw new Error('BROWSER_ERROR:' + JSON.stringify({error_code, message}));
-  };
-  const visible = el => {
+function viewVisible(el) {
     const style = getComputedStyle(el);
     if (style.visibility === 'hidden' || style.display === 'none') return false;
     if (el.getClientRects().length > 0) return true;
     if (style.display !== 'contents') return false;
     return [...el.childNodes].some(node => {
-      if (node instanceof Element) return visible(node);
+      if (node instanceof Element) return viewVisible(node);
       if (node.nodeType !== Node.TEXT_NODE || !node.textContent.trim()) return false;
       const range = document.createRange(); range.selectNode(node);
       return range.getClientRects().length > 0;
     });
+}
+
+function userView(options) {
+  const nodes = [...document.querySelectorAll(options.user_selector)].filter(viewVisible);
+  return {user_count: nodes.length, latest_user: nodes.at(-1)?.innerText.trim() || ''};
+}
+
+async function replyView(options) {
+  const fail = (error_code, message) => {
+    throw new Error('BROWSER_ERROR:' + JSON.stringify({error_code, message}));
   };
+  const visible = viewVisible;
   const all = selector => [...document.querySelectorAll(selector)].filter(visible);
   const unique = selector => {
     const nodes = all(selector);

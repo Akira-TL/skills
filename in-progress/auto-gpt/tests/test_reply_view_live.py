@@ -131,6 +131,7 @@ class ReplyViewLiveTests(unittest.TestCase):
           document.querySelector('#reply').before(message);
           event.target.textContent='';
           document.querySelector('#reply').innerHTML='<p>开始继续核对第二部分。</p>';
+          document.querySelector('#reply').id='new-reply';
         });""")
         before = self.read()
         attempt = once.Attempt()
@@ -138,6 +139,9 @@ class ReplyViewLiveTests(unittest.TestCase):
                                     target=self.target['id'], version=before['version'],
                                     model=before['model'], attempt=attempt)
         self.assertTrue(result['attempt']['confirmed'])
+        self.assertEqual(result['confirmation']['before_user_count'], 1)
+        self.assertEqual(result['confirmation']['after_user_count'], 2)
+        self.assertIsNone(self.page.evaluate("document.querySelector('#reply')"))
         self.assertEqual(self.page.evaluate("[...document.querySelectorAll('.user')].map(el=>el.innerText)"),
                          ['核对论文全文', '继续'])
         self.assertEqual(self.page.evaluate("document.querySelector('[role=textbox]').innerText"), '')

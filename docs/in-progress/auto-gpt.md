@@ -38,6 +38,8 @@ Agent 明确判断续接后，可用 `auto_gpt.sh continue` 发起一次动作�
 
 单次读取和动作同样返回规范错误码，区分选择器未匹配、多个匹配与范围重叠；保持唯一性要求，避免仅凭异常类型反复读取整页来猜原因。
 
+发送后只读用户消息与控件进行机械确认，允许网站替换旧回复容器。虚拟历史计数没有增加时保留未确认状态，由 Agent 立即回读新轮次或确实新出现的回复；不重复发送，也不把正在生成或输入框空当作提交证明。
+
 ## 源码与验证
 
 行为规则：[SKILL.md](../../in-progress/auto-gpt/SKILL.md)。适配器启动、事件和取消入口：[只读控件观察](../../in-progress/auto-gpt/references/control-monitor.md)；续接机械步骤：[页面观察与单次动作](../../in-progress/auto-gpt/references/browser-operations.md)。依赖通过标准 `skiloom-package.toml` 声明 `browser-access`。
