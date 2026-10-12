@@ -14,9 +14,9 @@ spec.loader.exec_module(module)
 Controls, Observation, watch = module.Controls, module.Observation, module.watch
 
 
-def page(target="one", *, running=False, draft=False, turns=1, alerts=0, dialogs=0):
+def page(target="one", *, running=False, draft=False, turns=1, alerts=0, dialogs=0, lost=False):
     return Observation(target, "https://chatgpt.com/c/test-conversation",
-                       Controls(int(running), int(not running), 1, draft, alerts, dialogs, turns, ""))
+                       Controls(int(running), int(not running), 1, draft, alerts, dialogs, turns, "", lost))
 
 
 class WatchTests(unittest.TestCase):
@@ -91,6 +91,78 @@ class WatchTests(unittest.TestCase):
         with self.assertRaises(KeyboardInterrupt):
             watch(sample, baseline=None, clock=lambda: 0, sleep=cancel)
         self.assertEqual(samples, [1])
+
+    def test_interrupted_notice_waits_three_minutes_while_stop_button_remains(self):
+        time = [0.0]
+        waits = []
+        def sleep(seconds):
+            waits.append(seconds)
+            time[0] += seconds
+        event = watch(lambda: (page(running=True, lost=True),), baseline=None,
+                      clock=lambda: time[0], sleep=sleep)
+        self.assertEqual(waits, [60, 60, 60])
+        self.assertEqual(event.reason, "connection-interrupted")
+        self.assertEqual(event.targets, ("one",))
+        self.assertEqual(event.observations[0].controls.stop, 1)
+        self.assertEqual(event.observations[0].connection.last_seen - event.observations[0].connection.since, 180)
+        self.assertTrue(event.observations[0].connection.reported)
+
+    def test_natural_return_to_composer_cancels_refresh_candidate(self):
+        time = [0.0]
+        frames = iter([(page(running=True, lost=True),), (page(running=True, lost=True),), (page(),)])
+        def sleep(seconds):
+            time[0] += seconds
+        event = watch(lambda: next(frames), baseline=None, clock=lambda: time[0], sleep=sleep)
+        self.assertEqual(event.reason, "controls-changed")
+        self.assertEqual(time[0], 120)
+        self.assertIsNone(event.observations[0].connection)
+
+    def test_stale_interruption_text_with_composer_does_not_start_timer(self):
+        observations = module.observe_connections(None, (page(lost=True),), 100)
+        self.assertIsNone(observations[0].connection)
+
+    def test_notice_disappearing_then_returning_starts_a_new_grace_period(self):
+        initial = module.observe_connections(None, (page(running=True, lost=True),), 0)
+        gone = module.observe_connections(initial, (page(running=True),), 60)
+        returned = module.observe_connections(gone, (page(running=True, lost=True),), 120)
+        self.assertIsNone(gone[0].connection)
+        self.assertEqual(returned[0].connection.since, 120)
+
+    def test_sampling_gap_does_not_count_unobserved_time_as_persistent_loss(self):
+        initial = module.observe_connections(None, (page(running=True, lost=True),), 0)
+        after_gap = module.observe_connections(initial, (page(running=True, lost=True),), 300)
+        self.assertEqual(after_gap[0].connection.since, 300)
+
+    def test_reported_loss_survives_rearming_without_repeated_notification(self):
+        baseline = (module.Observation("one", "https://chatgpt.com/c/test-conversation",
+                    page(running=True, lost=True).controls, module.ConnectionNotice(0, 180, True)),)
+        restored = module.read_baseline(json.dumps([module.asdict(p) for p in baseline]))
+        current = module.observe_connections(restored, (page(running=True, lost=True),), 240)
+        self.assertTrue(current[0].connection.reported)
+        self.assertEqual(current[0].connection.since, 0)
+        def cancel(_seconds):
+            raise KeyboardInterrupt
+        with self.assertRaises(KeyboardInterrupt):
+            watch(lambda: (page(running=True, lost=True),), baseline=current,
+                  clock=lambda: 240, sleep=cancel)
+
+    def test_invalid_connection_timing_is_rejected(self):
+        value = module.asdict(page(running=True, lost=True))
+        value["connection"] = {"since": 10, "last_seen": 2, "reported": False}
+        with self.assertRaises(ValueError):
+            module.read_baseline(json.dumps([value]))
+
+    def test_stale_timing_in_recovered_baseline_does_not_apply_to_new_loss(self):
+        baseline = (module.Observation("one", "https://chatgpt.com/c/test-conversation",
+                    page().controls, module.ConnectionNotice(0, 180, True)),)
+        current = module.observe_connections(baseline, (page(running=True, lost=True),), 240)
+        self.assertEqual(current[0].connection.since, 240)
+        self.assertFalse(current[0].connection.reported)
+
+    def test_observed_new_turn_restarts_the_grace_period(self):
+        baseline = module.observe_connections(None, (page(running=True, lost=True, turns=1),), 0)
+        current = module.observe_connections(baseline, (page(running=True, lost=True, turns=2),), 60)
+        self.assertEqual(current[0].connection.since, 60)
 
 
 if __name__ == "__main__":

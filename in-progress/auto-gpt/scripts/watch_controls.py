@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import math
 import signal
 import subprocess
 import sys
@@ -51,6 +52,7 @@ class Controls:
     dialogs: int
     turns: int
     latest_turn: str
+    connection_lost: bool = False
 
     @property
     def view(self) -> View:
@@ -62,10 +64,18 @@ class Controls:
 
 
 @dataclass(frozen=True)
+class ConnectionNotice:
+    since: float
+    last_seen: float
+    reported: bool = False
+
+
+@dataclass(frozen=True)
 class Observation:
     target: str
     url: str
     controls: Controls
+    connection: ConnectionNotice | None = None
 
 
 @dataclass(frozen=True)
@@ -88,10 +98,14 @@ def read_controls(value: object) -> Controls:
         raise ValueError("Invalid control counts")
     if type(fields.get("draft")) is not bool or not isinstance(fields.get("latest_turn"), str):
         raise ValueError("Invalid control observations")
+    connection_lost = fields.get("connection_lost", False)
+    if type(connection_lost) is not bool:
+        raise ValueError("Invalid connection observation")
     return Controls(stop=cast(int, fields["stop"]), composer=cast(int, fields["composer"]),
                     editors=cast(int, fields["editors"]), draft=cast(bool, fields["draft"]),
                     alerts=cast(int, fields["alerts"]), dialogs=cast(int, fields["dialogs"]),
-                    turns=cast(int, fields["turns"]), latest_turn=cast(str, fields["latest_turn"]))
+                    turns=cast(int, fields["turns"]), latest_turn=cast(str, fields["latest_turn"]),
+                    connection_lost=cast(bool, connection_lost))
 
 
 def conversation(url: str) -> str | None:
@@ -117,7 +131,39 @@ def read_baseline(raw: str | None) -> tuple[Observation, ...] | None:
         target, url = fields.get("target"), fields.get("url")
         if not isinstance(target, str) or not isinstance(url, str) or conversation(url) is None:
             raise ValueError("Invalid baseline target")
-        result.append(Observation(target, url, read_controls(fields.get("controls"))))
+        notice = None
+        connection = fields.get("connection")
+        if connection is not None:
+            facts = object_fields(connection)
+            since, last_seen, reported = facts.get("since"), facts.get("last_seen"), facts.get("reported")
+            if (type(since) not in (float, int) or type(last_seen) not in (float, int)
+                    or not math.isfinite(cast(float, since)) or not math.isfinite(cast(float, last_seen))
+                    or not 0 <= cast(float, since) <= cast(float, last_seen) or type(reported) is not bool):
+                raise ValueError("Invalid connection timing facts")
+            notice = ConnectionNotice(float(since), float(last_seen), cast(bool, reported))
+        result.append(Observation(target, url, read_controls(fields.get("controls")), notice))
+    return tuple(result)
+
+
+def observe_connections(previous: Sequence[Observation] | None, current: tuple[Observation, ...],
+                        now: float) -> tuple[Observation, ...]:
+    old = {page.target: page for page in previous or ()}
+    result: list[Observation] = []
+    for page in current:
+        notice = None
+        if page.controls.connection_lost and page.controls.view != View.COMPOSER:
+            before = old.get(page.target)
+            prior = None
+            if (before is not None and before.url == page.url and before.controls.connection_lost
+                    and before.controls.view != View.COMPOSER
+                    and (before.controls.turns, before.controls.latest_turn) == (page.controls.turns, page.controls.latest_turn)):
+                prior = before.connection
+            # 没有连续采样证据、采样中断或系统时钟基准失效时，重新计时。
+            if prior and 0 <= now - prior.last_seen <= 90:
+                notice = ConnectionNotice(prior.since, now, prior.reported)
+            else:
+                notice = ConnectionNotice(now, now)
+        result.append(Observation(page.target, page.url, page.controls, notice))
     return tuple(result)
 
 
@@ -150,8 +196,17 @@ def watch(sample: Callable[[], tuple[Observation, ...]], *, baseline: tuple[Obse
     previous = baseline
     while True:
         started = clock()
-        current = sample()
+        current = observe_connections(previous, sample(), clock())
         event = changes(previous, current)
+        persistent = tuple(page.target for page in current if page.connection is not None
+                           and not page.connection.reported
+                           and page.connection.last_seen - page.connection.since >= 180)
+        if persistent:
+            current = tuple(Observation(page.target, page.url, page.controls,
+                            ConnectionNotice(page.connection.since, page.connection.last_seen, True)
+                            if page.target in persistent and page.connection else page.connection) for page in current)
+            affected = tuple(sorted(set(persistent) | set(event.targets if event else ())))
+            return Event("connection-interrupted", affected, current)
         if event is not None:
             return event
         previous = current
