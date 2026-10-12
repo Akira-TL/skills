@@ -24,11 +24,15 @@ async function replyView(options) {
   // 按实际可见 DOM 顺序保留文字，去除已核验的界面控件，单列机械载荷。
   const render = node => {
     if (node.nodeType === Node.TEXT_NODE) return node.textContent;
-    if (!(node instanceof Element) || !visible(node)) return '';
+    if (!(node instanceof Element)) return '';
+    const style = getComputedStyle(node);
+    // display:contents 自身没有矩形，其子节点仍可见；显式换行保留语句边界。
+    if (style.visibility === 'hidden' || (style.display !== 'contents' && !visible(node))) return '';
     if (ui.includes(node)) return '';
     if (payloadNodes.includes(node)) return '\n[机械载荷 ' + payloadNodes.indexOf(node) + ']\n';
+    if (node.tagName === 'BR') return '\n';
     const text = [...node.childNodes].map(render).join('');
-    const block = /^(block|flex|grid|list-item|table)/.test(getComputedStyle(node).display);
+    const block = /^(block|flex|grid|list-item|table)/.test(style.display);
     return block ? '\n' + text + '\n' : text;
   };
   const text = render(reply).replace(/\n{3,}/g, '\n\n').trim();

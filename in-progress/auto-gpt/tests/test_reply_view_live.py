@@ -63,6 +63,11 @@ class ReplyViewLiveTests(unittest.TestCase):
         self.page.evaluate("document.querySelector('#reply p').textContent='任务已完成，需要人工确认'")
         self.assertNotEqual(before['version'], self.read()['version'])
 
+    def test_display_contents_children_and_line_breaks_are_preserved(self):
+        self.page.evaluate("document.querySelector('#reply').innerHTML='<div style=display:contents><span>第一条完整说明</span><br><span>第二条需要人工处理</span></div>'")
+        result = self.read()
+        self.assertEqual(result['text'], '第一条完整说明\n第二条需要人工处理')
+
     def test_payload_change_changes_version_and_full_read_keeps_version(self):
         before = self.read()
         full = self.read(payload_text=True)
