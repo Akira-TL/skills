@@ -78,10 +78,12 @@ class ReplyViewLiveTests(unittest.TestCase):
 
     def test_unknown_or_overlapping_structure_fails_closed(self):
         from browser_cdp_core import BrowserCdpError
-        for options in ({'reply_selector':'.missing'}, {'reply_selector':'p'},
-                        {'ui_selector':'.payload'}):
-            with self.subTest(options=options), self.assertRaises(BrowserCdpError):
+        for options, code in (({'reply_selector':'.missing'}, 'ELEMENT_NOT_FOUND'),
+                              ({'reply_selector':'p'}, 'ELEMENT_AMBIGUOUS'),
+                              ({'ui_selector':'.payload'}, 'INVALID_ARGUMENT')):
+            with self.subTest(options=options), self.assertRaises(BrowserCdpError) as caught:
                 self.read(**options)
+            self.assertEqual(caught.exception.code, code)
 
     def test_real_guard_preserves_draft_and_blocks_reply_model_or_run_change(self):
         from browser_cdp_core import BrowserCdpError

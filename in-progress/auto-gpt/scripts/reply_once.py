@@ -170,7 +170,10 @@ def main() -> int:
     except (KeyboardInterrupt, SystemExit):
         return 130
     except Exception as exc:
-        print(json.dumps({"error_type": type(exc).__name__, "attempt": asdict(attempt)}, separators=(",", ":")), flush=True)
+        code = getattr(exc, "code", "")
+        print(json.dumps({"error_type": type(exc).__name__,
+                          "error_code": code if isinstance(code, str) and re.fullmatch(r"[A-Z][A-Z_]+", code) else "",
+                          "attempt": asdict(attempt)}, separators=(",", ":")), flush=True)
         return 2
 
 

@@ -34,6 +34,8 @@ Agent 明确判断续接后，可用 `auto_gpt.sh continue` 发起一次动作�
 
 时长中断可能发生在工具活动期间，页面没有最终总结也可能已有真实进展。Agent 完整读取这些内容后判断续接，不把缺少固定标题当作无回复失败；新入口尚未适配布局时保留原有公共会话的严格保护路径。
 
+单次读取和动作同样返回规范错误码，区分选择器未匹配、多个匹配与范围重叠；保持唯一性要求，避免仅凭异常类型反复读取整页来猜原因。
+
 ## 源码与验证
 
 行为规则：[SKILL.md](../../in-progress/auto-gpt/SKILL.md)。适配器启动、事件和取消入口：[只读控件观察](../../in-progress/auto-gpt/references/control-monitor.md)；续接机械步骤：[页面观察与单次动作](../../in-progress/auto-gpt/references/browser-operations.md)。依赖通过标准 `skiloom-package.toml` 声明 `browser-access`。

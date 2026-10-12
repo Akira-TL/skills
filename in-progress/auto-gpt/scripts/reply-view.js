@@ -1,10 +1,14 @@
 // 只读：选择器必须先由 Agent 在实际页面核验，不猜测消息或工具区域。
 async function replyView(options) {
+  const fail = (error_code, message) => {
+    throw new Error('BROWSER_ERROR:' + JSON.stringify({error_code, message}));
+  };
   const visible = el => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
   const all = selector => [...document.querySelectorAll(selector)].filter(visible);
   const unique = selector => {
     const nodes = all(selector);
-    if (nodes.length !== 1) throw new Error('Expected one visible element: ' + selector);
+    if (nodes.length !== 1) fail(nodes.length ? 'ELEMENT_AMBIGUOUS' : 'ELEMENT_NOT_FOUND',
+                               'Expected one visible reply or model element');
     return nodes[0];
   };
   const digest = async text => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))]
@@ -16,7 +20,7 @@ async function replyView(options) {
   const ui = options.ui_selector ? [...reply.querySelectorAll(options.ui_selector)] : [];
   const payloadNodes = options.payload_selector ? [...reply.querySelectorAll(options.payload_selector)] : [];
   if (ui.some(el => payloadNodes.some(node => el.contains(node) || node.contains(el))))
-    throw new Error('UI and payload scopes overlap');
+    fail('INVALID_ARGUMENT', 'UI and payload scopes overlap');
   const payloads = await Promise.all(payloadNodes.map(async (el, index) => {
     const text = el.innerText;
     return {index, length: text.length, sha: await digest(text), ...(options.payload_text ? {text} : {})};
