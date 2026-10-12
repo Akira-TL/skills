@@ -24,6 +24,8 @@
 
 本技能不选择或使用 Pro 模型，不为了测试中止或反复刷新真实任务。机械输入会在执行前再次检查页面和草稿，并在发送后确认新消息；这不代表网站提供了人与 Agent 的互斥锁。
 
+只读回复提取支持把经 Agent 核验的界面控件和机械载荷单列：回复仍完整返回，载荷默认仅返回长度与摘要、按需读取全文。界面按钮文字变化不再触发整段重读，回复或载荷变化仍使版本失效；无法分清内容时保留全文。四项独立本地 Chromium 场景验证了完整回复、界面变化、载荷变化及未知布局拒绝，不改真实任务页面来测试。
+
 ## 源码与验证
 
 行为规则：[SKILL.md](../../in-progress/auto-gpt/SKILL.md)。适配器启动、事件和取消入口：[只读控件观察](../../in-progress/auto-gpt/references/control-monitor.md)；续接机械步骤：[页面观察与单次动作](../../in-progress/auto-gpt/references/browser-operations.md)。依赖通过标准 `skiloom-package.toml` 声明 `browser-access`。

@@ -33,6 +33,10 @@ uv run <browser-access脚本绝对路径> --profile auto-gpt call --target <页�
 
 对已确认的轮次容器，可以在一次只读表达式里返回其完整 `innerText`、长度和 SHA-256 摘要。摘要只用于机械地核对读取期间有没有变化，不能判断“有新回复”“已完成”或“应继续”。必要前文仍由 Agent 阅读；加载不全且影响判断时保留观察。
 
+`scripts/reply-view.js` 提供只读 `replyView(options)`，可经公共 `eval --await-promise` 执行。Agent 先核验 `reply_selector`、`user_selector`、`model_selector` 指向当前回复、用户消息与模型；回复和模型必须唯一。默认完整返回可见回复，不截断。明确识别为界面控件的后代可用 `ui_selector` 排除；工具源代码或编码数据可用 `payload_selector` 单列长度和摘要，需要判断其结果时再设 `payload_text: true` 完整读取。两类范围重叠即拒绝。
+
+排除范围必须由 Agent 在实际 DOM 核验；不能笼统排除所有按钮、状态提示、代码块或工具结果。语义相关内容和人工提示始终完整读取；不知道某块是什么时保留默认全文。回复版本包含完整回复、轮次、用户消息和机械载荷摘要，界面文字变化不改变版本，载荷变化仍会使版本改变。整个 `main` 或正文混合容器不能凭名称当作最新回复。选择器无匹配、多匹配或布局未知时只读调查，不自动降级到整页正文后发送。
+
 ## 不覆盖草稿的发送步骤
 
 Agent 完成语义判断后，按 `browser-access` 获取真实焦点。普通 `type` 会选中并替换内容，不能用于本技能的并发输入场景；改用显式 `Input.insertText`，不会先删除任何文本。
