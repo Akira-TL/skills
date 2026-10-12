@@ -1,6 +1,6 @@
 # auto-gpt
 
-`auto-gpt` 是专用可见 ChatGPT 浏览器的会话内监听技能。你在浏览器里发任务，运行技能的 Agent 每分钟观察页面，读过停止前回复后判断是否需要发送“继续”。它不会执行回复中的下载、文件或其他任务指令。
+`auto-gpt` 是专用可见 ChatGPT 浏览器的会话内监听技能。你在浏览器里发任务，只读脚本每分钟检查停止、发送／语音等控件。状态没有需要核对的变化时，Agent 等待事件；出现可能结束的变化后才读取完整回复，判断是否需要发送“继续”。它不会执行回复中的下载、文件或其他任务指令。
 
 ## 使用
 
@@ -14,13 +14,15 @@
 
 监听只在承载它的 Agent 会话持续运行时有效；会话结束后不作为后台服务继续。浏览器是可见窗口，没有另外的仪表板。默认浏览器配置保持原样，专用身份固定为 `auto-gpt`。
 
-续接和暂停均由 Agent 判断并显式发起，不由脚本定时触发。续接次数不限，连续三次真实失败也只是判断材料，不是自动停止阈值。聊天正文和运行状态只用于当前 Agent 上下文，不保存到本地文件或公开议题。
+续接和暂停均由 Agent 判断并显式发起，不由脚本定时触发。脚本只读控件，不采集对话正文、不自动发送、不按失败次数暂停。控件状态仅在进程内存和 Agent 上下文传递，不保存本地文件。续接次数不限，连续三次真实失败也只是 Agent 的判断材料。
+
+这种观察方式减少正文读取和模型判断次数；执行器若需要返回前台进程的运行状态，仍会产生少量工具调度 token。按钮只说明界面状态，Agent 仍需区分任务完成、时长中断和需要人工。每分钟采样不能保证捕获两次采样之间的所有短促变化。
 
 本技能不选择或使用 Pro 模型，不为了测试中止或反复刷新真实任务。机械输入会在执行前再次检查页面和草稿，并在发送后确认新消息；这不代表网站提供了人与 Agent 的互斥锁。
 
 ## 源码与验证
 
-行为规则：[SKILL.md](../../in-progress/auto-gpt/SKILL.md)。浏览器机械步骤只在选择相应适配器时读取：[页面观察与单次动作](../../in-progress/auto-gpt/references/browser-operations.md)。依赖通过标准 `skiloom-package.toml` 声明 `browser-access`。
+行为规则：[SKILL.md](../../in-progress/auto-gpt/SKILL.md)。适配器启动、事件和取消入口：[只读控件观察](../../in-progress/auto-gpt/references/control-monitor.md)；续接机械步骤：[页面观察与单次动作](../../in-progress/auto-gpt/references/browser-operations.md)。依赖通过标准 `skiloom-package.toml` 声明 `browser-access`。
 
 当前属于 `in-progress` 技能；[适用验证记录](auto-gpt-validation.md)分别区分真实任务观察、确定性机械测试和当前 Agent 的场景审计，不把一种证据当作所有分支都已真实复现。
 
@@ -38,6 +40,12 @@ uv run --no-project --offline productivity/browser-access/scripts/browser_cdp.py
 
 ```sh
 uv run --no-project --offline -m unittest discover -s productivity/browser-access/tests -p 'test_*.py'
+```
+
+控件观察的聚焦测试：
+
+```sh
+uv run --no-project --offline -m unittest discover -s in-progress/auto-gpt/tests -p 'test_*.py'
 ```
 
 `--offline` 要求所需依赖已存在于本机缓存。真实页面观察与单次续接仍由读取上述两个本地技能的 Agent 执行，测试命令不会自动续接。
