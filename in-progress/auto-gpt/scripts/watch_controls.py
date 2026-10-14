@@ -133,9 +133,11 @@ class ControlSampler:
                     result.append(Observation(prior.target, prior.url, prior.controls, sampled=False))
         changed = [failure for target, failure in failures.items() if self.failures.get(target) != failure]
         recovered = [page for page in result if page.target in self.failures and page.target not in failures]
-        if changed or recovered:
+        removed = sorted(set(self.failures) - set(failures) - {page.target for page in result})
+        if changed or recovered or removed:
             self.emit({"reason": "sampling-changed", "failures": [asdict(f) for f in changed],
                        "recovered_targets": [page.target for page in recovered],
+                       "removed_targets": removed,
                        "observations": [asdict(page) for page in recovered]})
         self.failures = failures
         self.last = {page.target: page for page in result}

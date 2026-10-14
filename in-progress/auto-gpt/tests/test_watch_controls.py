@@ -51,6 +51,16 @@ class WatchTests(unittest.TestCase):
         self.assertTrue(all(p.sampled for p in restored))
         sampler.sample()
         self.assertEqual(len(events), 2)
+        failing[0] = True
+        sampler.sample()
+        anchor.call.return_value = {'targetInfos':[]}
+        sampler.sample()
+        self.assertEqual(events[-1]['removed_targets'], ['one'])
+        self.assertEqual(events[-1]['recovered_targets'], [])
+        self.assertEqual(sampler.failures, {})
+        count = len(events)
+        sampler.sample()
+        self.assertEqual(len(events), count)
 
     def test_failed_sample_never_extends_connection_time_or_reports_idle(self):
         previous = module.observe_connections(None, (page(running=True, lost=True),), 0)
