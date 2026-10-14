@@ -3,6 +3,7 @@ import importlib.util
 import json
 import sys
 import unittest
+from unittest.mock import MagicMock
 from pathlib import Path
 
 sys.dont_write_bytecode = True
@@ -20,6 +21,45 @@ def page(target="one", *, running=False, draft=False, turns=1, alerts=0, dialogs
 
 
 class WatchTests(unittest.TestCase):
+    def test_page_failure_is_quiet_until_recovery_and_other_pages_keep_sampling(self):
+        anchor = MagicMock()
+        anchor.call.return_value = {'targetInfos':[
+            {'type':'page', 'targetId':name, 'url':page(name).url} for name in ('one', 'two')]}
+        events = []
+        failing = [True]
+        class Failure(Exception):
+            code = 'CDP_UNREACHABLE'
+        def sessions(endpoint, *, target, expected_url):
+            if target == 'one' and failing[0]:
+                raise Failure('private protocol payload')
+            session = MagicMock()
+            session.__enter__.return_value.evaluate.return_value = module.asdict(page(target).controls)
+            return session
+        sampler = module.ControlSampler(anchor, sessions, 'endpoint', (page('one', running=True),), set(), events.append)
+        first = sampler.sample()
+        self.assertFalse(first[0].sampled)
+        self.assertTrue(first[1].sampled)
+        sampler.sample()
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]['failures'][0]['error_code'], 'CDP_UNREACHABLE')
+        self.assertNotIn('private', json.dumps(events))
+        self.assertEqual(events[0]['observations'], [])
+        failing[0] = False
+        restored = sampler.sample()
+        self.assertEqual(events[-1]['recovered_targets'], ['one'])
+        self.assertEqual([p['target'] for p in events[-1]['observations']], ['one'])
+        self.assertTrue(all(p.sampled for p in restored))
+        sampler.sample()
+        self.assertEqual(len(events), 2)
+
+    def test_failed_sample_never_extends_connection_time_or_reports_idle(self):
+        previous = module.observe_connections(None, (page(running=True, lost=True),), 0)
+        stale = module.Observation('one', page().url, page(lost=True).controls, sampled=False)
+        current = module.observe_connections(previous, (stale,), 60)
+        self.assertIsNone(current[0].connection)
+        self.assertIsNone(module.changes(previous, current))
+        self.assertFalse(module.read_baseline(json.dumps([module.asdict(stale)]))[0].sampled)
+
     def test_error_reports_phase_and_code_without_exception_text_or_protocol_context(self):
         class Failure(Exception):
             code = 'NAVIGATION_DETECTED'

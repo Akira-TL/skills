@@ -77,6 +77,7 @@ class Observation:
     url: str
     controls: Controls
     connection: ConnectionNotice | None = None
+    sampled: bool = True
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,61 @@ class Event:
     reason: str
     targets: tuple[str, ...]
     observations: tuple[Observation, ...]
+
+
+@dataclass(frozen=True)
+class SampleFailure:
+    target: str
+    url: str
+    error_type: str
+    error_code: str
+
+
+class ControlSampler:
+    """单页失败保留旧事实，恢复时返回新事实；重复错误保持安静。"""
+
+    def __init__(self, anchor: PageSession, sessions: SessionFactory, endpoint: str,
+                 baseline: Sequence[Observation], ignored: set[str],
+                 emit: Callable[[Mapping[str, object]], None]):
+        self.anchor, self.sessions, self.endpoint = anchor, sessions, endpoint
+        self.last = {page.target: page for page in baseline}
+        self.failures: dict[str, SampleFailure] = {}
+        self.ignored, self.emit = ignored, emit
+
+    def sample(self) -> tuple[Observation, ...]:
+        targets = self.anchor.call("Target.getTargets").get("targetInfos")
+        if not isinstance(targets, list):
+            raise ValueError("Target discovery did not return a list")
+        result: list[Observation] = []
+        failures: dict[str, SampleFailure] = {}
+        for item in targets:
+            target = object_fields(item)
+            target_id, url = target.get("targetId"), target.get("url")
+            if target.get("type") != "page" or not isinstance(url, str) or not isinstance(target_id, str):
+                continue
+            identifier = conversation(url)
+            if identifier is None or identifier in self.ignored:
+                continue
+            try:
+                with self.sessions(self.endpoint, target=target_id, expected_url=url) as page:
+                    result.append(Observation(target_id, url, read_controls(page.evaluate(PROBE))))
+            except Exception as exc:
+                code = getattr(exc, "code", "")
+                failures[target_id] = SampleFailure(target_id, url, type(exc).__name__,
+                    code if isinstance(code, str) and re.fullmatch(r"[A-Z][A-Z_]+", code) else "")
+                prior = self.last.get(target_id)
+                if prior is not None and prior.url == url:
+                    # 清掉断线计时，失败采样不能增加连续观察时间。
+                    result.append(Observation(prior.target, prior.url, prior.controls, sampled=False))
+        changed = [failure for target, failure in failures.items() if self.failures.get(target) != failure]
+        recovered = [page for page in result if page.target in self.failures and page.target not in failures]
+        if changed or recovered:
+            self.emit({"reason": "sampling-changed", "failures": [asdict(f) for f in changed],
+                       "recovered_targets": [page.target for page in recovered],
+                       "observations": [asdict(page) for page in recovered]})
+        self.failures = failures
+        self.last = {page.target: page for page in result}
+        return tuple(sorted(result, key=lambda page: page.target))
 
 
 def object_fields(value: object) -> Mapping[str, object]:
@@ -142,7 +198,10 @@ def read_baseline(raw: str | None) -> tuple[Observation, ...] | None:
                     or not 0 <= cast(float, since) <= cast(float, last_seen) or type(reported) is not bool):
                 raise ValueError("Invalid connection timing facts")
             notice = ConnectionNotice(float(since), float(last_seen), cast(bool, reported))
-        result.append(Observation(target, url, read_controls(fields.get("controls")), notice))
+        sampled = fields.get("sampled", True)
+        if type(sampled) is not bool:
+            raise ValueError("Invalid sample status")
+        result.append(Observation(target, url, read_controls(fields.get("controls")), notice, sampled))
     return tuple(result)
 
 
@@ -152,7 +211,7 @@ def observe_connections(previous: Sequence[Observation] | None, current: tuple[O
     result: list[Observation] = []
     for page in current:
         notice = None
-        if page.controls.connection_lost and page.controls.view != View.COMPOSER:
+        if page.sampled and page.controls.connection_lost and page.controls.view != View.COMPOSER:
             before = old.get(page.target)
             prior = None
             if (before is not None and before.url == page.url and before.controls.connection_lost
@@ -164,7 +223,7 @@ def observe_connections(previous: Sequence[Observation] | None, current: tuple[O
                 notice = ConnectionNotice(prior.since, now, prior.reported)
             else:
                 notice = ConnectionNotice(now, now)
-        result.append(Observation(page.target, page.url, page.controls, notice))
+        result.append(Observation(page.target, page.url, page.controls, notice, page.sampled))
     return tuple(result)
 
 
@@ -172,6 +231,8 @@ def changes(previous: Sequence[Observation] | None, current: tuple[Observation, 
     old = {page.target: page for page in previous or ()}
     affected: list[str] = []
     for page in current:
+        if not page.sampled:
+            continue
         prior = old.get(page.target)
         now = page.controls
         if prior is None or prior.url != page.url:
@@ -272,31 +333,19 @@ def main() -> int:
         ignored = set(args.ignore_conversation)
         phase, failed_target = "anchor-bind", args.anchor_target
         with session_type(args.endpoint, target=args.anchor_target, expected_url=args.anchor_url) as anchor:
+            def output(value: Mapping[str, object]) -> None:
+                print(json.dumps(value, ensure_ascii=False, separators=(",", ":")), flush=True)
+            sampler = ControlSampler(anchor, session_type, args.endpoint, baseline or (), ignored, output)
             def sample() -> tuple[Observation, ...]:
                 nonlocal observations, phase, failed_target
                 phase, failed_target = "target-discovery", args.anchor_target
-                targets = anchor.call("Target.getTargets").get("targetInfos")
-                if not isinstance(targets, list):
-                    raise ValueError("Target discovery did not return a list")
-                result: list[Observation] = []
-                for item in targets:
-                    target = object_fields(item)
-                    target_id, url = target.get("targetId"), target.get("url")
-                    if target.get("type") != "page" or not isinstance(url, str) or not isinstance(target_id, str):
-                        continue
-                    identifier = conversation(url)
-                    if identifier is None or identifier in ignored:
-                        continue
-                    phase, failed_target = "control-sample", target_id
-                    with session_type(args.endpoint, target=target_id, expected_url=url) as page:
-                        result.append(Observation(target_id, url, read_controls(page.evaluate(PROBE))))
-                observations = tuple(sorted(result, key=lambda page: page.target))
+                observations = sampler.sample()
                 return observations
             def emit(event: Event) -> None:
                 print(json.dumps(asdict(event), ensure_ascii=False, separators=(",", ":")), flush=True)
             event = watch(sample, baseline=baseline, max_wait_seconds=args.max_wait_seconds,
                           on_event=emit if args.stream else None)
-        print(json.dumps(asdict(event), ensure_ascii=False), flush=True)
+        output({**asdict(event), "sampling_failures": [asdict(f) for f in sampler.failures.values()]})
         return 0
     except (KeyboardInterrupt, SystemExit):
         return 130
