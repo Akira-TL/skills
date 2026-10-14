@@ -23,6 +23,42 @@ CONTROLS = {'stop':1, 'composer':0, 'editors':1, 'draft':False, 'alerts':0,
 
 
 class ReplyOnceTests(unittest.TestCase):
+    def test_segmented_read_preserves_full_text_and_requires_same_version(self):
+        view = {**BEFORE, 'text':'第一段\n需要人工确认\n最后一段', 'length':17,
+                'payloads':[], 'focused':True}
+        pieces = []
+        start = 0
+        while True:
+            result = module.read_window(view, start=start, limit=6, expected_version=VERSION)
+            pieces.append(result['text'])
+            self.assertNotIn('point', result)
+            self.assertNotIn('focused', result)
+            if result['next_start'] is None:
+                break
+            start = result['next_start']
+        self.assertEqual(''.join(pieces), '第一段\n需要人工确认\n最后一段')
+        self.assertFalse(result['text_complete'])
+        with self.assertRaises(ValueError):
+            module.read_window({**view, 'version':'b'*64}, expected_version=VERSION)
+
+    def test_payload_window_returns_no_reply_or_other_payload_body(self):
+        view = {**BEFORE, 'text':'正文保持完整', 'payloads':[
+            {'index':0, 'text':'abcdefgh', 'length':8, 'sha':'first'},
+            {'index':1, 'text':'private other blob', 'length':18, 'sha':'second'}]}
+        result = module.read_window(view, payload_index=0, start=2, limit=3, expected_version=VERSION)
+        self.assertEqual(result['text'], 'cde')
+        self.assertEqual(result['next_start'], 5)
+        self.assertEqual(result['sha'], 'first')
+        self.assertNotIn('正文', str(result))
+        self.assertNotIn('private', str(result))
+        with self.assertRaises(ValueError):
+            module.read_window(view, start=1)
+        with self.assertRaises(ValueError):
+            module.read_window(view, payload_index=0)
+        for options in ({'start':-1}, {'limit':0}, {'limit':12001}, {'start':999}, {'payload_index':2}):
+            with self.subTest(options=options), self.assertRaises(ValueError):
+                module.read_window(view, **options)
+
     def setUp(self):
         self.page = MagicMock()
         self.page.evaluate.return_value = CONTROLS

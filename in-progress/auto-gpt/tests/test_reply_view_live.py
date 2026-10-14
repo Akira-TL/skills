@@ -30,6 +30,23 @@ OPTIONS = {'reply_selector':'#reply', 'user_selector':'.user', 'model_selector':
 
 @unittest.skipUnless(os.environ.get('BROWSER_LIVE_TESTS') == '1', '需 browser_fixture.sh 启动独立实例')
 class ReplyViewLiveTests(unittest.TestCase):
+    def test_encoded_node_is_metadata_but_explanation_and_errors_remain(self):
+        blob = 'QUJD' * 200
+        self.page.evaluate("document.querySelector('#reply').innerHTML=" + json.dumps(
+            '<p>尚未完成，需要人工确认。</p><pre>' + blob + '</pre><p>工具失败：权限不足</p>'))
+        result = self.read(encoded_text=True, payload_selector='')
+        self.assertNotIn(blob, result['text'])
+        self.assertIn('需要人工确认', result['text'])
+        self.assertIn('权限不足', result['text'])
+        self.assertEqual(result['payloads'][0]['length'], len(blob))
+        full = self.read(encoded_text=True, payload_selector='', payload_text=True)
+        self.assertEqual(full['payloads'][0]['text'], blob)
+        self.assertEqual(result['version'], full['version'])
+        self.page.evaluate("document.querySelector('pre').textContent='解释和编码：' + " + json.dumps(blob))
+        mixed = self.read(encoded_text=True, payload_selector='')
+        self.assertIn('解释和编码', mixed['text'])
+        self.assertEqual(mixed['payloads'], [])
+
     def setUp(self):
         self.target = http_json(ENDPOINT, '/json/new?' + URL, method='PUT')
         self.addCleanup(lambda: urllib.request.urlopen(ENDPOINT + '/json/close/' + self.target['id']).close())

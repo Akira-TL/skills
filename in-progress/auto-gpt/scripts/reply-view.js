@@ -37,14 +37,25 @@ async function replyView(options) {
   const editor = editors.length === 1 ? editors[0] : null;
   const ui = options.ui_selector ? [...reply.querySelectorAll(options.ui_selector)] : [];
   const payloadNodes = options.payload_selector ? [...reply.querySelectorAll(options.payload_selector)] : [];
+  if (options.encoded_text) {
+    // 仅单独的长编码文本节点；含解释、错误或指令的节点保持全文。
+    const walker = document.createTreeWalker(reply, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      const text = node.textContent.trim();
+      if (text.length >= 512 && text.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(text)
+          && visible(node.parentElement) && !payloadNodes.some(el => el.contains(node))) payloadNodes.push(node);
+    }
+  }
   if (ui.some(el => payloadNodes.some(node => el.contains(node) || node.contains(el))))
     fail('INVALID_ARGUMENT', 'UI and payload scopes overlap');
   const payloads = await Promise.all(payloadNodes.map(async (el, index) => {
-    const text = el.innerText;
+    const text = el.nodeType === Node.TEXT_NODE ? el.textContent : el.innerText;
     return {index, length: text.length, sha: await digest(text), ...(options.payload_text ? {text} : {})};
   }));
   // 按实际可见 DOM 顺序保留文字，去除已核验的界面控件，单列机械载荷。
   const render = node => {
+    if (payloadNodes.includes(node)) return '\n[机械载荷 ' + payloadNodes.indexOf(node) + ']\n';
     if (node.nodeType === Node.TEXT_NODE) return node.textContent;
     if (!(node instanceof Element)) return '';
     const style = getComputedStyle(node);

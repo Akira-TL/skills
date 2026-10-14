@@ -34,6 +34,7 @@ class Selectors:
     ui_selector: str = ""
     payload_selector: str = ""
     payload_text: bool = False
+    encoded_text: bool = False
 
     def expression(self) -> str:
         return f"(async () => {{ {VIEW}; return await replyView({json.dumps(asdict(self), ensure_ascii=False)}); }})()"
@@ -49,6 +50,38 @@ class Attempt:
 
 def snapshot(page: Page, selectors: Selectors) -> Mapping[str, object]:
     return object_fields(page.evaluate(selectors.expression(), await_promise=True))
+
+
+def read_window(view: Mapping[str, object], *, start: int = 0, limit: int = 6000,
+                expected_version: str | None = None, payload_index: int | None = None) -> Mapping[str, object]:
+    """版本锁定的分段输出；完整读取仍由 Agent 逐段完成。"""
+    if start < 0 or limit < 1 or limit > 12000:
+        raise ValueError("Read window requires nonnegative start and a limit from 1 to 12000")
+    if (start > 0 or payload_index is not None) and expected_version is None:
+        raise ValueError("Further segments and payload reads require the reviewed version")
+    if expected_version is not None and view.get("version") != expected_version:
+        raise ValueError("Reviewed page changed during segmented read")
+    if payload_index is not None:
+        payloads = view.get("payloads")
+        if not isinstance(payloads, list) or not 0 <= payload_index < len(payloads):
+            raise ValueError("Unknown payload index")
+        payload = object_fields(payloads[payload_index])
+        text = payload.get("text")
+        if not isinstance(text, str):
+            raise ValueError("Payload text was not requested")
+        facts: dict[str, object] = {"url": view.get("url"), "version": view.get("version"),
+                                  "payload_index": payload_index, "sha": payload.get("sha")}
+    else:
+        text = view.get("text")
+        if not isinstance(text, str):
+            raise ValueError("Reply text is unavailable")
+        facts = {key: value for key, value in view.items() if key not in {"text", "length", "point", "focused"}}
+    if start > len(text):
+        raise ValueError("Read offset exceeds the current text")
+    end = min(start + limit, len(text))
+    return {**facts, "text": text[start:end], "length": len(text), "text_start": start,
+            "text_end": end, "text_complete": start == 0 and end == len(text),
+            "next_start": end if end < len(text) else None}
 
 
 def confirmation(page: Page, selectors: Selectors) -> Mapping[str, object]:
@@ -151,6 +184,10 @@ def main() -> int:
     parser.add_argument("--ui-selector", default="")
     parser.add_argument("--payload-selector", default="")
     parser.add_argument("--payload-text", action="store_true")
+    parser.add_argument("--encoded-text", action="store_true", help="已核验独立长 Base64 文本时，单列其长度与摘要")
+    parser.add_argument("--text-start", type=int, default=0)
+    parser.add_argument("--text-limit", type=int, default=6000, help="每段最多 12000 字符，默认 6000；返回 next_start")
+    parser.add_argument("--payload-index", type=int, help="只返回指定载荷的一段全文，和 --text-start/--text-limit 配合")
     parser.add_argument("--expected-version")
     parser.add_argument("--expected-model")
     args = parser.parse_args()
@@ -163,10 +200,12 @@ def main() -> int:
         sys.path.insert(0, str(script.parent))
         session_type = importlib.import_module("browser_session").BrowserSession
         selectors = Selectors(args.reply_selector, args.user_selector, args.model_selector,
-                              args.ui_selector, args.payload_selector, args.payload_text)
+                              args.ui_selector, args.payload_selector,
+                              args.payload_text or args.payload_index is not None, args.encoded_text)
         with session_type(args.endpoint, target=args.target, expected_url=args.url) as page:
             if args.operation == "read":
-                result = snapshot(page, selectors)
+                result = read_window(snapshot(page, selectors), start=args.text_start, limit=args.text_limit,
+                                     expected_version=args.expected_version, payload_index=args.payload_index)
             else:
                 if not args.expected_version or not args.expected_model:
                     raise ValueError("Agent must supply its reviewed version and model")
