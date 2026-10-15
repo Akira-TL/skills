@@ -11,7 +11,7 @@ sys.dont_write_bytecode = True
 REPOSITORY = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPOSITORY / 'productivity/browser-access/scripts'))
 if os.environ.get('BROWSER_LIVE_TESTS') == '1':
-    from browser_cdp_core import http_json, page_client, wait_ready
+    from browser_cdp_core import BrowserCdpError, http_json, page_client, wait_ready
     from browser_session import BrowserSession
     sys.path.insert(0, str(Path(__file__).parents[1] / 'scripts'))
     import reply_once as once
@@ -31,6 +31,54 @@ OPTIONS = {'reply_selector':'#reply', 'user_selector':'.user', 'model_selector':
 
 @unittest.skipUnless(os.environ.get('BROWSER_LIVE_TESTS') == '1', '需 browser_fixture.sh 启动独立实例')
 class ReplyViewLiveTests(unittest.TestCase):
+    def known_layout(self):
+        self.page.evaluate('document.body.innerHTML=' + json.dumps('''<main>
+          <button aria-label="选择 ChatGPT 模型">5.6 极高</button>
+          <div data-turn-key="old"><p>旧回复不应带回</p></div>
+          <div data-turn-key="new"><div><div>
+            <div class="block-BQZwFn"><h4 class="sr-only">你说：</h4>
+              <div class="group/user-message" data-chatgpt-search-message-ids="new">
+                <div class="group/user-message">继续检查</div></div></div>
+            <div class="block-BQZwFn" style="display:contents"><span hidden data-chatgpt-agent-turn-start></span>
+              <p>已有进展。</p><pre>工具结果：尚有两项未完成。</pre><p>下一步仍需核对。</p></div>
+          </div></div></div>
+          <div role="textbox" contenteditable="true" style="width:300px;height:40px"></div>
+          <button aria-label="发送">发送</button></main>'''))
+    def test_known_layout_auto_locator_reads_latest_full_activity_without_old_turn(self):
+        self.known_layout()
+        selectors = once.resolve_selectors(self.page)
+        result = once.snapshot(self.page, selectors)
+        self.assertEqual(result['latest_user'], '继续检查')
+        self.assertEqual(result['latest_user_id'], 'data-chatgpt-search-message-ids:new')
+        self.assertIn('工具结果：尚有两项未完成。', result['text'])
+        self.assertIn('下一步仍需核对。', result['text'])
+        self.assertNotIn('旧回复', result['text'])
+        self.page.evaluate("document.querySelector('main').insertAdjacentHTML('afterbegin', '<div>新增旧历史</div>')")
+        self.assertEqual(once.snapshot(self.page, once.resolve_selectors(self.page))['version'], result['version'])
+
+    def test_unknown_layout_auto_locator_refuses_instead_of_reading_whole_main(self):
+        with self.assertRaises(BrowserCdpError) as caught:
+            once.resolve_selectors(self.page)
+        self.assertEqual(caught.exception.code, 'AUTO_GPT_LAYOUT_UNKNOWN')
+
+    def test_auto_locator_refuses_two_assistant_scopes(self):
+        self.known_layout()
+        self.page.evaluate("const el=document.querySelector('[data-chatgpt-agent-turn-start]').parentElement;"
+                           "el.after(el.cloneNode(true))")
+        with self.assertRaises(BrowserCdpError) as caught:
+            once.resolve_selectors(self.page)
+        self.assertEqual(caught.exception.code, 'AUTO_GPT_LAYOUT_UNKNOWN')
+
+    def test_auto_locator_never_falls_back_to_old_reply_for_new_user(self):
+        self.known_layout()
+        self.page.evaluate("document.querySelector('main').insertAdjacentHTML('beforeend',"
+                           "'<div data-turn-key=\"newer\"><div class=\"block-BQZwFn\">"
+                           "<div class=\"group/user-message\" data-chatgpt-search-message-ids=\"newer\">"
+                           "用户的新任务</div></div></div>')")
+        with self.assertRaises(BrowserCdpError) as caught:
+            once.resolve_selectors(self.page)
+        self.assertEqual(caught.exception.code, 'AUTO_GPT_LAYOUT_UNKNOWN')
+
     def test_old_history_loading_preserves_version_but_new_user_identity_changes_it(self):
         self.page.evaluate("document.querySelector('.user').setAttribute('data-message-id','new')")
         before = self.read()

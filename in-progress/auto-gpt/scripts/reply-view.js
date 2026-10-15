@@ -1,4 +1,4 @@
-// 只读：选择器必须先由 Agent 在实际页面核验，不猜测消息或工具区域。
+// 只读：选择器来自已核验布局规则或 Agent 显式核验，不猜测消息或工具区域。
 function viewVisible(el) {
     const style = getComputedStyle(el);
     if (style.visibility === 'hidden' || style.display === 'none') return false;

@@ -12,14 +12,14 @@ import json
 import re
 import sys
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Mapping, Protocol, cast
 
 sys.dont_write_bytecode = True
 from watch_controls import PROBE, conversation, object_fields, read_controls, verify_profile
 
-from page_scripts import VIEW
+from page_scripts import LOCATOR, VIEW
 
 
 class Page(Protocol):
@@ -47,6 +47,14 @@ class Attempt:
     insert_attempted: bool = False
     enter_attempted: bool = False
     confirmed: bool = False
+
+
+def resolve_selectors(page: Page) -> Selectors:
+    facts = object_fields(page.evaluate(LOCATOR))
+    values = [facts.get(key) for key in ('reply_selector', 'user_selector', 'model_selector')]
+    if not all(isinstance(value, str) and value for value in values):
+        raise ValueError('Known latest-turn layout is unavailable')
+    return Selectors(*(cast(str, value) for value in values))
 
 
 def snapshot(page: Page, selectors: Selectors) -> Mapping[str, object]:
@@ -197,9 +205,9 @@ def main() -> int:
     parser.add_argument("--endpoint", required=True)
     parser.add_argument("--target", required=True)
     parser.add_argument("--url", required=True)
-    parser.add_argument("--reply-selector", required=True)
-    parser.add_argument("--user-selector", required=True)
-    parser.add_argument("--model-selector", required=True)
+    parser.add_argument("--reply-selector")
+    parser.add_argument("--user-selector")
+    parser.add_argument("--model-selector")
     parser.add_argument("--ui-selector", default="")
     parser.add_argument("--payload-selector", default="")
     parser.add_argument("--payload-text", action="store_true")
@@ -218,10 +226,14 @@ def main() -> int:
         verify_profile(script, args.endpoint)
         sys.path.insert(0, str(script.parent))
         session_type = importlib.import_module("browser_session").BrowserSession
-        selectors = Selectors(args.reply_selector, args.user_selector, args.model_selector,
-                              args.ui_selector, args.payload_selector,
-                              args.payload_text or args.payload_index is not None, args.encoded_text)
         with session_type(args.endpoint, target=args.target, expected_url=args.url) as page:
+            specified = (args.reply_selector, args.user_selector, args.model_selector)
+            if any(specified) and not all(specified):
+                raise ValueError('Supply all three selectors or use the known-layout default')
+            base = Selectors(*specified) if all(specified) else resolve_selectors(page)
+            selectors = replace(base, ui_selector=args.ui_selector, payload_selector=args.payload_selector,
+                                payload_text=args.payload_text or args.payload_index is not None,
+                                encoded_text=args.encoded_text)
             if args.operation == "read":
                 result = read_window(snapshot(page, selectors), start=args.text_start, limit=args.text_limit,
                                      expected_version=args.expected_version, payload_index=args.payload_index)

@@ -15,7 +15,13 @@ uv run <browser-access脚本绝对路径> --profile auto-gpt call --target <页�
 
 `eval -` 从标准输入读取表达式，聊天结果只返回 Agent 当前上下文，不重定向到文件。不重复实现调试连接、页面选择或键盘传输。缺少动作前复核能力时停止在发送之前；只请求补齐本技能必需能力，不无故更新其他技能。
 
-## 先发现当前页面结构
+## 已核验布局的默认定位
+
+`read` 和 `continue` 不提供三个选择器时，使用已核验的中文页面结构：以最新用户消息的稳定 ID 与 `data-turn-key` 限定轮次，读取同轮次带 `data-chatgpt-agent-turn-start` 的唯一助手活动块。保留叙述与工具结果，不读取旧轮次或整个 `main`。历史插入不会改变绑定；新消息、未知布局、多个活动块或模型控件不唯一时返回 `AUTO_GPT_LAYOUT_UNKNOWN`，不猜测、不发送。
+
+当前结构由 `resolve-layout.js` 统一维护。正常监听不重复获取长 DOM 路径；只有结构未知才调查，并同时显式提供 `--reply-selector`、`--user-selector`、`--model-selector`，不能只覆盖其中一个。显式选择器也必须通过原有唯一性、版本、模型和输入保护。
+
+## 必要时调查页面结构
 
 首次接管和界面改变后，用 `inspect` 或只读 `eval` 确认页面结构。2026-10-12 的实际中文界面可见：
 
@@ -54,9 +60,7 @@ Agent 完成语义判断后，按 `browser-access` 获取真实焦点。普通 `
 ```sh
 bash <auto-gpt目录>/scripts/auto_gpt.sh read \
   --browser-access-script <browser-access目录>/scripts/browser_cdp.py \
-  --endpoint <已核验地址> --target <完整ID> --url <准确会话网址> \
-  --reply-selector <唯一当前回复> --user-selector <全部用户消息正文> \
-  --model-selector <唯一模型控件>
+  --endpoint <已核验地址> --target <完整ID> --url <准确会话网址>
 ```
 
 `read` 完整返回当前回复、用户最新消息、模型和版本；必要前文仍须经公共入口完整读取。`user-selector` 指向用户消息正文，不是“你说：”标题或整个混合轮次。只有已核验范围才添加 `--ui-selector` 或 `--payload-selector`，载荷全文按需添加 `--payload-text`。无法可靠定位最新回复或用户正文时，沿用只读调查，不强行使用此入口。
@@ -94,7 +98,7 @@ Agent 判断需要续接后，用相同参数把 `read` 改成 `continue`，再�
 
 随后发对应 `keyUp` 释放按键，不再插入文字。回读最新用户轮次与助手回复，以此确认提交。发送结果未确认时留在观察状态；不能按“输入框空了”自动重发，也不能点击重试、重新生成、跳过或停止来制造验收状态。
 
-只读控件观察脚本按 [观察参考](control-monitor.md) 每分钟采样，发现变化后返回；它不采集此处用于判断的完整回复。一次 `call` 只执行 Agent 显式发起的一个方法，续接和错误暂停仍由 Agent 决定。
+只读控件观察脚本按 [观察参考](control-monitor.md) 每分钟持续采样，状态查询返回全部页面和未确认待办；它不采集此处用于判断的完整回复。一次 `call` 只执行 Agent 显式发起的一个方法，续接和错误暂停仍由 Agent 决定。
 
 ## 连接中断
 
