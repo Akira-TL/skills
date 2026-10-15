@@ -8,6 +8,7 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 script = Path(__file__).parents[1] / "scripts" / "watch_controls.py"
+sys.path.insert(0, str(script.parent))
 spec = importlib.util.spec_from_file_location("auto_gpt_watch", script)
 module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module

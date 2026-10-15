@@ -23,7 +23,7 @@ from typing import Protocol, cast
 from urllib.parse import urlsplit
 
 sys.dont_write_bytecode = True
-PROBE = Path(__file__).with_name("observe-controls.js").read_text(encoding="utf-8")
+from page_scripts import PROBE
 
 
 class View(StrEnum):

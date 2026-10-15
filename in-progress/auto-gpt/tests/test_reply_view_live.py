@@ -16,7 +16,8 @@ if os.environ.get('BROWSER_LIVE_TESTS') == '1':
     sys.path.insert(0, str(Path(__file__).parents[1] / 'scripts'))
     import reply_once as once
 
-VIEW = (Path(__file__).parents[1] / 'scripts/reply-view.js').read_text()
+sys.path.insert(0, str(Path(__file__).parents[1] / 'scripts'))
+from page_scripts import VIEW
 ENDPOINT = os.environ.get('BROWSER_FIXTURE_ENDPOINT', 'http://127.0.0.1:19322')
 URL = 'http://127.0.0.1:19323/dynamic.html'
 HTML = '''<main><button id="model">5.6 极高</button><p class="user">核对论文全文</p>
@@ -30,6 +31,18 @@ OPTIONS = {'reply_selector':'#reply', 'user_selector':'.user', 'model_selector':
 
 @unittest.skipUnless(os.environ.get('BROWSER_LIVE_TESTS') == '1', '需 browser_fixture.sh 启动独立实例')
 class ReplyViewLiveTests(unittest.TestCase):
+    def test_old_history_loading_preserves_version_but_new_user_identity_changes_it(self):
+        self.page.evaluate("document.querySelector('.user').setAttribute('data-message-id','new')")
+        before = self.read()
+        self.page.evaluate("document.querySelector('.user').insertAdjacentHTML('beforebegin',"
+                           "'<p class=\"user\" data-message-id=\"old\">旧消息</p>')")
+        loaded = self.read()
+        self.assertEqual(before['version'], loaded['version'])
+        self.assertEqual(loaded['latest_user_id'], 'data-message-id:new')
+        self.page.evaluate("document.querySelector('.user:last-of-type').setAttribute('data-message-id','next')")
+        after = self.read()
+        self.assertNotEqual(before['version'], after['version'])
+
     def test_encoded_node_is_metadata_but_explanation_and_errors_remain(self):
         blob = 'QUJD' * 200
         self.page.evaluate("document.querySelector('#reply').innerHTML=" + json.dumps(

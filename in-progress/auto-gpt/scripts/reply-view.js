@@ -14,7 +14,8 @@ function viewVisible(el) {
 
 function userView(options) {
   const nodes = [...document.querySelectorAll(options.user_selector)].filter(viewVisible);
-  return {user_count: nodes.length, latest_user: nodes.at(-1)?.innerText.trim() || ''};
+  return {user_count: nodes.length, latest_user: nodes.at(-1)?.innerText.trim() || '',
+    latest_user_id: messageIdentity(nodes.at(-1)), user_ids: nodes.map(messageIdentity).filter(Boolean)};
 }
 
 async function replyView(options) {
@@ -71,15 +72,17 @@ async function replyView(options) {
   const text = render(reply).replace(/\n{3,}/g, '\n\n').trim();
   const userNodes = all(options.user_selector);
   const latestUser = userNodes.at(-1)?.innerText.trim() || '';
+  const userFacts = userView(options);
   const replyId = reply.getAttribute('data-message-id') || reply.getAttribute('data-turn-id') || reply.id || '';
   const version = await digest(JSON.stringify({text, replyId,
-    payloads: payloads.map(({index,length,sha}) => ({index,length,sha})), users: userNodes.length, latestUser}));
+    payloads: payloads.map(({index,length,sha}) => ({index,length,sha})),
+    users: userFacts.latest_user_id ? null : userNodes.length, latestUser, latestUserId:userFacts.latest_user_id}));
   const rect = editor?.getBoundingClientRect();
   const x = rect ? rect.x + rect.width / 2 : null;
   const y = rect ? rect.y + rect.height / 2 : null;
   const hit = rect ? document.elementFromPoint(x, y) : null;
   return {url: location.href, text, length: text.length, version, reply_id: replyId, model,
-    user_count: userNodes.length, latest_user: latestUser, payloads, omitted_ui: ui.length,
+    ...userFacts, payloads, omitted_ui: ui.length,
     editor_count: editors.length, draft: editor ? (editor.value ?? editor.innerText).trim() : null,
     editable: !!editor && !editor.disabled && !editor.readOnly,
     focused: !!editor && (document.activeElement === editor || editor.contains(document.activeElement)),

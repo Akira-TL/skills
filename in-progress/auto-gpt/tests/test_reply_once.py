@@ -60,6 +60,9 @@ class ReplyOnceTests(unittest.TestCase):
                 module.read_window(view, **options)
 
     def setUp(self):
+        sleeper = patch('time.sleep')
+        sleeper.start()
+        self.addCleanup(sleeper.stop)
         self.page = MagicMock()
         self.page.evaluate.return_value = CONTROLS
         self.page.call.return_value = {'targetInfos':[]}
@@ -100,6 +103,33 @@ class ReplyOnceTests(unittest.TestCase):
         self.assertFalse(result['attempt']['confirmed'])
         self.assertEqual(result['confirmation']['after_user_count'], 1)
         self.assertEqual(sum(call.args[0] == 'Input.insertText' for call in self.page.call.call_args_list), 1)
+
+    def test_virtual_history_with_same_count_confirms_a_new_message_identity(self):
+        before = {**BEFORE, 'user_ids':['old'], 'latest_user_id':'old'}
+        after = {**BEFORE, 'latest_user':'继续', 'latest_user_id':'new', 'controls':CONTROLS}
+        with patch.object(module, 'snapshot', side_effect=[before, before]), \
+             patch.object(module, 'confirmation', return_value=after):
+            result = self.run_once()
+        self.assertTrue(result['attempt']['confirmed'])
+        self.assertEqual(result['confirmation']['basis'], 'new-user-id')
+
+    def test_loading_old_history_does_not_confirm_an_existing_continue_message(self):
+        before = {**BEFORE, 'user_ids':['old'], 'latest_user_id':'old', 'latest_user':'继续'}
+        after = {**before, 'user_count':5, 'controls':CONTROLS}
+        with patch.object(module, 'snapshot', side_effect=[before, before]), \
+             patch.object(module, 'confirmation', return_value=after):
+            result = self.run_once()
+        self.assertFalse(result['attempt']['confirmed'])
+
+    def test_delayed_render_is_only_read_again_without_repeating_enter(self):
+        with patch.object(module, 'snapshot', side_effect=[BEFORE, BEFORE]), \
+             patch.object(module, 'confirmation', side_effect=[{**BEFORE,'controls':CONTROLS},
+                                                              {**AFTER,'controls':CONTROLS}]):
+            result = self.run_once()
+        self.assertTrue(result['attempt']['confirmed'])
+        self.assertEqual(sum(c.args[0] == 'Input.insertText' for c in self.page.call.call_args_list), 1)
+        self.assertEqual(sum(c.args[0] == 'Input.dispatchKeyEvent' and c.args[1]['type']=='keyDown'
+                             for c in self.page.call.call_args_list), 1)
 
     def test_enter_failure_releases_key_but_never_sends_second_enter(self):
         def call(method, params=None, **kwargs):

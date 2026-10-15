@@ -3,7 +3,9 @@
   const count = selector => [...document.querySelectorAll(selector)].filter(visible).length;
   const editors = [...document.querySelectorAll('main [contenteditable="true"][role="textbox"],main textarea')].filter(visible);
   const headings = [...document.querySelectorAll('main h4.sr-only')];
-  const turns = headings.filter(el => ['你说：', 'You said:'].includes(el.textContent.trim()));
+  const users = [...document.querySelectorAll('main [class~="group/user-message"]')]
+    .filter(el => visible(el) && !el.querySelector('[class~="group/user-message"]'));
+  const turns = users.length ? users : headings.filter(el => ['你说：', 'You said:'].includes(el.textContent.trim()));
   const connectionLost = [...document.querySelectorAll('main [role="status"] .text-chatgpt-recovery')]
     .filter(visible).some(el => /^连接已中断[，,]正在等待完整答复[。.…]*$/.test(el.textContent.trim().replace(/\s/g, '')));
   return {
@@ -14,9 +16,7 @@
     alerts: count('[role="alert"]'),
     dialogs: count('[role="dialog"]'),
     turns: turns.length,
-    latest_turn: turns.at(-1)?.closest('[data-turn-id],[data-message-id],article[id]')?.getAttribute('data-turn-id')
-      || turns.at(-1)?.closest('[data-message-id]')?.getAttribute('data-message-id')
-      || turns.at(-1)?.closest('article[id]')?.id || '',
+    latest_turn: messageIdentity(turns.at(-1)),
     connection_lost: connectionLost
   };
 })()

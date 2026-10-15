@@ -11,6 +11,7 @@ import importlib
 import json
 import re
 import sys
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Mapping, Protocol, cast
@@ -18,7 +19,7 @@ from typing import Mapping, Protocol, cast
 sys.dont_write_bytecode = True
 from watch_controls import PROBE, conversation, object_fields, read_controls, verify_profile
 
-VIEW = Path(__file__).with_name("reply-view.js").read_text(encoding="utf-8")
+from page_scripts import VIEW
 
 
 class Page(Protocol):
@@ -75,7 +76,7 @@ def read_window(view: Mapping[str, object], *, start: int = 0, limit: int = 6000
         text = view.get("text")
         if not isinstance(text, str):
             raise ValueError("Reply text is unavailable")
-        facts = {key: value for key, value in view.items() if key not in {"text", "length", "point", "focused"}}
+        facts = {key: value for key, value in view.items() if key not in {"text", "length", "point", "focused", "user_ids"}}
     if start > len(text):
         raise ValueError("Read offset exceeds the current text")
     end = min(start + limit, len(text))
@@ -92,6 +93,18 @@ def confirmation(page: Page, selectors: Selectors) -> Mapping[str, object]:
 
 def non_pro(model: str) -> bool:
     return bool(model.strip()) and "pro" not in model.casefold()
+
+
+def confirmation_basis(before: Mapping[str, object], after: Mapping[str, object]) -> str:
+    if after.get('latest_user') != '继续':
+        return ''
+    identity, known = after.get('latest_user_id'), before.get('user_ids')
+    if isinstance(identity, str) and identity and isinstance(known, list) and known:
+        return 'new-user-id' if identity not in known else ''
+    if (type(after.get('user_count')) is int and type(before.get('user_count')) is int
+            and cast(int, after['user_count']) > cast(int, before['user_count'])):
+        return 'user-count-increased'
+    return ''
 
 
 def action_guard(selectors: Selectors, *, url: str, version: str, model: str,
@@ -160,14 +173,20 @@ def continue_once(page: Page, selectors: Selectors, *, url: str, target: str,
         page.call("Input.dispatchKeyEvent", {"type": "keyUp", "key": "Enter", "code": "Enter",
                   "windowsVirtualKeyCode": 13}, guard=release_guard)
     attempt.stage = "confirming"
-    after = confirmation(page, selectors)
-    attempt.confirmed = (type(after.get("user_count")) is int
-                         and cast(int, after["user_count"]) > cast(int, before["user_count"])
-                         and after.get("latest_user") == "继续")
+    basis = ''
+    for index in range(10):
+        if index:
+            time.sleep(0.25)
+        after = confirmation(page, selectors)
+        basis = confirmation_basis(before, after)
+        if basis:
+            break
+    attempt.confirmed = bool(basis)
     attempt.stage = "confirmed" if attempt.confirmed else "unconfirmed"
     # 确认失败只返回事实，不再按键，不把空编辑器当发送成功。
     return {"attempt": asdict(attempt), "confirmation": {"before_user_count": before["user_count"],
-            "after_user_count": after.get("user_count"), "latest_user_is_continue": after.get("latest_user") == "继续"},
+            "after_user_count": after.get("user_count"), "latest_user_is_continue": after.get("latest_user") == "继续",
+            "basis":basis, "latest_user_id":after.get('latest_user_id', '')},
             "controls": asdict(read_controls(after.get("controls")))}
 
 

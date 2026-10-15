@@ -13,7 +13,8 @@ if os.environ.get("BROWSER_LIVE_TESTS") == "1":
     from browser_cdp_core import http_json, page_client, wait_ready
     from browser_session import BrowserSession
 
-PROBE = (Path(__file__).parents[1] / "scripts/observe-controls.js").read_text(encoding="utf-8")
+sys.path.insert(0, str(Path(__file__).parents[1] / 'scripts'))
+from page_scripts import PROBE
 ENDPOINT = os.environ.get("BROWSER_FIXTURE_ENDPOINT", "http://127.0.0.1:19322")
 URL = "http://127.0.0.1:19323/dynamic.html"
 NOTICE = "连接已中断，正在等待完整答复"
@@ -21,6 +22,13 @@ NOTICE = "连接已中断，正在等待完整答复"
 
 @unittest.skipUnless(os.environ.get("BROWSER_LIVE_TESTS") == "1", "需通过 browser_fixture.sh 启动独立测试实例")
 class ControlProbeLiveTests(unittest.TestCase):
+    def test_nested_user_without_heading_has_stable_public_message_identity(self):
+        result = self.probe('<main><div data-turn-key="new-id">'
+            '<div class="group/user-message" data-chatgpt-search-message-ids="new-id">'
+            '<div class="group/user-message">继续</div></div></div></main>')
+        self.assertEqual(result['turns'], 1)
+        self.assertEqual(result['latest_turn'], 'data-chatgpt-search-message-ids:new-id')
+
     def setUp(self):
         self.target = http_json(ENDPOINT, "/json/new?" + URL, method="PUT")
         with page_client(self.target, timeout=5) as client:
