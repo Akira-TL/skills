@@ -288,8 +288,9 @@ def watch(sample: Callable[[], tuple[Observation, ...]], *, baseline: tuple[Obse
 def verify_profile(browser_script: Path, endpoint: str) -> None:
     # status 只读，不调用 ensure/tabs，浏览器退出时交回 Agent 而不是自动重开。
     command = ["uv", "run", "--no-project", "--offline", str(browser_script),
-               "--profile", "auto-gpt", "status"]
-    process = subprocess.run(command, capture_output=True, text=True, timeout=30, check=False)
+               "--profile", "auto-gpt", "--timeout", "30", "status"]
+    # Windows 进程核验实测可超过 CLI 的 15 秒默认值；外层另留启动和返回时间。
+    process = subprocess.run(command, capture_output=True, text=True, timeout=45, check=False)
     if process.returncode:
         raise ValueError("Dedicated profile status failed")
     status = object_fields(json.loads(process.stdout))

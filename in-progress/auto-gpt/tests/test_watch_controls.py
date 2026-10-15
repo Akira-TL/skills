@@ -3,7 +3,7 @@ import importlib.util
 import json
 import sys
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from pathlib import Path
 
 sys.dont_write_bytecode = True
@@ -21,6 +21,28 @@ def page(target="one", *, running=False, draft=False, turns=1, alerts=0, dialogs
 
 
 class WatchTests(unittest.TestCase):
+    def test_slow_profile_verification_can_finish_before_its_finite_deadline(self):
+        def status(command, *, timeout, **options):
+            # 模拟实测的 16.8 秒身份核验；未显式传参时浏览器 CLI 默认 15 秒。
+            browser_timeout = (float(command[command.index('--timeout') + 1])
+                               if '--timeout' in command else 15)
+            self.assertGreater(timeout, browser_timeout)
+            return module.subprocess.CompletedProcess(command, 0, json.dumps({
+                'connected': True, 'profileVerified': browser_timeout >= 16.8,
+                'profileIdentity': 'auto-gpt', 'endpoint': 'http://localhost:9333'}))
+        with patch.object(module.subprocess, 'run', side_effect=status):
+            module.verify_profile(script, 'http://localhost:9333')
+
+    def test_profile_verification_still_rejects_unverified_or_different_instances(self):
+        expected = {'connected': True, 'profileVerified': True,
+                    'profileIdentity': 'auto-gpt', 'endpoint': 'http://localhost:9333'}
+        for key, value in (('connected', False), ('profileVerified', False),
+                           ('profileIdentity', 'agent-browser'), ('endpoint', 'http://localhost:9222')):
+            with self.subTest(key=key), patch.object(module.subprocess, 'run', return_value=
+                    module.subprocess.CompletedProcess([], 0, json.dumps({**expected, key: value}))):
+                with self.assertRaises(ValueError):
+                    module.verify_profile(script, 'http://localhost:9333')
+
     def test_page_failure_is_quiet_until_recovery_and_other_pages_keep_sampling(self):
         anchor = MagicMock()
         anchor.call.return_value = {'targetInfos':[
