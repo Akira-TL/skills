@@ -32,10 +32,13 @@ class View(StrEnum):
     UNKNOWN = "unknown"
 
 
-class PageSession(Protocol):
+class TargetDiscovery(Protocol):
+    def call(self, method: str) -> Mapping[str, object]: ...
+
+
+class PageSession(TargetDiscovery, Protocol):
     def __enter__(self) -> PageSession: ...
     def __exit__(self, *args: object) -> None: ...
-    def call(self, method: str) -> Mapping[str, object]: ...
     def evaluate(self, expression: str) -> object: ...
 
 
@@ -98,7 +101,7 @@ class SampleFailure:
 class ControlSampler:
     """单页失败保留旧事实，恢复时返回新事实；重复错误保持安静。"""
 
-    def __init__(self, anchor: PageSession, sessions: SessionFactory, endpoint: str,
+    def __init__(self, anchor: TargetDiscovery, sessions: SessionFactory, endpoint: str,
                  baseline: Sequence[Observation], ignored: set[str],
                  emit: Callable[[Mapping[str, object]], None]):
         self.anchor, self.sessions, self.endpoint = anchor, sessions, endpoint
