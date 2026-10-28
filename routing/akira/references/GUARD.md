@@ -27,6 +27,22 @@ uv run ~/.agents/skills/akira/scripts/guard.py <command> --help
 
 普通开发中如果已经知道具体 Guard 命令，直接调用脚本，不需要额外加载第二个 Skill。
 
+## 单行代码长度
+
+默认每行最多 120 字符。提交时仅检查暂存差异中新增或修改的代码行，使用暂存内容及其行号；未改动的历史长行不阻塞提交。重命名按目标路径与该路径原有内容比较，新路径中的代码需要满足上限。超限返回退出码 `2`，输出文件、行号和实际字符数；`--allow-architecture-warnings` 不能跳过此检查。应拆分表达式、参数和字符串，使新增代码满足上限。
+
+项目内持久设置：
+
+```bash
+git config akira.guardMaxLineLength 120
+```
+
+使用 `git config --global akira.guardMaxLineLength 120` 设置用户默认值。`commit`、`architecture` 和 `check` 均支持 `--max-line-length <正整数>`，优先级为命令行参数、Git 有效配置、内置默认值；无效配置会报错。
+
+按 Unicode 码点计数，缩进、空格、注释和字符串均计入；制表符计一个字符，行尾换行符和文件开头的 UTF-8 字节顺序标记不计。受检代码使用 UTF-8 编码，无法解码时报告错误。受检扩展名以脚本的 `CODE_EXTENSIONS` 为准，覆盖现有架构检查语言及常见前端、Shell、C/C++、SQL 等源文件；Markdown、数据与配置文件不在此规则范围内，既有忽略目录继续生效。
+
+`architecture --staged` 检查暂存新增或修改行；`architecture` 与 `check` 扫描工作目录中的全部受检代码行，因此也会报告历史长行。目录扫描继续跳过嵌套 Git 仓库。
+
 ## 检查分层
 
 **提交级最低检查**应快速、确定，并只针对即将提交的内容。语法完整性、提交格式、架构阈值等适合由 Guard 在提交入口机械执行。

@@ -25,6 +25,24 @@ uv run ~/.agents/skills/akira/scripts/guard.py <command>
 
 大型、关键或高风险修改根据实际失败模式追加 targeted test、类型检查、构建、schema/migration validator 或项目专属检查。最终收尾可使用 Guard 的组合检查能力，同时继续遵守项目自己的验收要求。
 
+## 单行代码长度设置
+
+提交默认阻止新增或修改的代码行超过 120 字符，错误中给出文件、行号与实际长度。未改动的历史长行不阻塞提交；全目录检查仍会报告历史问题。
+
+在目标项目运行以下命令可持久设置该项目的上限：
+
+```bash
+git config akira.guardMaxLineLength 120
+```
+
+增加 `--global` 可设置所有项目的用户默认值。单次调用可使用 `--max-line-length`：
+
+```bash
+uv run ~/.agents/skills/akira/scripts/guard.py architecture --staged --max-line-length 120
+```
+
+命令行参数优先于 Git 配置，`commit` 和 `check` 也支持此参数。计数方式、文件范围和重命名行为见 [`GUARD.md`](../../routing/akira/references/GUARD.md#单行代码长度)。
+
 ## Skiloom Store 边界
 
 Linux 上 Skiloom 可以把 managed projection 以 symlink 指向 Package Store payload。Guard 在导入 sibling Python 模块前关闭 bytecode 写入，避免 `__pycache__` / `.pyc` 污染 Store。

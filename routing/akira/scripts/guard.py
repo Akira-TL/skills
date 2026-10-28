@@ -17,9 +17,17 @@ from staged_syntax import staged_syntax_errors
 DYNAMIC_LIMIT = 800
 STATIC_LIMIT = 1000
 DIRECT_FILE_LIMIT = 8
+MAX_LINE_LENGTH = 120
+LINE_LENGTH_CONFIG = "akira.guardMaxLineLength"
 
 DYNAMIC_EXTENSIONS = {".py", ".js", ".jsx", ".ts", ".tsx"}
 STATIC_EXTENSIONS = {".java", ".go", ".rs"}
+CODE_EXTENSIONS = DYNAMIC_EXTENSIONS | STATIC_EXTENSIONS | {
+    ".mjs", ".cjs", ".mts", ".cts", ".sh", ".bash", ".zsh",
+    ".c", ".h", ".cc", ".cpp", ".hpp", ".cs", ".kt", ".kts",
+    ".swift", ".rb", ".php", ".vue", ".svelte", ".css", ".scss",
+    ".html", ".sql",
+}
 IGNORED_DIRS = {
     ".git",
     ".hg",
@@ -99,7 +107,89 @@ def is_flat_skill_docs_directory(path: Path) -> bool:
     return path.name == "docs" or path.parent.name == "docs"
 
 
-def architecture_scan_tree(root: Path) -> list[str]:
+def positive_line_length(value: str) -> int:
+    try:
+        limit = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("单行长度上限必须是正整数") from None
+    if limit <= 0:
+        raise argparse.ArgumentTypeError("单行长度上限必须是正整数")
+    return limit
+
+
+def configured_line_length(root: Path, override: int | None = None) -> int:
+    if override is not None:
+        return positive_line_length(str(override))
+    result = run_git(["config", "--get", LINE_LENGTH_CONFIG], root)
+    if result.returncode == 1:
+        return MAX_LINE_LENGTH
+    if result.returncode != 0:
+        raise ValueError(f"无法读取 Git 配置 {LINE_LENGTH_CONFIG}")
+    try:
+        return positive_line_length(str(result.stdout).strip())
+    except argparse.ArgumentTypeError as exc:
+        raise ValueError(f"{LINE_LENGTH_CONFIG}: {exc}") from None
+
+
+def line_length_violations(
+    relative: Path,
+    data: bytes,
+    limit: int,
+    added_lines: set[int] | None = None,
+) -> list[str]:
+    try:
+        lines = data.decode("utf-8-sig").split("\n")
+    except UnicodeDecodeError:
+        return [f"{relative}: 无法按 UTF-8 解码并检查单行长度"]
+    violations: list[str] = []
+    for number, line in enumerate(lines, start=1):
+        if added_lines is not None and number not in added_lines:
+            continue
+        length = len(line.removesuffix("\r"))
+        if length > limit:
+            violations.append(f"{relative}:{number}: 单行 {length} 字符，超过 {limit} 字符上限")
+    return violations
+
+
+def staged_line_length_violations(root: Path, limit: int) -> list[str]:
+    changed = git_paths(
+        root,
+        ["diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"],
+    )
+    violations: list[str] = []
+    for relative in changed:
+        if is_ignored_relative(relative) or relative.suffix.lower() not in CODE_EXTENSIONS:
+            continue
+        diff = run_git(
+            [
+                "diff", "--cached", "--no-ext-diff", "--no-textconv", "--no-color",
+                "--no-renames", "--text", "--unified=0", "--inter-hunk-context=0",
+                "--", f":(literal){relative.as_posix()}",
+            ],
+            root,
+            text=False,
+        )
+        if diff.returncode != 0:
+            violations.append(f"{relative}: 无法读取暂存差异并检查单行长度")
+            continue
+        added_lines: set[int] = set()
+        for match in re.finditer(
+            rb"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", bytes(diff.stdout), re.MULTILINE
+        ):
+            start = int(match.group(1))
+            count = int(match.group(2)) if match.group(2) is not None else 1
+            added_lines.update(range(start, start + count))
+        if not added_lines:
+            continue
+        data = git_bytes(root, f":{relative.as_posix()}")
+        if data is None:
+            violations.append(f"{relative}: 无法读取暂存内容并检查单行长度")
+            continue
+        violations.extend(line_length_violations(relative, data, limit, added_lines))
+    return violations
+
+
+def architecture_scan_tree(root: Path, max_line_length: int = MAX_LINE_LENGTH) -> list[str]:
     violations: list[str] = []
 
     for current_root, dirnames, filenames in os.walk(root):
@@ -124,14 +214,16 @@ def architecture_scan_tree(root: Path) -> list[str]:
             if is_ignored_relative(relative):
                 continue
             limit = line_limit(path)
-            if limit is None or not path.is_file():
+            if (limit is None and path.suffix.lower() not in CODE_EXTENSIONS) or not path.is_file():
                 continue
             try:
-                count = line_count_bytes(path.read_bytes())
+                data = path.read_bytes()
             except OSError as exc:
                 warn(f"无法读取 {relative}: {exc}")
                 continue
-            if count > limit:
+            violations.extend(line_length_violations(relative, data, max_line_length))
+            count = line_count_bytes(data)
+            if limit is not None and count > limit:
                 violations.append(f"{relative} 为 {count} 行，超过 {limit} 行阈值")
 
     return violations
@@ -326,13 +418,15 @@ def cmd_skills(args: argparse.Namespace) -> int:
 
 def cmd_architecture(args: argparse.Namespace) -> int:
     target = Path(args.path).expanduser().resolve()
+    limit = configured_line_length(target, args.max_line_length)
     if args.staged:
         root = git_root(target)
         if root is None:
             fail(f"{target} 不是 Git 仓库")
             return 1
-        return report_architecture(architecture_scan_staged(root))
-    return report_architecture(architecture_scan_tree(target))
+        violations = architecture_scan_staged(root) + staged_line_length_violations(root, limit)
+        return report_architecture(violations)
+    return report_architecture(architecture_scan_tree(target, limit))
 
 
 def guarded_commit(
@@ -340,6 +434,7 @@ def guarded_commit(
     message: str,
     *,
     allow_architecture_warnings: bool = False,
+    max_line_length: int | None = None,
 ) -> int:
     message_errors = validate_commit_message(message)
     if message_errors:
@@ -358,6 +453,14 @@ def guarded_commit(
             fail(f"暂存语法检查失败：{error}")
         return 2
     ok("暂存语法检查通过")
+
+    limit = configured_line_length(root, max_line_length)
+    length_errors = staged_line_length_violations(root, limit)
+    if length_errors:
+        for error in length_errors:
+            fail(f"暂存单行长度检查失败：{error}")
+        return 2
+    ok(f"暂存单行长度检查通过（上限 {limit} 字符）")
 
     violations = architecture_scan_staged(root)
     if violations:
@@ -387,6 +490,7 @@ def cmd_commit(args: argparse.Namespace) -> int:
         root,
         args.message,
         allow_architecture_warnings=args.allow_architecture_warnings,
+        max_line_length=args.max_line_length,
     )
 
 
@@ -410,9 +514,19 @@ def report_git_structure(target: Path) -> None:
 
 def cmd_check(args: argparse.Namespace) -> int:
     target = Path(args.path).expanduser().resolve()
-    result = cmd_architecture(argparse.Namespace(path=str(target), staged=False))
+    result = cmd_architecture(
+        argparse.Namespace(path=str(target), staged=False, max_line_length=args.max_line_length)
+    )
     report_git_structure(target)
     return result
+
+
+def add_line_length_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--max-line-length",
+        type=positive_line_length,
+        help=f"单行代码字符上限；优先于 Git 配置 {LINE_LENGTH_CONFIG}，默认 {MAX_LINE_LENGTH}",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -423,6 +537,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     architecture_parser = subparsers.add_parser("architecture", help="检查代码规模与目录规模")
     architecture_parser.add_argument("path", nargs="?", default=".")
+    add_line_length_argument(architecture_parser)
     architecture_parser.add_argument(
         "--staged",
         action="store_true",
@@ -439,6 +554,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="验证提交信息、暂存语法与暂存架构后执行 Git commit",
     )
     commit_parser.add_argument("-m", "--message", required=True)
+    add_line_length_argument(commit_parser)
     commit_parser.add_argument(
         "--allow-architecture-warnings",
         action="store_true",
@@ -448,6 +564,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     check_parser = subparsers.add_parser("check", help="运行当前项目适用的机械检查")
     check_parser.add_argument("path", nargs="?", default=".")
+    add_line_length_argument(check_parser)
     check_parser.set_defaults(func=cmd_check)
 
     return parser
@@ -456,7 +573,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
-    return int(args.func(args))
+    try:
+        return int(args.func(args))
+    except ValueError as exc:
+        fail(str(exc))
+        return 1
 
 
 if __name__ == "__main__":
